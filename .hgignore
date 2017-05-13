@@ -1,0 +1,8 @@
+syntax: glob
+.bin/*
+.dcu/*
+*.stat
+*.~dsk
+*.local
+Include/ProtoBufGenerator/.git/*
+Include/ProtoBufGenerator/.gitignore
