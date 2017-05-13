@@ -1,0 +1,1 @@
+brcc32 -l0409 -foLogo.res Logo\logo.rc
