@@ -6,3 +6,7 @@ syntax: glob
 *.local
 Include/ProtoBufGenerator/.git/*
 Include/ProtoBufGenerator/.gitignore
+__history/*
+__recovery/*
+*.dsk
+*.identcache
