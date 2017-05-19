@@ -97,10 +97,13 @@ begin
     FCheckerTasks.Add( MakeTask(VTask) );
   end;
 
+  VDownloader :=
+    TDownloaderWithRamCache.Create(
+      TDownloaderByIndy.Create(VProxyParams)
+    );
+
   // GoogleEarth Web
   for VGEWebCheckType := Low(TGoogleEarthWebCheckType) to High(TGoogleEarthWebCheckType) do begin
-    VDownloader := TDownloaderByIndy.Create(VProxyParams);
-
     VListener := TTaskInfoListener.Create(grpGEWeb);
     FListeners.Add(VListener);
 
@@ -114,10 +117,6 @@ begin
   end;
 
   // GoogleMaps
-  VDownloader :=
-    TDownloaderWithRamCache.Create(
-      TDownloaderByIndy.Create(VProxyParams)
-    );
   for VGMCheckType := Low(TGoogleMapsCheckType) to High(TGoogleMapsCheckType) do begin
     VListener := TTaskInfoListener.Create(grpGM);
     FListeners.Add(VListener);

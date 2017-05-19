@@ -4,7 +4,7 @@ object frmMain: TfrmMain
   BorderIcons = [biSystemMenu]
   BorderStyle = bsSingle
   Caption = 'GoogleEarth Update Checker'
-  ClientHeight = 286
+  ClientHeight = 338
   ClientWidth = 340
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -27,11 +27,10 @@ object frmMain: TfrmMain
     Align = alTop
     Caption = 'Google Earth Classic'
     TabOrder = 0
-    ExplicitWidth = 337
   end
   object btnExit: TButton
     Left = 257
-    Top = 255
+    Top = 307
     Width = 75
     Height = 25
     Align = alCustom
@@ -39,7 +38,7 @@ object frmMain: TfrmMain
     Caption = 'Exit'
     TabOrder = 1
     OnClick = btnExitClick
-    ExplicitLeft = 260
+    ExplicitTop = 291
   end
   object grpGEWeb: TGroupBox
     AlignWithMargins = True
@@ -50,26 +49,27 @@ object frmMain: TfrmMain
     Align = alTop
     Caption = 'Google Earth Web'
     TabOrder = 2
-    ExplicitWidth = 337
   end
   object grpGM: TGroupBox
     AlignWithMargins = True
     Left = 3
     Top = 195
     Width = 334
-    Height = 54
+    Height = 108
     Align = alTop
     Caption = 'Google Maps'
     TabOrder = 3
-    ExplicitWidth = 337
   end
   object btnAbout: TButton
     Left = 3
-    Top = 255
+    Top = 307
     Width = 25
     Height = 25
+    Align = alCustom
+    Anchors = [akLeft, akBottom]
     Caption = '?'
     TabOrder = 4
     OnClick = btnAboutClick
+    ExplicitTop = 291
   end
 end

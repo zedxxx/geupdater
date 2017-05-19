@@ -38,7 +38,7 @@ uses
   RegularExpressions,
   c_UserAget,
   i_DownloadResponse,
-  planetoid_metadata;
+  u_PlanetoidMetadata;
 
 const
   cUrl: array [TGoogleEarthWebCheckType] of string = (
@@ -106,42 +106,18 @@ begin
   end;
 end;
 
-procedure SaveDump(const AData: Pointer; const ASize: Int64);
-var
-  VStream: TFileStream;
-begin
-  VStream := TFileStream.Create('pb_dump.bin', fmCreate);
-  try
-    VStream.Write(AData^, ASize + 4);
-  finally
-    VStream.Free;
-  end;
-end;
-
 function GetVersion(const AData: Pointer; const ASize: Int64): string;
 var
-  f02, f05: Integer;
-  VPlanetoidMetadata: TPlanetoidMetadata;
+  VMetadata: TPlanetoidMetadataRec;
 begin
   Result := '';
   if ASize > 0 then begin
-    try
-      VPlanetoidMetadata := TPlanetoidMetadata.Create;
-      try
-        VPlanetoidMetadata.LoadFromMem(AData, ASize);
-        f02 := VPlanetoidMetadata.epoch.f02;
-        f05 := VPlanetoidMetadata.epoch.f05;
-        if f02 = f05 then begin
-          Result := IntToStr(f02);
-        end else begin
-          Result := IntToStr(f02) + ',' + IntToStr(f05);
-        end;
-      finally
-        VPlanetoidMetadata.Free;
+    if ParseMetadata(AData, ASize, VMetadata) then begin
+      if VMetadata.Epoch_02 = VMetadata.Epoch_05 then begin
+        Result := IntToStr(VMetadata.Epoch_02);
+      end else begin
+        Result := Format('%d,%d', [VMetadata.Epoch_02, VMetadata.Epoch_05]);
       end;
-    except
-      SaveDump(AData, ASize);
-      raise;
     end;
   end;
 end;

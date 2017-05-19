@@ -10,7 +10,7 @@ uses
   u_UpdateCheckerTaskBase;
 
 type
-  TGoogleMapsCheckType = (gmctSat, gmctApi);
+  TGoogleMapsCheckType = (gmctEarth, gmctMars, gmctMoon, gmctSat, gmctApi);
 
   TGoogleMaps = class(TUpdateCheckerTaskBase)
   private
@@ -37,15 +37,30 @@ uses
   SysUtils,
   RegularExpressions,
   c_UserAget,
-  i_DownloadResponse;
+  i_DownloadResponse,
+  u_PlanetoidMetadata;
 
 const
+  cUrl: array [TGoogleMapsCheckType] of string = (
+    'https://kh.google.com/rt/earth/PlanetoidMetadata',
+    'https://khms.google.com/dm/Epoch?db=mars',
+    'https://khms.google.com/dm/Epoch?db=moon',
+    'https://maps.googleapis.com/maps/api/js',
+    'https://maps.googleapis.com/maps/api/js'
+  );
+
   cName: array [TGoogleMapsCheckType] of string = (
-    'Satellite',
+    'Earth',
+    'Mars',
+    'Moon',
+    'Flat Earth',
     'JS API'
   );
 
   cGUID: array [TGoogleMapsCheckType] of string = (
+    '{34D0C112-755B-4D4F-B9A4-9F4961E5FA84}',
+    '{A6359894-6FA9-4717-801A-4D011DC8AAAD}',
+    '{42F97AF2-D938-4056-9F7B-738BDADA6CF8}',
     '{D732DF07-37C4-4773-9C88-AA95C1A7AAFF}',
     '{45B30A7C-F81D-4E85-9E7D-52DE35E25173}'
   );
@@ -75,7 +90,7 @@ end;
 
 function TGoogleMaps.GetUrl: string;
 begin
-  Result := 'https://maps.googleapis.com/maps/api/js';
+  Result := cUrl[FCheckType];
 end;
 
 function TGoogleMaps.GetHeaders: string;
@@ -87,7 +102,7 @@ begin
     'Accept-Language: en-us,en,*';
 end;
 
-function GetVersion(const AText: string): string;
+function GetSatVersion(const AText: string): string;
 var
   VPattern: string;
   VMatch: TMatch;
@@ -117,6 +132,37 @@ begin
   end;
 end;
 
+function GetDbVersion(const AText: string): string;
+var
+  VPattern: string;
+  VMatch: TMatch;
+begin
+  Result := '';
+  if AText <> '' then begin
+    VPattern := '(\d+)';
+    VMatch := TRegEx.Match(AText, VPattern, [roIgnoreCase, roMultiLine]);
+    if VMatch.Success then begin
+      Result := VMatch.Groups.Item[1].Value;
+    end;
+  end;
+end;
+
+function GetVersion(const AData: Pointer; const ASize: Int64): string;
+var
+  VMetadata: TPlanetoidMetadataRec;
+begin
+  Result := '';
+  if ASize > 0 then begin
+    if ParseMetadata(AData, ASize, VMetadata) then begin
+      if VMetadata.Epoch_02 = VMetadata.Epoch_05 then begin
+        Result := IntToStr(VMetadata.Epoch_02);
+      end else begin
+        Result := Format('%d,%d', [VMetadata.Epoch_02, VMetadata.Epoch_05]);
+      end;
+    end;
+  end;
+end;
+
 procedure TGoogleMaps.DoExecute;
 var
   VUrl: string;
@@ -130,8 +176,10 @@ begin
     FInfo.State := tsFinished;
     FInfo.LastModified := VResponse.LastModified;
     case FCheckType of
-      gmctSat: FInfo.Version := GetVersion(VResponse.GetBodyAsText);
+      gmctSat: FInfo.Version := GetSatVersion(VResponse.GetBodyAsText);
       gmctApi: FInfo.Version := GetApiVersion(VResponse.GetBodyAsText);
+      gmctEarth: FInfo.Version := GetVersion(VResponse.Body, VResponse.BodySize);
+      gmctMars, gmctMoon: FInfo.Version := GetDbVersion(VResponse.GetBodyAsText);
     else
       Assert(False);
     end;
