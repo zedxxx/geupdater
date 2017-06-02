@@ -21,8 +21,7 @@ type
     procedure ClearInfo(var AInfo: TTaskInfo);
     procedure UpdateListener;
   protected
-    function GetGUID: TGUID; virtual; abstract;
-    function GetName: string; virtual; abstract;
+    function GetConf: TTaskConf; virtual; abstract;
     procedure DoExecute; virtual; abstract;
   private
     { IUpdateCheckerTask }
@@ -64,8 +63,8 @@ end;
 procedure TUpdateCheckerTaskBase.AfterConstruction;
 begin
   inherited;
-  FInfo.Name := GetName;
-  FHasStoredInfo := FStoredInfo.Read(GetGUID, FStoredInfoRec);
+  FInfo.Conf := GetConf;
+  FHasStoredInfo := FStoredInfo.Read(StringToGUID(FInfo.Conf.GUID), FStoredInfoRec);
   UpdateListener;
 end;
 
@@ -81,7 +80,7 @@ begin
           FStoredInfoRec.Version := FInfo.Version;
           FStoredInfoRec.LastModified := FInfo.LastModified;
           FStoredInfoRec.LastCheck := Now;
-          FStoredInfo.Write(GetGUID, FStoredInfoRec);
+          FStoredInfo.Write(StringToGUID(FInfo.Conf.GUID), FStoredInfoRec);
         end;
       end;
     except
@@ -96,7 +95,9 @@ end;
 procedure TUpdateCheckerTaskBase.ClearInfo(var AInfo: TTaskInfo);
 begin
   AInfo.State := tsNone;
-  AInfo.Name :=  '';
+  AInfo.Conf.GUID :=  '';
+  AInfo.Conf.DisplayName :=  '';
+  AInfo.Conf.RequestUrl :=  '';
   AInfo.LastModified := 0;
   AInfo.Version := '';
   AInfo.IsUpdatesFound := False;

@@ -15,11 +15,9 @@ type
   TGoogleEarthWeb = class(TUpdateCheckerTaskBase)
   private
     FCheckType: TGoogleEarthWebCheckType;
-    function GetUrl: string;
     function GetHeaders: string;
   protected
-    function GetGUID: TGUID; override;
-    function GetName: string; override;
+    function GetConf: TTaskConf; override;
     procedure DoExecute; override;
   public
     constructor Create(
@@ -41,17 +39,14 @@ uses
   u_PlanetoidMetadata;
 
 const
-  cUrl: array [TGoogleEarthWebCheckType] of string = (
-    'https://kh.google.com/rt/earth/PlanetoidMetadata',
-    'https://earth.google.com/static/'
-  );
-  cName: array [TGoogleEarthWebCheckType] of string = (
-    'Earth',
-    'Client'
-  );
-  cGUID: array [TGoogleEarthWebCheckType] of string = (
-    '{CABC52B6-A855-43D8-88CB-718A04ECF82F}',
-    '{E36D2679-DEA2-4E05-93D0-777DF1E9F913}'
+  cTaskConf: array [TGoogleEarthWebCheckType] of TTaskConf = (
+    (GUID:        '{CABC52B6-A855-43D8-88CB-718A04ECF82F}';
+     RequestUrl:  'https://kh.google.com/rt/earth/PlanetoidMetadata';
+     DisplayName: 'Earth'),
+
+    (GUID:        '{E36D2679-DEA2-4E05-93D0-777DF1E9F913}';
+     RequestUrl:  'https://earth.google.com/static/';
+     DisplayName: 'Client')
   );
 
 { TGoogleEarthWeb }
@@ -67,19 +62,9 @@ begin
   FCheckType := ACheckType;
 end;
 
-function TGoogleEarthWeb.GetGUID: TGUID;
+function TGoogleEarthWeb.GetConf: TTaskConf;
 begin
-  Result := StringToGUID(cGUID[FCheckType]);
-end;
-
-function TGoogleEarthWeb.GetName: string;
-begin
-  Result := cName[FCheckType];
-end;
-
-function TGoogleEarthWeb.GetUrl: string;
-begin
-  Result := cUrl[FCheckType];
+  Result := cTaskConf[FCheckType];
 end;
 
 function TGoogleEarthWeb.GetHeaders: string;
@@ -124,13 +109,11 @@ end;
 
 procedure TGoogleEarthWeb.DoExecute;
 var
-  VUrl: string;
   VRawHeaders: string;
   VResponse: IDownloadResponse;
 begin
-  VUrl := GetUrl;
   VRawHeaders := GetHeaders;
-  VResponse := FDownloader.DoGetRequest(VUrl, VRawHeaders);
+  VResponse := FDownloader.DoGetRequest(FInfo.Conf.RequestUrl, VRawHeaders);
   if VResponse.Code = 200 then begin
     FInfo.State := tsFinished;
     FInfo.LastModified := VResponse.LastModified;

@@ -64,7 +64,7 @@ begin
 
   TThread.Synchronize(nil, procedure()
     begin
-      FLabel[cNameIndex].Caption := VInfo.Name + ':';
+      FLabel[cNameIndex].Caption := VInfo.Conf.DisplayName + ':';
 
       if VInfo.State = tsFinished then begin
         if VInfo.LastModified <> 0 then begin

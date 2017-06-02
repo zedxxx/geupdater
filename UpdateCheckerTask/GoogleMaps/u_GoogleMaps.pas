@@ -15,11 +15,9 @@ type
   TGoogleMaps = class(TUpdateCheckerTaskBase)
   private
     FCheckType: TGoogleMapsCheckType;
-    function GetUrl: string;
     function GetHeaders: string;
   protected
-    function GetGUID: TGUID; override;
-    function GetName: string; override;
+    function GetConf: TTaskConf; override;
     procedure DoExecute; override;
   public
     constructor Create(
@@ -41,28 +39,26 @@ uses
   u_PlanetoidMetadata;
 
 const
-  cUrl: array [TGoogleMapsCheckType] of string = (
-    'https://kh.google.com/rt/earth/PlanetoidMetadata',
-    'https://khms.google.com/dm/Epoch?db=mars',
-    'https://khms.google.com/dm/Epoch?db=moon',
-    'https://maps.googleapis.com/maps/api/js',
-    'https://maps.googleapis.com/maps/api/js'
-  );
+  cTaskConf: array [TGoogleMapsCheckType] of TTaskConf = (
+    (GUID:        '{34D0C112-755B-4D4F-B9A4-9F4961E5FA84}';
+     RequestUrl:  'https://kh.google.com/rt/earth/PlanetoidMetadata';
+     DisplayName: 'Earth'),
 
-  cName: array [TGoogleMapsCheckType] of string = (
-    'Earth',
-    'Mars',
-    'Moon',
-    'Flat Earth',
-    'JS API'
-  );
+    (GUID:        '{A6359894-6FA9-4717-801A-4D011DC8AAAD}';
+     RequestUrl:  'https://khms.google.com/dm/Epoch?db=mars';
+     DisplayName: 'Mars'),
 
-  cGUID: array [TGoogleMapsCheckType] of string = (
-    '{34D0C112-755B-4D4F-B9A4-9F4961E5FA84}',
-    '{A6359894-6FA9-4717-801A-4D011DC8AAAD}',
-    '{42F97AF2-D938-4056-9F7B-738BDADA6CF8}',
-    '{D732DF07-37C4-4773-9C88-AA95C1A7AAFF}',
-    '{45B30A7C-F81D-4E85-9E7D-52DE35E25173}'
+    (GUID:        '{42F97AF2-D938-4056-9F7B-738BDADA6CF8}';
+     RequestUrl:  'https://khms.google.com/dm/Epoch?db=moon';
+     DisplayName: 'Moon'),
+
+    (GUID:        '{D732DF07-37C4-4773-9C88-AA95C1A7AAFF}';
+     RequestUrl:  'https://maps.googleapis.com/maps/api/js';
+     DisplayName: 'Flat Earth'),
+
+    (GUID:        '{45B30A7C-F81D-4E85-9E7D-52DE35E25173}';
+     RequestUrl:  'https://maps.googleapis.com/maps/api/js';
+     DisplayName: 'JS API')
   );
 
 { TGoogleMaps }
@@ -78,19 +74,9 @@ begin
   FCheckType := ACheckType;
 end;
 
-function TGoogleMaps.GetName: string;
+function TGoogleMaps.GetConf: TTaskConf;
 begin
-  Result := cName[FCheckType];
-end;
-
-function TGoogleMaps.GetGUID: TGUID;
-begin
-  Result := StringToGUID(cGUID[FCheckType]);
-end;
-
-function TGoogleMaps.GetUrl: string;
-begin
-  Result := cUrl[FCheckType];
+  Result := cTaskConf[FCheckType];
 end;
 
 function TGoogleMaps.GetHeaders: string;
@@ -165,13 +151,11 @@ end;
 
 procedure TGoogleMaps.DoExecute;
 var
-  VUrl: string;
   VRawHeaders: string;
   VResponse: IDownloadResponse;
 begin
-  VUrl := GetUrl;
   VRawHeaders := GetHeaders;
-  VResponse := FDownloader.DoGetRequest(VUrl, VRawHeaders);
+  VResponse := FDownloader.DoGetRequest(FInfo.Conf.RequestUrl, VRawHeaders);
   if VResponse.Code = 200 then begin
     FInfo.State := tsFinished;
     FInfo.LastModified := VResponse.LastModified;

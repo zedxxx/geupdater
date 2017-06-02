@@ -22,12 +22,10 @@ type
   TGoogleEarthClassic = class(TUpdateCheckerTaskBase)
   private
     FCheckType: TGoogleEarthClassicCheckType;
-    function GetUrl: string;
     function GetHeaders: string;
     function IsClientCheck: Boolean; inline;
   protected
-    function GetGUID: TGUID; override;
-    function GetName: string; override;
+    function GetConf: TTaskConf; override;
     procedure DoExecute; override;
   public
     constructor Create(
@@ -47,31 +45,32 @@ uses
   i_DownloadResponse;
 
 const
-  cUrl: array [TGoogleEarthClassicCheckType] of string = (
-    'http://kh.google.com/dbRoot.v5?',
-    'http://khmdb.google.com/dbRoot.v5?db=tm&',
-    'http://khmdb.google.com/dbRoot.v5?db=sky&',
-    'http://khmdb.google.com/dbRoot.v5?db=mars&',
-    'http://khmdb.google.com/dbRoot.v5?db=moon&',
-    'http://dl.google.com/earth/client/advanced/current/GoogleEarthProWin.exe'
-  );
+  cLang = 'hl=en-GB&gl=us';
 
-  cName: array [TGoogleEarthClassicCheckType] of string = (
-    'Earth',
-    'History',
-    'Sky',
-    'Mars',
-    'Moon',
-    'Client'
-  );
+  cTaskConf: array [TGoogleEarthClassicCheckType] of TTaskConf = (
+    (GUID:        '{2736BF1B-C010-4262-91DD-BFA152DAB1E1}';
+     RequestUrl:  'http://kh.google.com/dbRoot.v5?' + cLang;
+     DisplayName: 'Earth'),
 
-  cGUID: array [TGoogleEarthClassicCheckType] of string = (
-    '{2736BF1B-C010-4262-91DD-BFA152DAB1E1}',
-    '{FC49C486-B6CD-4FF2-B7A8-413EA1402695}',
-    '{9D7D345D-F3F1-4287-8A3D-EE6AA3099BE8}',
-    '{F5872C50-7F68-4B43-AED3-DB34A71B5FA4}',
-    '{AC2DAEA2-8F2A-42FC-87E1-397DA2C203F3}',
-    '{146E4984-C081-4DA0-9F79-5855F271923C}'
+    (GUID:        '{FC49C486-B6CD-4FF2-B7A8-413EA1402695}';
+     RequestUrl:  'http://khmdb.google.com/dbRoot.v5?db=tm&' + cLang;
+     DisplayName: 'History'),
+
+    (GUID:        '{9D7D345D-F3F1-4287-8A3D-EE6AA3099BE8}';
+     RequestUrl:  'http://khmdb.google.com/dbRoot.v5?db=sky&' + cLang;
+     DisplayName: 'Sky'),
+
+    (GUID:        '{F5872C50-7F68-4B43-AED3-DB34A71B5FA4}';
+     RequestUrl:  'http://khmdb.google.com/dbRoot.v5?db=mars&' + cLang;
+     DisplayName: 'Mars'),
+
+    (GUID:        '{AC2DAEA2-8F2A-42FC-87E1-397DA2C203F3}';
+     RequestUrl:  'http://khmdb.google.com/dbRoot.v5?db=moon&' + cLang;
+     DisplayName: 'Moon'),
+
+    (GUID:        '{146E4984-C081-4DA0-9F79-5855F271923C}';
+     RequestUrl:  'http://dl.google.com/earth/client/advanced/current/GoogleEarthProWin.exe';
+     DisplayName: 'Client')
   );
 
 function DateTimeToRFC1123(ADate: TDateTime): string;
@@ -107,27 +106,14 @@ begin
   FCheckType := ACheckType;
 end;
 
-function TGoogleEarthClassic.GetGUID: TGUID;
+function TGoogleEarthClassic.GetConf: TTaskConf;
 begin
-  Result := StringToGUID(cGUID[FCheckType]);
-end;
-
-function TGoogleEarthClassic.GetName: string;
-begin
-  Result := cName[FCheckType];
+  Result := cTaskConf[FCheckType];
 end;
 
 function TGoogleEarthClassic.IsClientCheck: Boolean;
 begin
   Result := FCheckType = gecctClient;
-end;
-
-function TGoogleEarthClassic.GetUrl: string;
-begin
-  Result := cUrl[FCheckType];
-  if not IsClientCheck then begin
-    Result := Result + 'hl=en-GB&gl=us';
-  end;
 end;
 
 function TGoogleEarthClassic.GetHeaders: string;
@@ -178,7 +164,7 @@ var
   VRawHeaders: string;
   VResponse: IDownloadResponse;
 begin
-  VUrl := GetUrl;
+  VUrl := FInfo.Conf.RequestUrl;
   VRawHeaders := GetHeaders;
 
   if IsClientCheck then begin

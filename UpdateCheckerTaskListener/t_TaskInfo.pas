@@ -5,9 +5,15 @@ interface
 type
   TTaskState = (tsNone, tsInProgress, tsFailed, tsFinished);
 
+  TTaskConf = record
+    GUID: string;
+    RequestUrl: string;
+    DisplayName: string;
+  end;
+
   TTaskInfo = record
     State: TTaskState;
-    Name: string;
+    Conf: TTaskConf;
     LastModified: TDateTime;
     Version: string;
     IsUpdatesFound: Boolean;
