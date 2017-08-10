@@ -110,7 +110,7 @@ var
 begin
   Result := '';
   if AText <> '' then begin
-    VPattern := '\[\"https://maps\.googleapis\.com/maps-api-(.*?)/api/js/\d+/\d+\",\"(.*?)\"\]';
+    VPattern := '\[\"https://maps\.googleapis\.com/maps-api-(.*?)",\"(.*?)\"\]';
     VMatch := TRegEx.Match(AText, VPattern, [roIgnoreCase, roMultiLine]);
     if VMatch.Success then begin
       Result := VMatch.Groups.Item[2].Value;
