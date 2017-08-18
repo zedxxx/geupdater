@@ -30,7 +30,8 @@ implementation
 uses
   System.SysUtils,
   System.Classes,
-  Vcl.Graphics;
+  Vcl.Graphics,
+  u_DateTimeUtils;
 
 const
   cNameIndex           = 0;
@@ -69,7 +70,7 @@ begin
       if VInfo.State = tsFinished then begin
         if VInfo.LastModified <> 0 then begin
           FLabel[cLastModifiedIndex].Caption :=
-            FormatDateTime('dd-mm-yyyy hh:mm:ss', VInfo.LastModified);
+            FormatDateTime('dd-mm-yyyy hh:mm:ss', UTCToLocalTime(VInfo.LastModified));
         end else begin
           FLabel[cLastModifiedIndex].Caption := '';
         end;
