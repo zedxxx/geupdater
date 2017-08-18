@@ -42,7 +42,8 @@ uses
   Classes,
   SysUtils,
   c_UserAget,
-  i_DownloadResponse;
+  i_DownloadResponse,
+  u_DateTimeUtils;
 
 const
   cLang = 'hl=en-GB&gl=us';
@@ -72,26 +73,6 @@ const
      RequestUrl:  'http://dl.google.com/earth/client/advanced/current/GoogleEarthProWin.exe';
      DisplayName: 'Client')
   );
-
-function DateTimeToRFC1123(ADate: TDateTime): string;
-const
-  cStrWeekDay: string = 'MonTueWedThuFriSatSun';
-  cStrMonth: string = 'JanFebMarAprMayJunJulAugSepOctNovDec';
-var
-  VYear, VMonth, VDay: Word;
-  VHour, VMin, VSec, VMSec: Word;
-  VDayOfWeek: Word;
-begin
-  DecodeDate(ADate, VYear, VMonth, VDay);
-  DecodeTime(ADate, VHour, VMin, VSec, VMSec);
-  VDayOfWeek := (Trunc(ADate) - 2) mod 7;
-  Result :=
-    Copy(cStrWeekDay, 1 + VDayOfWeek * 3, 3) + ', ' +
-    Format(
-      '%2.2d %s %4.4d %2.2d:%2.2d:%2.2d',
-      [VDay, Copy(cStrMonth, 1 + 3 * (VMonth - 1), 3), VYear, VHour, VMin, VSec]
-    ) + ' GMT';
-end;
 
 { TGoogleEarthClassic }
 

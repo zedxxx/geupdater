@@ -38,7 +38,8 @@ type
 implementation
 
 uses
-  SysUtils;
+  SysUtils,
+  u_DateTimeUtils;
 
 { TUpdateCheckerTaskBase }
 
@@ -79,7 +80,7 @@ begin
         if FInfo.IsUpdatesFound or not FHasStoredInfo then begin
           FStoredInfoRec.Version := FInfo.Version;
           FStoredInfoRec.LastModified := FInfo.LastModified;
-          FStoredInfoRec.LastCheck := Now;
+          FStoredInfoRec.LastCheck := LocalTimeToUTC(Now);
           FStoredInfo.Write(StringToGUID(FInfo.Conf.GUID), FStoredInfoRec);
         end;
       end;

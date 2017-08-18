@@ -26,7 +26,8 @@ uses
   u_UpdateCheckerStoredInfo in 'UpdateCheckerTask\u_UpdateCheckerStoredInfo.pas',
   u_DownloaderWithRamCache in 'Downloader\u_DownloaderWithRamCache.pas',
   frm_About in 'frm_About.pas' {frmAbout},
-  u_PlanetoidMetadata in 'UpdateCheckerTask\GoogleEarthWeb\u_PlanetoidMetadata.pas';
+  u_PlanetoidMetadata in 'UpdateCheckerTask\GoogleEarthWeb\u_PlanetoidMetadata.pas',
+  u_DateTimeUtils in 'u_DateTimeUtils.pas';
 
 {$R *.res}
 
