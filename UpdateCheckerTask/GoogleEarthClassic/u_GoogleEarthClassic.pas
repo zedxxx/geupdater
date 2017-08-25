@@ -108,9 +108,9 @@ begin
       'Accept-Encoding: gzip,deflate' + #13#10 +
       'Accept-Language: en-us,en,*';
   end else begin
-    if FHasStoredInfo then begin
+    if FHasStoredInfo and (FStoredInfoRec.LastModified <> 0) then begin
       VIfModifiedSince :=
-        'If-Modified-Since: ' + DateTimeToRFC1123(FStoredInfoRec.LastCheck) + #13#10;
+        'If-Modified-Since: ' + DateTimeToRFC1123(FStoredInfoRec.LastModified) + #13#10;
     end else begin
       VIfModifiedSince := '';
     end;

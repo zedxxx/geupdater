@@ -55,6 +55,7 @@ uses
   SysUtils,
   IdSSLOpenSSL,
   IdCompressorZLib,
+  u_DateTimeUtils,
   u_DownloadResponse;
 
 { TDownloaderByIndy }
@@ -109,6 +110,7 @@ var
   VIsHttps: Boolean;
   VRetryCount: Integer;
   VRespStream: TMemoryStream;
+  VLastModifiedUTC: TDateTime;
 begin
   Result := nil;
   FLock.Acquire;
@@ -155,10 +157,15 @@ begin
             Assert(False);
           end;
 
+          VLastModifiedUTC := FIdHTTP.Response.LastModified;
+          if VLastModifiedUTC <> 0 then begin
+            VLastModifiedUTC := LocalTimeToUTC(VLastModifiedUTC);
+          end;
+
           Result := TDownloadResponse.Create(
             FIdHTTP.ResponseCode,
             FIdHTTP.Response.RawHeaders.Text,
-            FIdHTTP.Response.LastModified,
+            VLastModifiedUTC,
             VRespStream
           );
           VRespStream := nil; // TDownloadResponse owns this stream
