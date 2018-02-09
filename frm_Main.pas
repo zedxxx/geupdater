@@ -25,6 +25,7 @@ type
     grpGEClassic: TGroupBox;
     grpGEWeb: TGroupBox;
     grpGM: TGroupBox;
+    grpGMClassic: TGroupBox;
     btnExit: TButton;
     btnAbout: TButton;
     procedure FormCreate(Sender: TObject);
@@ -116,8 +117,27 @@ begin
     FCheckerTasks.Add( MakeTask(VTask) );
   end;
 
+  // GoogleMaps Classic
+  for VGMCheckType in cGoogleMapsClassicSet do begin
+    VListener := TTaskInfoListener.Create(grpGMClassic);
+    FListeners.Add(VListener);
+
+    VTask := TGoogleMaps.Create(
+      VGMCheckType,
+      VDownloader,
+      VStoredInfo,
+      TArray<ITaskInfoListener>.Create(VListener)
+    );
+    FCheckerTasks.Add( MakeTask(VTask) );
+  end;
+
   // GoogleMaps
   for VGMCheckType := Low(TGoogleMapsCheckType) to High(TGoogleMapsCheckType) do begin
+
+    if VGMCheckType in cGoogleMapsClassicSet then begin
+      Continue;
+    end;
+
     VListener := TTaskInfoListener.Create(grpGM);
     FListeners.Add(VListener);
 

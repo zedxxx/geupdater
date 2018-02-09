@@ -12,6 +12,10 @@ uses
 type
   TGoogleMapsCheckType = (gmctEarth, gmctMars, gmctMoon, gmctSat, gmctApi);
 
+const
+  cGoogleMapsClassicSet: set of TGoogleMapsCheckType = [gmctSat, gmctApi];
+
+type
   TGoogleMaps = class(TUpdateCheckerTaskBase)
   private
     FCheckType: TGoogleMapsCheckType;
@@ -54,7 +58,7 @@ const
 
     (GUID:        '{D732DF07-37C4-4773-9C88-AA95C1A7AAFF}';
      RequestUrl:  'https://maps.googleapis.com/maps/api/js';
-     DisplayName: 'Flat Earth'),
+     DisplayName: 'Earth'),
 
     (GUID:        '{45B30A7C-F81D-4E85-9E7D-52DE35E25173}';
      RequestUrl:  'https://maps.googleapis.com/maps/api/js';
