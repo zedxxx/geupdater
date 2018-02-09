@@ -3,8 +3,8 @@ object frmAbout: TfrmAbout
   Top = 0
   BorderStyle = bsDialog
   Caption = 'About'
-  ClientHeight = 151
-  ClientWidth = 340
+  ClientHeight = 136
+  ClientWidth = 204
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -13,19 +13,11 @@ object frmAbout: TfrmAbout
   Font.Style = []
   OldCreateOrder = False
   Position = poMainFormCenter
-  OnCreate = FormCreate
   OnShow = FormShow
   PixelsPerInch = 96
   TextHeight = 13
-  object imgLogo: TImage
-    Left = 8
-    Top = 8
-    Width = 128
-    Height = 128
-    Transparent = True
-  end
   object txtVersion: TStaticText
-    Left = 155
+    Left = 19
     Top = 19
     Width = 166
     Height = 17
@@ -40,7 +32,7 @@ object frmAbout: TfrmAbout
     Transparent = False
   end
   object txtBuild: TStaticText
-    Left = 155
+    Left = 19
     Top = 42
     Width = 49
     Height = 17
@@ -55,7 +47,7 @@ object frmAbout: TfrmAbout
     Transparent = False
   end
   object txtCopyright: TStaticText
-    Left = 155
+    Left = 19
     Top = 88
     Width = 148
     Height = 17
@@ -69,7 +61,7 @@ object frmAbout: TfrmAbout
     TabOrder = 2
   end
   object txtMailTo: TStaticText
-    Left = 155
+    Left = 19
     Top = 65
     Width = 118
     Height = 17

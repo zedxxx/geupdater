@@ -19,10 +19,8 @@ type
     txtBuild: TStaticText;
     txtCopyright: TStaticText;
     txtMailTo: TStaticText;
-    imgLogo: TImage;
     procedure FormShow(Sender: TObject);
     procedure txtMailToClick(Sender: TObject);
-    procedure FormCreate(Sender: TObject);
   end;
 
 var
@@ -31,26 +29,11 @@ var
 implementation
 
 {$R *.dfm}
-{$R res\Logo.res}
 
 uses
-  DateUtils,
-  PngImage;
+  DateUtils;
 
 function GetImageLinkTimeStamp(const FileName: string): Cardinal; forward;
-
-procedure TfrmAbout.FormCreate(Sender: TObject);
-var
-  VLogo: TPngImage;
-begin
-  VLogo := TPngImage.Create;
-  try
-    VLogo.LoadFromResourceName(HInstance, 'LOGO');
-    imgLogo.Picture.Assign(VLogo);
-  finally
-    VLogo.Free;
-  end;
-end;
 
 procedure TfrmAbout.FormShow(Sender: TObject);
 var
