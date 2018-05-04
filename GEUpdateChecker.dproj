@@ -1,7 +1,7 @@
 ﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <PropertyGroup>
         <ProjectGuid>{1D8AABE2-6D76-4A50-817A-F2A05E7AE29A}</ProjectGuid>
-        <ProjectVersion>18.3</ProjectVersion>
+        <ProjectVersion>18.4</ProjectVersion>
         <FrameworkType>VCL</FrameworkType>
         <MainSource>GEUpdateChecker.dpr</MainSource>
         <Base>True</Base>
@@ -67,8 +67,8 @@
         <BT_BuildType>Debug</BT_BuildType>
         <VerInfo_Keys>CompanyName=;FileDescription=$(MSBuildProjectName);FileVersion=2017.5.13.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
         <VerInfo_Locale>1033</VerInfo_Locale>
-        <VerInfo_Release>13</VerInfo_Release>
         <Manifest_File>$(BDS)\bin\default_app.manifest</Manifest_File>
+        <DCC_UnitSearchPath>3rdparty/ProtoBufGenerator;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_1)'!=''">
         <DCC_Define>DEBUG;$(DCC_Define)</DCC_Define>
@@ -108,43 +108,40 @@
         <VerInfo_MajorVer>2018</VerInfo_MajorVer>
         <VerInfo_MinorVer>2</VerInfo_MinorVer>
         <VerInfo_Release>9</VerInfo_Release>
+        <DCC_UnitSearchPath>3rdparty/ProtoBufGenerator;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
     </PropertyGroup>
     <ItemGroup>
         <DelphiCompile Include="$(MainSource)">
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
-        <DCCReference Include="frm_Main.pas">
-            <Form>frmMain</Form>
-            <FormType>dfm</FormType>
-        </DCCReference>
-        <DCCReference Include="UpdateCheckerTask\u_UpdateCheckerTaskBase.pas"/>
-        <DCCReference Include="Downloader\i_Downloader.pas"/>
-        <DCCReference Include="Downloader\i_DownloadResponse.pas"/>
-        <DCCReference Include="Downloader\u_Downloader.pas"/>
-        <DCCReference Include="Downloader\u_DownloadResponse.pas"/>
-        <DCCReference Include="UpdateCheckerTask\i_UpdateCheckerTask.pas"/>
-        <DCCReference Include="UpdateCheckerTask\GoogleEarthClassic\u_GoogleEarthClassic.pas"/>
-        <DCCReference Include="UpdateCheckerTaskListener\i_TaskInfoListener.pas"/>
-        <DCCReference Include="UpdateCheckerTaskListener\t_TaskInfo.pas"/>
-        <DCCReference Include="UpdateCheckerTaskListener\u_TaskInfoListener.pas"/>
-        <DCCReference Include="UpdateCheckerTask\GoogleMaps\u_GoogleMaps.pas"/>
-        <DCCReference Include="UpdateCheckerTask\GoogleEarthWeb\u_GoogleEarthWeb.pas"/>
-        <DCCReference Include="UpdateCheckerTask\GoogleEarthWeb\planetoid_metadata.pas"/>
-        <DCCReference Include="Include\ProtoBufGenerator\pbInput.pas"/>
-        <DCCReference Include="Include\ProtoBufGenerator\pbOutput.pas"/>
-        <DCCReference Include="Include\ProtoBufGenerator\pbPublic.pas"/>
-        <DCCReference Include="Include\ProtoBufGenerator\StrBuffer.pas"/>
-        <DCCReference Include="Include\ProtoBufGenerator\uAbstractProtoBufClasses.pas"/>
-        <DCCReference Include="c_UserAget.pas"/>
-        <DCCReference Include="UpdateCheckerTask\i_UpdateCheckerStoredInfo.pas"/>
-        <DCCReference Include="UpdateCheckerTask\u_UpdateCheckerStoredInfo.pas"/>
-        <DCCReference Include="Downloader\u_DownloaderWithRamCache.pas"/>
-        <DCCReference Include="frm_About.pas">
+        <DCCReference Include="src\c_UserAget.pas"/>
+        <DCCReference Include="src\frm_About.pas">
             <Form>frmAbout</Form>
             <FormType>dfm</FormType>
         </DCCReference>
-        <DCCReference Include="UpdateCheckerTask\GoogleEarthWeb\u_PlanetoidMetadata.pas"/>
-        <DCCReference Include="u_DateTimeUtils.pas"/>
+        <DCCReference Include="src\frm_Main.pas">
+            <Form>frmMain</Form>
+            <FormType>dfm</FormType>
+        </DCCReference>
+        <DCCReference Include="src\u_DateTimeUtils.pas"/>
+        <DCCReference Include="src\Downloader\i_Downloader.pas"/>
+        <DCCReference Include="src\Downloader\i_DownloadResponse.pas"/>
+        <DCCReference Include="src\Downloader\u_Downloader.pas"/>
+        <DCCReference Include="src\Downloader\u_DownloaderWithRamCache.pas"/>
+        <DCCReference Include="src\Downloader\u_DownloadResponse.pas"/>
+        <DCCReference Include="src\UpdateCheckerTask\i_UpdateCheckerStoredInfo.pas"/>
+        <DCCReference Include="src\UpdateCheckerTask\i_UpdateCheckerTask.pas"/>
+        <DCCReference Include="src\UpdateCheckerTask\u_UpdateCheckerStoredInfo.pas"/>
+        <DCCReference Include="src\UpdateCheckerTask\u_UpdateCheckerTaskBase.pas"/>
+        <DCCReference Include="src\UpdateCheckerTask\GoogleEarthClassic\dbroot_lite.pas"/>
+        <DCCReference Include="src\UpdateCheckerTask\GoogleEarthClassic\u_GoogleEarthClassic.pas"/>
+        <DCCReference Include="src\UpdateCheckerTask\GoogleEarthWeb\planetoid_metadata.pas"/>
+        <DCCReference Include="src\UpdateCheckerTask\GoogleEarthWeb\u_GoogleEarthWeb.pas"/>
+        <DCCReference Include="src\UpdateCheckerTask\GoogleEarthWeb\u_PlanetoidMetadata.pas"/>
+        <DCCReference Include="src\UpdateCheckerTask\GoogleMaps\u_GoogleMaps.pas"/>
+        <DCCReference Include="src\UpdateCheckerTaskListener\i_TaskInfoListener.pas"/>
+        <DCCReference Include="src\UpdateCheckerTaskListener\t_TaskInfo.pas"/>
+        <DCCReference Include="src\UpdateCheckerTaskListener\u_TaskInfoListener.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>
@@ -166,17 +163,11 @@
                     <Source Name="MainSource">GEUpdateChecker.dpr</Source>
                 </Source>
                 <Excluded_Packages>
-                    <Excluded_Packages Name="$(BDSBIN)\dclMetropolisUILiveTile250.bpl">File g:\dev\embarcadero\studio\19.0\Bin\dclMetropolisUILiveTile250.bpl not found</Excluded_Packages>
+                    <Excluded_Packages Name="$(BDSBIN)\dcloffice2k250.bpl">Microsoft Office 2000 Sample Automation Server Wrapper Components</Excluded_Packages>
+                    <Excluded_Packages Name="$(BDSBIN)\dclofficexp250.bpl">Microsoft Office XP Sample Automation Server Wrapper Components</Excluded_Packages>
                 </Excluded_Packages>
             </Delphi.Personality>
             <Deployment Version="3">
-                <DeployFile LocalName="res\Logo\Logo.png" Configuration="Debug" Class="UWP_DelphiLogo150">
-                    <Platform Name="Win32">
-                        <RemoteDir>Assets\</RemoteDir>
-                        <RemoteName>Logo150x150.png</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
                 <DeployFile LocalName=".bin\GEUpdateChecker.exe" Configuration="Release" Class="ProjectOutput">
                     <Platform Name="Win32">
                         <RemoteName>GEUpdateChecker.exe</RemoteName>
@@ -186,6 +177,13 @@
                 <DeployFile LocalName=".bin\GEUpdateChecker.exe" Configuration="Debug" Class="ProjectOutput">
                     <Platform Name="Win32">
                         <RemoteName>GEUpdateChecker.exe</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="res\Logo\Logo.png" Configuration="Debug" Class="UWP_DelphiLogo150">
+                    <Platform Name="Win32">
+                        <RemoteDir>Assets\</RemoteDir>
+                        <RemoteName>Logo150x150.png</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>

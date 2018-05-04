@@ -1,0 +1,12 @@
+package planetoid_metadata;
+
+message PlanetoidMetadata {
+
+    message EpochInfo {
+        optional int32 f02 = 2;
+        optional int32 f05 = 5;
+    }
+
+    optional EpochInfo epoch = 1;
+    optional float model_radius = 2;
+}
