@@ -126,7 +126,7 @@
         <DCCReference Include="src\u_DateTimeUtils.pas"/>
         <DCCReference Include="src\Downloader\i_Downloader.pas"/>
         <DCCReference Include="src\Downloader\i_DownloadResponse.pas"/>
-        <DCCReference Include="src\Downloader\u_Downloader.pas"/>
+        <DCCReference Include="src\Downloader\u_DownloaderByIndy.pas"/>
         <DCCReference Include="src\Downloader\u_DownloaderWithRamCache.pas"/>
         <DCCReference Include="src\Downloader\u_DownloadResponse.pas"/>
         <DCCReference Include="src\UpdateCheckerTask\i_UpdateCheckerStoredInfo.pas"/>
@@ -142,6 +142,10 @@
         <DCCReference Include="src\UpdateCheckerTaskListener\i_TaskInfoListener.pas"/>
         <DCCReference Include="src\UpdateCheckerTaskListener\t_TaskInfo.pas"/>
         <DCCReference Include="src\UpdateCheckerTaskListener\u_TaskInfoListener.pas"/>
+        <DCCReference Include="src\u_Scheduler.pas"/>
+        <DCCReference Include="src\Downloader\u_DownloaderByHttpClient.pas"/>
+        <DCCReference Include="src\Downloader\u_DownloaderFactory.pas"/>
+        <DCCReference Include="src\Downloader\i_DownloaderFactory.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>

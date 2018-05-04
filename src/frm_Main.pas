@@ -48,10 +48,10 @@ uses
   frm_About,
   t_TaskInfo,
   i_Downloader,
+  i_DownloaderFactory,
   i_UpdateCheckerStoredInfo,
   u_TaskInfoListener,
-  u_Downloader,
-  u_DownloaderWithRamCache,
+  u_DownloaderFactory,
   u_GoogleMaps,
   u_GoogleEarthWeb,
   u_GoogleEarthClassic,
@@ -73,35 +73,31 @@ var
   VGEClassicCheckType: TGoogleEarthClassicCheckType;
   VGEWebCheckType: TGoogleEarthWebCheckType;
   VGMCheckType: TGoogleMapsCheckType;
-  VProxyParams: TProxyParams;
   VDownloader: IDownloader;
+  VDownloaderFactory: IDownloaderFactory;
   VTask: IUpdateCheckerTask;
   VListener: ITaskInfoListener;
   VStoredInfo: IUpdateCheckerStoredInfo;
 begin
-  VProxyParams.UseProxy := False;
+  VDownloaderFactory := TDownloaderFactory.Create(1);
+
   VStoredInfo := TUpdateCheckerStoredInfo.Create('StoredInfo.ini');
 
   // GoogleEarth Classic
   for VGEClassicCheckType := Low(TGoogleEarthClassicCheckType) to High(TGoogleEarthClassicCheckType) do begin
-    VDownloader := TDownloaderByIndy.Create(VProxyParams);
-
     VListener := TTaskInfoListener.Create(grpGEClassic);
     FListeners.Add(VListener);
 
     VTask := TGoogleEarthClassic.Create(
       VGEClassicCheckType,
-      VDownloader,
+      VDownloaderFactory.BuildDownloader,
       VStoredInfo,
       TArray<ITaskInfoListener>.Create(VListener)
     );
     FCheckerTasks.Add( MakeTask(VTask) );
   end;
 
-  VDownloader :=
-    TDownloaderWithRamCache.Create(
-      TDownloaderByIndy.Create(VProxyParams)
-    );
+  VDownloader := VDownloaderFactory.BuildDownloaderWithCache;
 
   // GoogleEarth Web
   for VGEWebCheckType := Low(TGoogleEarthWebCheckType) to High(TGoogleEarthWebCheckType) do begin
@@ -117,9 +113,14 @@ begin
     FCheckerTasks.Add( MakeTask(VTask) );
   end;
 
-  // GoogleMaps Classic
-  for VGMCheckType in cGoogleMapsClassicSet do begin
-    VListener := TTaskInfoListener.Create(grpGMClassic);
+  // GoogleMaps
+  for VGMCheckType := Low(TGoogleMapsCheckType) to High(TGoogleMapsCheckType) do begin
+
+    if VGMCheckType in cGoogleMapsClassicSet then begin
+      Continue;
+    end;
+
+    VListener := TTaskInfoListener.Create(grpGM);
     FListeners.Add(VListener);
 
     VTask := TGoogleMaps.Create(
@@ -131,14 +132,11 @@ begin
     FCheckerTasks.Add( MakeTask(VTask) );
   end;
 
-  // GoogleMaps
-  for VGMCheckType := Low(TGoogleMapsCheckType) to High(TGoogleMapsCheckType) do begin
+  // GoogleMaps Classic
+  VDownloader := VDownloaderFactory.BuildDownloaderWithCache;
 
-    if VGMCheckType in cGoogleMapsClassicSet then begin
-      Continue;
-    end;
-
-    VListener := TTaskInfoListener.Create(grpGM);
+  for VGMCheckType in cGoogleMapsClassicSet do begin
+    VListener := TTaskInfoListener.Create(grpGMClassic);
     FListeners.Add(VListener);
 
     VTask := TGoogleMaps.Create(

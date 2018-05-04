@@ -1,4 +1,4 @@
-unit u_Downloader;
+unit u_DownloaderByIndy;
 
 interface
 
