@@ -54,7 +54,7 @@ uses
   u_DownloaderFactory,
   u_GoogleMaps,
   u_GoogleEarthWeb,
-  u_GoogleEarthClassic,
+  u_GoogleEarthDesktop,
   u_UpdateCheckerStoredInfo;
 
 {$R *.dfm}
@@ -70,7 +70,7 @@ end;
 
 procedure TfrmMain.BuildTasks;
 var
-  VGEClassicCheckType: TGoogleEarthClassicCheckType;
+  VGEDesktopCheckType: TGoogleEarthDesktopCheckType;
   VGEWebCheckType: TGoogleEarthWebCheckType;
   VGMCheckType: TGoogleMapsCheckType;
   VDownloader: IDownloader;
@@ -83,13 +83,13 @@ begin
 
   VStoredInfo := TUpdateCheckerStoredInfo.Create('StoredInfo.ini');
 
-  // GoogleEarth Classic
-  for VGEClassicCheckType := Low(TGoogleEarthClassicCheckType) to High(TGoogleEarthClassicCheckType) do begin
+  // GoogleEarth Desktop
+  for VGEDesktopCheckType := Low(TGoogleEarthDesktopCheckType) to High(TGoogleEarthDesktopCheckType) do begin
     VListener := TTaskInfoListener.Create(grpGEClassic);
     FListeners.Add(VListener);
 
-    VTask := TGoogleEarthClassic.Create(
-      VGEClassicCheckType,
+    VTask := TGoogleEarthDesktop.Create(
+      VGEDesktopCheckType,
       VDownloaderFactory.BuildDownloader,
       VStoredInfo,
       TArray<ITaskInfoListener>.Create(VListener)

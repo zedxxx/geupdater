@@ -25,7 +25,7 @@ object frmMain: TfrmMain
     Width = 334
     Height = 126
     Align = alTop
-    Caption = 'Google Earth Classic'
+    Caption = 'Google Earth Desktop'
     TabOrder = 0
   end
   object btnExit: TButton
@@ -38,7 +38,6 @@ object frmMain: TfrmMain
     Caption = 'Exit'
     TabOrder = 1
     OnClick = btnExitClick
-    ExplicitTop = 307
   end
   object grpGEWeb: TGroupBox
     AlignWithMargins = True
@@ -59,8 +58,6 @@ object frmMain: TfrmMain
     Align = alTop
     Caption = 'Google Maps'
     TabOrder = 3
-    ExplicitLeft = 8
-    ExplicitTop = 231
   end
   object btnAbout: TButton
     Left = 3
@@ -72,7 +69,6 @@ object frmMain: TfrmMain
     Caption = '?'
     TabOrder = 4
     OnClick = btnAboutClick
-    ExplicitTop = 307
   end
   object grpGMClassic: TGroupBox
     AlignWithMargins = True

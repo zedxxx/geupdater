@@ -108,7 +108,6 @@
         <VerInfo_MajorVer>2018</VerInfo_MajorVer>
         <VerInfo_MinorVer>2</VerInfo_MinorVer>
         <VerInfo_Release>9</VerInfo_Release>
-        <DCC_UnitSearchPath>3rdparty/ProtoBufGenerator;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
     </PropertyGroup>
     <ItemGroup>
         <DelphiCompile Include="$(MainSource)">
@@ -133,8 +132,8 @@
         <DCCReference Include="src\UpdateCheckerTask\i_UpdateCheckerTask.pas"/>
         <DCCReference Include="src\UpdateCheckerTask\u_UpdateCheckerStoredInfo.pas"/>
         <DCCReference Include="src\UpdateCheckerTask\u_UpdateCheckerTaskBase.pas"/>
-        <DCCReference Include="src\UpdateCheckerTask\GoogleEarthClassic\dbroot_lite.pas"/>
-        <DCCReference Include="src\UpdateCheckerTask\GoogleEarthClassic\u_GoogleEarthClassic.pas"/>
+        <DCCReference Include="src\UpdateCheckerTask\GoogleEarthDesktop\dbroot_lite.pas"/>
+        <DCCReference Include="src\UpdateCheckerTask\GoogleEarthDesktop\u_GoogleEarthDesktop.pas"/>
         <DCCReference Include="src\UpdateCheckerTask\GoogleEarthWeb\planetoid_metadata.pas"/>
         <DCCReference Include="src\UpdateCheckerTask\GoogleEarthWeb\u_GoogleEarthWeb.pas"/>
         <DCCReference Include="src\UpdateCheckerTask\GoogleEarthWeb\u_PlanetoidMetadata.pas"/>
@@ -172,6 +171,13 @@
                 </Excluded_Packages>
             </Delphi.Personality>
             <Deployment Version="3">
+                <DeployFile LocalName="res\Logo\Logo.png" Configuration="Debug" Class="UWP_DelphiLogo150">
+                    <Platform Name="Win32">
+                        <RemoteDir>Assets\</RemoteDir>
+                        <RemoteName>Logo150x150.png</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
                 <DeployFile LocalName=".bin\GEUpdateChecker.exe" Configuration="Release" Class="ProjectOutput">
                     <Platform Name="Win32">
                         <RemoteName>GEUpdateChecker.exe</RemoteName>
@@ -181,13 +187,6 @@
                 <DeployFile LocalName=".bin\GEUpdateChecker.exe" Configuration="Debug" Class="ProjectOutput">
                     <Platform Name="Win32">
                         <RemoteName>GEUpdateChecker.exe</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="res\Logo\Logo.png" Configuration="Debug" Class="UWP_DelphiLogo150">
-                    <Platform Name="Win32">
-                        <RemoteDir>Assets\</RemoteDir>
-                        <RemoteName>Logo150x150.png</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>

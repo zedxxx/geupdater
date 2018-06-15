@@ -1,4 +1,4 @@
-unit u_GoogleEarthClassic;
+unit u_GoogleEarthDesktop;
 
 interface
 
@@ -10,7 +10,7 @@ uses
   u_UpdateCheckerTaskBase;
 
 type
-  TGoogleEarthClassicCheckType = (
+  TGoogleEarthDesktopCheckType = (
     gecctEarth,
     gecctHistory,
     gecctSky,
@@ -19,9 +19,9 @@ type
     gecctClient
   );
 
-  TGoogleEarthClassic = class(TUpdateCheckerTaskBase)
+  TGoogleEarthDesktop = class(TUpdateCheckerTaskBase)
   private
-    FCheckType: TGoogleEarthClassicCheckType;
+    FCheckType: TGoogleEarthDesktopCheckType;
     function GetHeaders: string;
     function IsClientCheck: Boolean; inline;
   protected
@@ -29,7 +29,7 @@ type
     procedure DoExecute; override;
   public
     constructor Create(
-      const ACheckType: TGoogleEarthClassicCheckType;
+      const ACheckType: TGoogleEarthDesktopCheckType;
       const ADownloader: IDownloader;
       const AStoredInfo: IUpdateCheckerStoredInfo;
       const AListener: TArray<ITaskInfoListener>
@@ -48,7 +48,7 @@ uses
 const
   cLang = 'hl=en-GB&gl=us';
 
-  cTaskConf: array [TGoogleEarthClassicCheckType] of TTaskConf = (
+  cTaskConf: array [TGoogleEarthDesktopCheckType] of TTaskConf = (
     (GUID:        '{2736BF1B-C010-4262-91DD-BFA152DAB1E1}';
      RequestUrl:  'http://kh.google.com/dbRoot.v5?' + cLang;
      DisplayName: 'Earth'),
@@ -74,10 +74,10 @@ const
      DisplayName: 'Client')
   );
 
-{ TGoogleEarthClassic }
+{ TGoogleEarthDesktop }
 
-constructor TGoogleEarthClassic.Create(
-  const ACheckType: TGoogleEarthClassicCheckType;
+constructor TGoogleEarthDesktop.Create(
+  const ACheckType: TGoogleEarthDesktopCheckType;
   const ADownloader: IDownloader;
   const AStoredInfo: IUpdateCheckerStoredInfo;
   const AListener: TArray<ITaskInfoListener>
@@ -87,17 +87,17 @@ begin
   FCheckType := ACheckType;
 end;
 
-function TGoogleEarthClassic.GetConf: TTaskConf;
+function TGoogleEarthDesktop.GetConf: TTaskConf;
 begin
   Result := cTaskConf[FCheckType];
 end;
 
-function TGoogleEarthClassic.IsClientCheck: Boolean;
+function TGoogleEarthDesktop.IsClientCheck: Boolean;
 begin
   Result := FCheckType = gecctClient;
 end;
 
-function TGoogleEarthClassic.GetHeaders: string;
+function TGoogleEarthDesktop.GetHeaders: string;
 var
   VIfModifiedSince: string;
 begin
@@ -115,7 +115,7 @@ begin
       VIfModifiedSince := '';
     end;
     Result :=
-      'User-Agent: ' + cClientClassicUserAgent + #13#10 +
+      'User-Agent: ' + cDesktopClientUserAgent + #13#10 +
       VIfModifiedSince +
       'Accept: application/vnd.google-earth.kml+xml, application/vnd.google-earth.kmz, image/*, */*' + #13#10 +
       'Accept-Encoding: gzip,deflate' + #13#10 +
@@ -139,7 +139,7 @@ begin
   end;
 end;
 
-procedure TGoogleEarthClassic.DoExecute;
+procedure TGoogleEarthDesktop.DoExecute;
 var
   VUrl: string;
   VRawHeaders: string;
