@@ -7,15 +7,17 @@ uses
   i_DownloaderFactory;
 
 type
+  TDownloaderFactoryType = (dftIndy, dftHttpClient);
+
   TDownloaderFactory = class(TInterfacedObject, IDownloaderFactory)
   private
-    FType: Byte;
+    FType: TDownloaderFactoryType;
   private
     { IDownloaderFactory }
     function BuildDownloader: IDownloader;
     function BuildDownloaderWithCache: IDownloader;
   public
-    constructor Create(const AType: Byte = 0);
+    constructor Create(const AType: TDownloaderFactoryType);
   end;
 
 implementation
@@ -28,7 +30,7 @@ uses
 
 { TDownloaderFactory }
 
-constructor TDownloaderFactory.Create(const AType: Byte);
+constructor TDownloaderFactory.Create(const AType: TDownloaderFactoryType);
 begin
   inherited Create;
   FType := AType;
@@ -39,13 +41,15 @@ var
   VProxyParams: TProxyParams;
 begin
   case FType of
-    0: begin
+    dftIndy: begin
        VProxyParams.UseProxy := False;
        Result := TDownloaderByIndy.Create(VProxyParams);
     end;
-    1: Result := TDownloaderByHttpClient.Create;
+    dftHttpClient: Result := TDownloaderByHttpClient.Create;
   else
-    raise Exception.Create('Unknown downloader type: ' + IntToStr(FType));
+    raise Exception.Create(
+      'Unknown DownloaderFactory Type: ' + IntToStr(Integer(FType))
+    );
   end;
 end;
 

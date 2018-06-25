@@ -79,7 +79,7 @@ var
   VListener: ITaskInfoListener;
   VStoredInfo: IUpdateCheckerStoredInfo;
 begin
-  VDownloaderFactory := TDownloaderFactory.Create(1);
+  VDownloaderFactory := TDownloaderFactory.Create(dftHttpClient);
 
   VStoredInfo := TUpdateCheckerStoredInfo.Create('StoredInfo.ini');
 
