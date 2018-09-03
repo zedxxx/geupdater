@@ -6,7 +6,7 @@ uses
   t_TaskInfo,
   i_Downloader,
   i_TaskInfoListener,
-  i_UpdateCheckerStoredInfo,
+  i_EventLogStorage,
   u_UpdateCheckerTaskBase;
 
 type
@@ -31,7 +31,7 @@ type
     constructor Create(
       const ACheckType: TGoogleEarthDesktopCheckType;
       const ADownloader: IDownloader;
-      const AStoredInfo: IUpdateCheckerStoredInfo;
+      const AEventLog: IEventLogStorage;
       const AListener: TArray<ITaskInfoListener>
     );
   end;
@@ -42,6 +42,7 @@ uses
   Classes,
   SysUtils,
   c_UserAget,
+  c_UpdateCheckerTask,
   i_DownloadResponse,
   u_DateTimeUtils;
 
@@ -49,27 +50,27 @@ const
   cLang = 'hl=en-GB&gl=us';
 
   cTaskConf: array [TGoogleEarthDesktopCheckType] of TTaskConf = (
-    (GUID:        '{2736BF1B-C010-4262-91DD-BFA152DAB1E1}';
+    (GUID:        cGoogleEarthDesktopEathGUID;
      RequestUrl:  'http://kh.google.com/dbRoot.v5?' + cLang;
      DisplayName: 'Earth'),
 
-    (GUID:        '{FC49C486-B6CD-4FF2-B7A8-413EA1402695}';
+    (GUID:        cGoogleEarthDesktopHistoryGUID;
      RequestUrl:  'http://khmdb.google.com/dbRoot.v5?db=tm&' + cLang;
      DisplayName: 'History'),
 
-    (GUID:        '{9D7D345D-F3F1-4287-8A3D-EE6AA3099BE8}';
+    (GUID:        cGoogleEarthDesktopSkyGUID;
      RequestUrl:  'http://khmdb.google.com/dbRoot.v5?db=sky&' + cLang;
      DisplayName: 'Sky'),
 
-    (GUID:        '{F5872C50-7F68-4B43-AED3-DB34A71B5FA4}';
+    (GUID:        cGoogleEarthDesktopMarsGUID;
      RequestUrl:  'http://khmdb.google.com/dbRoot.v5?db=mars&' + cLang;
      DisplayName: 'Mars'),
 
-    (GUID:        '{AC2DAEA2-8F2A-42FC-87E1-397DA2C203F3}';
+    (GUID:        cGoogleEarthDesktopMoonGUID;
      RequestUrl:  'http://khmdb.google.com/dbRoot.v5?db=moon&' + cLang;
      DisplayName: 'Moon'),
 
-    (GUID:        '{146E4984-C081-4DA0-9F79-5855F271923C}';
+    (GUID:        cGoogleEarthDesktopClientGUID;
      RequestUrl:  'http://dl.google.com/earth/client/advanced/current/GoogleEarthProWin.exe';
      DisplayName: 'Client')
   );
@@ -79,11 +80,11 @@ const
 constructor TGoogleEarthDesktop.Create(
   const ACheckType: TGoogleEarthDesktopCheckType;
   const ADownloader: IDownloader;
-  const AStoredInfo: IUpdateCheckerStoredInfo;
+  const AEventLog: IEventLogStorage;
   const AListener: TArray<ITaskInfoListener>
 );
 begin
-  inherited Create(ADownloader, AStoredInfo, AListener);
+  inherited Create(ADownloader, AEventLog, AListener);
   FCheckType := ACheckType;
 end;
 
@@ -108,9 +109,9 @@ begin
       'Accept-Encoding: gzip,deflate' + #13#10 +
       'Accept-Language: en-us,en,*';
   end else begin
-    if FHasStoredInfo and (FStoredInfoRec.LastModified <> 0) then begin
+    if FPrevInfoExists and (FPrevInfo.LastModified <> 0) then begin
       VIfModifiedSince :=
-        'If-Modified-Since: ' + DateTimeToRFC1123(FStoredInfoRec.LastModified) + #13#10;
+        'If-Modified-Since: ' + DateTimeToRFC1123(FPrevInfo.LastModified) + #13#10;
     end else begin
       VIfModifiedSince := '';
     end;
@@ -160,20 +161,16 @@ begin
 
     if IsClientCheck then begin
       FInfo.Version := '-';
-      FInfo.IsUpdatesFound :=
-        not FHasStoredInfo or
-        (FStoredInfoRec.LastModified <> FInfo.LastModified);
+      FInfo.IsUpdatesFound := not FPrevInfoExists or (FPrevInfo.LastModified <> FInfo.LastModified);
     end else begin
       FInfo.Version := GetDbRootVersion(VResponse.Body, VResponse.BodySize);
-      FInfo.IsUpdatesFound :=
-        not FHasStoredInfo or
-        (FStoredInfoRec.Version <> FInfo.Version);
+      FInfo.IsUpdatesFound := not FPrevInfoExists or (FPrevInfo.Version <> FInfo.Version);
     end;
   end else if VResponse.Code = 304 then begin // Not Modified
-    Assert(FHasStoredInfo);
+    Assert(FPrevInfoExists);
     FInfo.State := tsFinished;
-    FInfo.LastModified := FStoredInfoRec.LastModified;
-    FInfo.Version := FStoredInfoRec.Version;
+    FInfo.LastModified := FPrevInfo.LastModified;
+    FInfo.Version := FPrevInfo.Version;
   end else begin
     FInfo.State := tsFailed;
   end;

@@ -4,10 +4,11 @@ interface
 
 uses
   t_TaskInfo,
+  t_EventLog,
   i_Downloader,
   i_TaskInfoListener,
-  i_UpdateCheckerTask,
-  i_UpdateCheckerStoredInfo;
+  i_EventLogStorage,
+  i_UpdateCheckerTask;
 
 type
   TUpdateCheckerTaskBase = class(TInterfacedObject, IUpdateCheckerTask)
@@ -15,9 +16,9 @@ type
     FInfo: TTaskInfo;
     FListener: TArray<ITaskInfoListener>;
     FDownloader: IDownloader;
-    FStoredInfo: IUpdateCheckerStoredInfo;
-    FStoredInfoRec: TStoredInfoRec;
-    FHasStoredInfo: Boolean;
+    FEventLog: IEventLogStorage;
+    FPrevInfo: TEventLogItem;
+    FPrevInfoExists: Boolean;
     procedure ClearInfo(var AInfo: TTaskInfo);
     procedure UpdateListener;
   protected
@@ -29,7 +30,7 @@ type
   public
     constructor Create(
       const ADownloader: IDownloader;
-      const AStoredInfo: IUpdateCheckerStoredInfo;
+      const AEventLog: IEventLogStorage;
       const AListener: TArray<ITaskInfoListener>
     );
     procedure AfterConstruction; override;
@@ -45,17 +46,17 @@ uses
 
 constructor TUpdateCheckerTaskBase.Create(
   const ADownloader: IDownloader;
-  const AStoredInfo: IUpdateCheckerStoredInfo;
+  const AEventLog: IEventLogStorage;
   const AListener: TArray<ITaskInfoListener>
 );
 begin
   Assert(ADownloader <> nil);
-  Assert(AStoredInfo <> nil);
+  Assert(AEventLog <> nil);
 
   inherited Create;
 
   FDownloader := ADownloader;
-  FStoredInfo := AStoredInfo;
+  FEventLog := AEventLog;
   FListener := AListener;
 
   ClearInfo(FInfo);
@@ -65,11 +66,13 @@ procedure TUpdateCheckerTaskBase.AfterConstruction;
 begin
   inherited;
   FInfo.Conf := GetConf;
-  FHasStoredInfo := FStoredInfo.Read(StringToGUID(FInfo.Conf.GUID), FStoredInfoRec);
+  FPrevInfoExists := FEventLog.FindLast(StringToGUID(FInfo.Conf.GUID), FPrevInfo);
   UpdateListener;
 end;
 
 procedure TUpdateCheckerTaskBase.Execute;
+var
+  VItem: TEventLogItem;
 begin
   FInfo.State := tsInProgress;
   UpdateListener;
@@ -77,11 +80,12 @@ begin
     try
       DoExecute;
       if FInfo.State = tsFinished then begin
-        if FInfo.IsUpdatesFound or not FHasStoredInfo then begin
-          FStoredInfoRec.Version := FInfo.Version;
-          FStoredInfoRec.LastModified := FInfo.LastModified;
-          FStoredInfoRec.LastCheck := LocalTimeToUTC(Now);
-          FStoredInfo.Write(StringToGUID(FInfo.Conf.GUID), FStoredInfoRec);
+        if FInfo.IsUpdatesFound or not FPrevInfoExists then begin
+          VItem.TimeStamp := LocalTimeToUTC(Now);
+          VItem.GUID := StringToGUID(FInfo.Conf.GUID);
+          VItem.Version := FInfo.Version;
+          VItem.LastModified := FInfo.LastModified;
+          FEventLog.AddItem(VItem);
         end;
       end;
     except
@@ -96,7 +100,7 @@ end;
 procedure TUpdateCheckerTaskBase.ClearInfo(var AInfo: TTaskInfo);
 begin
   AInfo.State := tsNone;
-  AInfo.Conf.GUID :=  '';
+  AInfo.Conf.GUID := GUIDToString(TGUID.Empty);
   AInfo.Conf.DisplayName :=  '';
   AInfo.Conf.RequestUrl :=  '';
   AInfo.LastModified := 0;

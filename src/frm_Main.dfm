@@ -16,6 +16,7 @@ object frmMain: TfrmMain
   Position = poScreenCenter
   OnCreate = FormCreate
   OnDestroy = FormDestroy
+  OnShow = FormShow
   PixelsPerInch = 96
   TextHeight = 13
   object grpGEClassic: TGroupBox
@@ -36,7 +37,7 @@ object frmMain: TfrmMain
     Align = alCustom
     Anchors = [akRight, akBottom]
     Caption = 'Exit'
-    TabOrder = 1
+    TabOrder = 6
     OnClick = btnExitClick
   end
   object grpGEWeb: TGroupBox
@@ -47,7 +48,7 @@ object frmMain: TfrmMain
     Height = 54
     Align = alTop
     Caption = 'Google Earth Web'
-    TabOrder = 2
+    TabOrder = 1
   end
   object grpGM: TGroupBox
     AlignWithMargins = True
@@ -60,7 +61,7 @@ object frmMain: TfrmMain
     TabOrder = 3
   end
   object btnAbout: TButton
-    Left = 3
+    Left = 8
     Top = 331
     Width = 25
     Height = 25
@@ -78,6 +79,15 @@ object frmMain: TfrmMain
     Height = 54
     Align = alTop
     Caption = 'Google Maps Classic'
+    TabOrder = 2
+  end
+  object btnTimeLine: TButton
+    Left = 39
+    Top = 331
+    Width = 75
+    Height = 25
+    Caption = 'Time Line'
     TabOrder = 5
+    OnClick = btnTimeLineClick
   end
 end

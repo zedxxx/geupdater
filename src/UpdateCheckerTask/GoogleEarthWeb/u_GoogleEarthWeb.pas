@@ -6,7 +6,7 @@ uses
   t_TaskInfo,
   i_Downloader,
   i_TaskInfoListener,
-  i_UpdateCheckerStoredInfo,
+  i_EventLogStorage,
   u_UpdateCheckerTaskBase;
 
 type
@@ -23,7 +23,7 @@ type
     constructor Create(
       const ACheckType: TGoogleEarthWebCheckType;
       const ADownloader: IDownloader;
-      const AStoredInfo: IUpdateCheckerStoredInfo;
+      const AEventLog: IEventLogStorage;
       const AListener: TArray<ITaskInfoListener>
     );
   end;
@@ -35,17 +35,18 @@ uses
   SysUtils,
   RegularExpressions,
   c_UserAget,
+  c_UpdateCheckerTask,
   i_DownloadResponse,
   u_PlanetoidMetadata;
 
 const
   cTaskConf: array [TGoogleEarthWebCheckType] of TTaskConf = (
-    (GUID:        '{CABC52B6-A855-43D8-88CB-718A04ECF82F}';
+    (GUID:        cGoogleEarthWebEarthGUID;
      RequestUrl:  'https://kh.google.com/rt/earth/PlanetoidMetadata';
      DisplayName: 'Earth'),
 
-    (GUID:        '{E36D2679-DEA2-4E05-93D0-777DF1E9F913}';
-     RequestUrl:  'https://earth.google.com/static/';
+    (GUID:        cGoogleEarthWebClientGUID;
+     RequestUrl:  'https://earth.google.com/web';
      DisplayName: 'Client')
   );
 
@@ -54,11 +55,11 @@ const
 constructor TGoogleEarthWeb.Create(
   const ACheckType: TGoogleEarthWebCheckType;
   const ADownloader: IDownloader;
-  const AStoredInfo: IUpdateCheckerStoredInfo;
+  const AEventLog: IEventLogStorage;
   const AListener: TArray<ITaskInfoListener>
 );
 begin
-  inherited Create(ADownloader, AStoredInfo, AListener);
+  inherited Create(ADownloader, AEventLog, AListener);
   FCheckType := ACheckType;
 end;
 
@@ -123,9 +124,7 @@ begin
     else
       Assert(False);
     end;
-    FInfo.IsUpdatesFound :=
-      not FHasStoredInfo or
-      (FStoredInfoRec.Version <> FInfo.Version);
+    FInfo.IsUpdatesFound := not FPrevInfoExists or (FPrevInfo.Version <> FInfo.Version);
   end else begin
     FInfo.State := tsFailed;
   end;

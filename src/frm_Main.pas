@@ -18,6 +18,7 @@ uses
   Vcl.ExtCtrls,
   Vcl.ComCtrls,
   i_UpdateCheckerTask,
+  i_EventLogStorage,
   i_TaskInfoListener;
 
 type
@@ -28,11 +29,15 @@ type
     grpGMClassic: TGroupBox;
     btnExit: TButton;
     btnAbout: TButton;
+    btnTimeLine: TButton;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure btnExitClick(Sender: TObject);
     procedure btnAboutClick(Sender: TObject);
+    procedure FormShow(Sender: TObject);
+    procedure btnTimeLineClick(Sender: TObject);
   private
+    FEventLog: IEventLogStorage;
     FListeners: TList<ITaskInfoListener>;
     FCheckerTasks: TList<ITask>;
     procedure BuildTasks;
@@ -46,16 +51,16 @@ implementation
 
 uses
   frm_About,
+  frm_EventLogView,
   t_TaskInfo,
   i_Downloader,
   i_DownloaderFactory,
-  i_UpdateCheckerStoredInfo,
   u_TaskInfoListener,
   u_DownloaderFactory,
   u_GoogleMaps,
   u_GoogleEarthWeb,
   u_GoogleEarthDesktop,
-  u_UpdateCheckerStoredInfo;
+  u_EventLogStorage;
 
 {$R *.dfm}
 
@@ -77,11 +82,8 @@ var
   VDownloaderFactory: IDownloaderFactory;
   VTask: IUpdateCheckerTask;
   VListener: ITaskInfoListener;
-  VStoredInfo: IUpdateCheckerStoredInfo;
 begin
   VDownloaderFactory := TDownloaderFactory.Create(dftHttpClient);
-
-  VStoredInfo := TUpdateCheckerStoredInfo.Create('StoredInfo.ini');
 
   // GoogleEarth Desktop
   for VGEDesktopCheckType := Low(TGoogleEarthDesktopCheckType) to High(TGoogleEarthDesktopCheckType) do begin
@@ -91,7 +93,7 @@ begin
     VTask := TGoogleEarthDesktop.Create(
       VGEDesktopCheckType,
       VDownloaderFactory.BuildDownloader,
-      VStoredInfo,
+      FEventLog,
       TArray<ITaskInfoListener>.Create(VListener)
     );
     FCheckerTasks.Add( MakeTask(VTask) );
@@ -107,7 +109,7 @@ begin
     VTask := TGoogleEarthWeb.Create(
       VGEWebCheckType,
       VDownloader,
-      VStoredInfo,
+      FEventLog,
       TArray<ITaskInfoListener>.Create(VListener)
     );
     FCheckerTasks.Add( MakeTask(VTask) );
@@ -126,7 +128,7 @@ begin
     VTask := TGoogleMaps.Create(
       VGMCheckType,
       VDownloader,
-      VStoredInfo,
+      FEventLog,
       TArray<ITaskInfoListener>.Create(VListener)
     );
     FCheckerTasks.Add( MakeTask(VTask) );
@@ -142,7 +144,7 @@ begin
     VTask := TGoogleMaps.Create(
       VGMCheckType,
       VDownloader,
-      VStoredInfo,
+      FEventLog,
       TArray<ITaskInfoListener>.Create(VListener)
     );
     FCheckerTasks.Add( MakeTask(VTask) );
@@ -175,6 +177,7 @@ end;
 
 procedure TfrmMain.FormCreate(Sender: TObject);
 begin
+  FEventLog := TEventLogStorageBySQLite.Create;
   FListeners := TList<ITaskInfoListener>.Create;
   FCheckerTasks := TList<ITask>.Create;
   BuildTasks;
@@ -198,6 +201,11 @@ begin
   FreeAndNil(FListeners);
 end;
 
+procedure TfrmMain.FormShow(Sender: TObject);
+begin
+  btnExit.SetFocus;
+end;
+
 procedure TfrmMain.btnAboutClick(Sender: TObject);
 begin
   frmAbout.ShowModal;
@@ -206,6 +214,18 @@ end;
 procedure TfrmMain.btnExitClick(Sender: TObject);
 begin
   Close;
+end;
+
+procedure TfrmMain.btnTimeLineClick(Sender: TObject);
+var
+  VTimeLineForm: TfrmEventLogViewer;
+begin
+  VTimeLineForm := TfrmEventLogViewer.Create(Self, FEventLog);
+  try
+    VTimeLineForm.ShowModal;
+  finally
+    VTimeLineForm.Free;
+  end;
 end;
 
 end.

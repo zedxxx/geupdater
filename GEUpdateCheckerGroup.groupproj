@@ -1,0 +1,60 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{87FB856A-690E-4DAF-88FD-24B699959A6E}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="GEUpdateChecker.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="test\EventLogStorage\EventLogStorageTest.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="test\EventLogViewer\EventLogVeiwerTest.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="GEUpdateChecker">
+        <MSBuild Projects="GEUpdateChecker.dproj"/>
+    </Target>
+    <Target Name="GEUpdateChecker:Clean">
+        <MSBuild Projects="GEUpdateChecker.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="GEUpdateChecker:Make">
+        <MSBuild Projects="GEUpdateChecker.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="EventLogStorageTest">
+        <MSBuild Projects="test\EventLogStorage\EventLogStorageTest.dproj"/>
+    </Target>
+    <Target Name="EventLogStorageTest:Clean">
+        <MSBuild Projects="test\EventLogStorage\EventLogStorageTest.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="EventLogStorageTest:Make">
+        <MSBuild Projects="test\EventLogStorage\EventLogStorageTest.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="EventLogVeiwerTest">
+        <MSBuild Projects="test\EventLogViewer\EventLogVeiwerTest.dproj"/>
+    </Target>
+    <Target Name="EventLogVeiwerTest:Clean">
+        <MSBuild Projects="test\EventLogViewer\EventLogVeiwerTest.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="EventLogVeiwerTest:Make">
+        <MSBuild Projects="test\EventLogViewer\EventLogVeiwerTest.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="GEUpdateChecker;EventLogStorageTest;EventLogVeiwerTest"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="GEUpdateChecker:Clean;EventLogStorageTest:Clean;EventLogVeiwerTest:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="GEUpdateChecker:Make;EventLogStorageTest:Make;EventLogVeiwerTest:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>

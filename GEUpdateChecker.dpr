@@ -11,9 +11,7 @@ uses
   u_DownloaderByIndy in 'src\Downloader\u_DownloaderByIndy.pas',
   u_DownloaderWithRamCache in 'src\Downloader\u_DownloaderWithRamCache.pas',
   u_DownloadResponse in 'src\Downloader\u_DownloadResponse.pas',
-  i_UpdateCheckerStoredInfo in 'src\UpdateCheckerTask\i_UpdateCheckerStoredInfo.pas',
   i_UpdateCheckerTask in 'src\UpdateCheckerTask\i_UpdateCheckerTask.pas',
-  u_UpdateCheckerStoredInfo in 'src\UpdateCheckerTask\u_UpdateCheckerStoredInfo.pas',
   u_UpdateCheckerTaskBase in 'src\UpdateCheckerTask\u_UpdateCheckerTaskBase.pas',
   dbroot_lite in 'src\UpdateCheckerTask\GoogleEarthDesktop\dbroot_lite.pas',
   u_GoogleEarthDesktop in 'src\UpdateCheckerTask\GoogleEarthDesktop\u_GoogleEarthDesktop.pas',
@@ -27,7 +25,13 @@ uses
   u_Scheduler in 'src\u_Scheduler.pas',
   u_DownloaderByHttpClient in 'src\Downloader\u_DownloaderByHttpClient.pas',
   u_DownloaderFactory in 'src\Downloader\u_DownloaderFactory.pas',
-  i_DownloaderFactory in 'src\Downloader\i_DownloaderFactory.pas';
+  i_DownloaderFactory in 'src\Downloader\i_DownloaderFactory.pas',
+  i_EventLogStorage in 'src\EventLog\i_EventLogStorage.pas',
+  t_EventLog in 'src\EventLog\t_EventLog.pas',
+  u_EventLogStorage in 'src\EventLog\u_EventLogStorage.pas',
+  frm_EventLogView in 'src\frm_EventLogView.pas' {frmEventLogViewer},
+  u_EventLogViewConfig in 'src\u_EventLogViewConfig.pas',
+  c_UpdateCheckerTask in 'src\UpdateCheckerTask\c_UpdateCheckerTask.pas';
 
 {$R *.res}
 

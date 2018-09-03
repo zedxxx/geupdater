@@ -6,7 +6,7 @@ uses
   t_TaskInfo,
   i_Downloader,
   i_TaskInfoListener,
-  i_UpdateCheckerStoredInfo,
+  i_EventLogStorage,
   u_UpdateCheckerTaskBase;
 
 type
@@ -27,7 +27,7 @@ type
     constructor Create(
       const ACheckType: TGoogleMapsCheckType;
       const ADownloader: IDownloader;
-      const AStoredInfo: IUpdateCheckerStoredInfo;
+      const AEventLog: IEventLogStorage;
       const AListener: TArray<ITaskInfoListener>
     );
   end;
@@ -39,28 +39,29 @@ uses
   SysUtils,
   RegularExpressions,
   c_UserAget,
+  c_UpdateCheckerTask,
   i_DownloadResponse,
   u_PlanetoidMetadata;
 
 const
   cTaskConf: array [TGoogleMapsCheckType] of TTaskConf = (
-    (GUID:        '{34D0C112-755B-4D4F-B9A4-9F4961E5FA84}';
+    (GUID:        cGoogleMapsEarthGUID;
      RequestUrl:  'https://kh.google.com/rt/earth/PlanetoidMetadata';
      DisplayName: 'Earth'),
 
-    (GUID:        '{A6359894-6FA9-4717-801A-4D011DC8AAAD}';
+    (GUID:        cGoogleMapsMarsGUID;
      RequestUrl:  'https://khms.google.com/dm/Epoch?db=mars';
      DisplayName: 'Mars'),
 
-    (GUID:        '{42F97AF2-D938-4056-9F7B-738BDADA6CF8}';
+    (GUID:        cGoogleMapsMoonGUID;
      RequestUrl:  'https://khms.google.com/dm/Epoch?db=moon';
      DisplayName: 'Moon'),
 
-    (GUID:        '{D732DF07-37C4-4773-9C88-AA95C1A7AAFF}';
+    (GUID:        cGoogleMapsClassicEarthGUID;
      RequestUrl:  'https://maps.googleapis.com/maps/api/js';
      DisplayName: 'Earth'),
 
-    (GUID:        '{45B30A7C-F81D-4E85-9E7D-52DE35E25173}';
+    (GUID:        cGoogleMapsClassicJSAPIGUID;
      RequestUrl:  'https://maps.googleapis.com/maps/api/js';
      DisplayName: 'JS API')
   );
@@ -70,11 +71,11 @@ const
 constructor TGoogleMaps.Create(
   const ACheckType: TGoogleMapsCheckType;
   const ADownloader: IDownloader;
-  const AStoredInfo: IUpdateCheckerStoredInfo;
+  const AEventLog: IEventLogStorage;
   const AListener: TArray<ITaskInfoListener>
 );
 begin
-  inherited Create(ADownloader, AStoredInfo, AListener);
+  inherited Create(ADownloader, AEventLog, AListener);
   FCheckType := ACheckType;
 end;
 
@@ -171,9 +172,7 @@ begin
     else
       Assert(False);
     end;
-    FInfo.IsUpdatesFound :=
-      not FHasStoredInfo or
-      (FStoredInfoRec.Version <> FInfo.Version);
+    FInfo.IsUpdatesFound := not FPrevInfoExists or (FPrevInfo.Version <> FInfo.Version);
   end else begin
     FInfo.State := tsFailed;
   end;
