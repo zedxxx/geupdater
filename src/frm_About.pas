@@ -19,8 +19,10 @@ type
     txtBuild: TStaticText;
     txtCopyright: TStaticText;
     txtMailTo: TStaticText;
+    btnOk: TButton;
     procedure FormShow(Sender: TObject);
     procedure txtMailToClick(Sender: TObject);
+    procedure btnOkClick(Sender: TObject);
   end;
 
 var
@@ -56,6 +58,11 @@ begin
     nil,
     SW_SHOW
   );
+end;
+
+procedure TfrmAbout.btnOkClick(Sender: TObject);
+begin
+  Close;
 end;
 
 function GetImageLinkTimeStamp(const FileName: string): Cardinal;

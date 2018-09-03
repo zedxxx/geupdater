@@ -3,8 +3,8 @@ object frmAbout: TfrmAbout
   Top = 0
   BorderStyle = bsDialog
   Caption = 'About'
-  ClientHeight = 136
-  ClientWidth = 204
+  ClientHeight = 138
+  ClientWidth = 256
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -17,28 +17,28 @@ object frmAbout: TfrmAbout
   PixelsPerInch = 96
   TextHeight = 13
   object txtVersion: TStaticText
-    Left = 19
-    Top = 19
-    Width = 166
+    Left = 30
+    Top = 8
+    Width = 195
     Height = 17
-    Caption = 'GoogleEarth Update Checker'
+    Caption = 'Google Earth and Maps Update Checker'
     Font.Charset = DEFAULT_CHARSET
-    Font.Color = clNavy
+    Font.Color = clDefault
     Font.Height = -11
     Font.Name = 'Tahoma'
-    Font.Style = [fsBold]
+    Font.Style = []
     ParentFont = False
     TabOrder = 0
     Transparent = False
   end
   object txtBuild: TStaticText
-    Left = 19
-    Top = 42
-    Width = 49
+    Left = 48
+    Top = 31
+    Width = 159
     Height = 17
-    Caption = 'Build Info'
+    Caption = 'Build: 9999-99-99 99:99:99 UTC'
     Font.Charset = DEFAULT_CHARSET
-    Font.Color = clGray
+    Font.Color = clDefault
     Font.Height = -11
     Font.Name = 'Tahoma'
     Font.Style = []
@@ -47,8 +47,8 @@ object frmAbout: TfrmAbout
     Transparent = False
   end
   object txtCopyright: TStaticText
-    Left = 19
-    Top = 88
+    Left = 53
+    Top = 77
     Width = 148
     Height = 17
     Caption = 'Copyright (C) 2009-20xx, zed'
@@ -58,16 +58,16 @@ object frmAbout: TfrmAbout
     Font.Name = 'Tahoma'
     Font.Style = []
     ParentFont = False
-    TabOrder = 2
+    TabOrder = 3
   end
   object txtMailTo: TStaticText
-    Left = 19
-    Top = 65
-    Width = 118
+    Left = 86
+    Top = 54
+    Width = 83
     Height = 17
     Cursor = crHandPoint
     Hint = 'mailto: starmen@tut.by'
-    Caption = 'e-mail: starmen@tut.by'
+    Caption = 'starmen@tut.by'
     DragCursor = crDefault
     Font.Charset = DEFAULT_CHARSET
     Font.Color = clBlue
@@ -77,8 +77,17 @@ object frmAbout: TfrmAbout
     ParentFont = False
     ParentShowHint = False
     ShowHint = True
-    TabOrder = 3
+    TabOrder = 2
     Transparent = False
     OnClick = txtMailToClick
+  end
+  object btnOk: TButton
+    Left = 90
+    Top = 100
+    Width = 75
+    Height = 25
+    Caption = 'Ok'
+    TabOrder = 4
+    OnClick = btnOkClick
   end
 end
