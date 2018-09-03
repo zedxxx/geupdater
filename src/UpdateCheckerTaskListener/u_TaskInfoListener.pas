@@ -70,7 +70,7 @@ begin
       if VInfo.State = tsFinished then begin
         if VInfo.LastModified <> 0 then begin
           FLabel[cLastModifiedIndex].Caption :=
-            FormatDateTime('dd-mm-yyyy hh:mm:ss', UTCToLocalTime(VInfo.LastModified));
+            FormatDateTime('yyyy-mm-dd hh:nn:ss', UTCToLocalTime(VInfo.LastModified));
         end else begin
           FLabel[cLastModifiedIndex].Caption := '';
         end;
