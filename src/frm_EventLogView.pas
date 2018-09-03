@@ -132,10 +132,10 @@ begin
   SetLength(VTreeColumnsState, 5);
 
   VTreeColumnsState[0].Name := 'Num';
-  VTreeColumnsState[1].Name := 'DateTime';
+  VTreeColumnsState[1].Name := 'Time';
   VTreeColumnsState[2].Name := 'Name';
   VTreeColumnsState[3].Name := 'Version';
-  VTreeColumnsState[4].Name := 'LastModified';
+  VTreeColumnsState[4].Name := 'Last-Modified';
 
   VTreeColumnsState[0].Size := 50;
   VTreeColumnsState[0].Position := 0;
