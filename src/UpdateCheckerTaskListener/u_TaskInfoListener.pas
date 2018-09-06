@@ -6,22 +6,19 @@ uses
   Vcl.Controls,
   Vcl.StdCtrls,
   Vcl.ExtCtrls,
+  fr_TaskInfo,
   t_TaskInfo,
   i_TaskInfoListener;
-
-const
-  cInfoItemsCount = 4;
 
 type
   TTaskInfoListener = class(TInterfacedObject, ITaskInfoListener)
   private
-    FPanel: TPanel;
-    FLabel: array [0..cInfoItemsCount-1] of TLabel;
-    procedure BuildPanel(const AParent: TWinControl);
-  protected
+    FFrame: TfrTaskInfo;
+  private
+    { ITaskInfoListener }
     procedure Update(const AInfo: TTaskInfo);
   public
-    constructor Create(const AParent: TWinControl);
+    constructor Create(const APanel: TPanel);
     destructor Destroy; override;
   end;
 
@@ -33,27 +30,20 @@ uses
   Vcl.Graphics,
   u_DateTimeUtils;
 
-const
-  cNameIndex           = 0;
-  cLastModifiedIndex   = 2;
-  cVersionIndex        = 1;
-  cIsUpdatesFoundIndex = 3;
-
-  cStatusInfoIndex     = 1;
-
 { TTaskInfoListener }
 
-constructor TTaskInfoListener.Create(const AParent: TWinControl);
+constructor TTaskInfoListener.Create(const APanel: TPanel);
 begin
   inherited Create;
-  BuildPanel(AParent);
+  FFrame := TfrTaskInfo.Create(APanel);
+  FFrame.Parent := APanel;
+  FFrame.Align := alClient;
+  FFrame.Show;
 end;
 
 destructor TTaskInfoListener.Destroy;
 begin
-  if Assigned(FPanel) then begin
-    FreeAndNil(FPanel);
-  end;
+  FreeAndNil(FFrame);
   inherited Destroy;
 end;
 
@@ -65,65 +55,37 @@ begin
 
   TThread.Synchronize(nil, procedure()
     begin
-      FLabel[cNameIndex].Caption := VInfo.Conf.DisplayName + ':';
+      FFrame.lblName.Caption := VInfo.Conf.DisplayName + ':';
 
       if VInfo.State = tsFinished then begin
         if VInfo.LastModified <> 0 then begin
-          FLabel[cLastModifiedIndex].Caption :=
+          FFrame.lblLastModified.Caption :=
             FormatDateTime('yyyy-mm-dd hh:nn:ss', UTCToLocalTime(VInfo.LastModified));
         end else begin
-          FLabel[cLastModifiedIndex].Caption := '';
+          FFrame.lblLastModified.Caption := '';
         end;
 
         if VInfo.IsUpdatesFound then begin
-          FLabel[cVersionIndex].Font.Color := clGreen;
-          FLabel[cVersionIndex].Font.Style := [fsBold];
+          FFrame.lblVersion.Font.Color := clGreen;
+          FFrame.lblVersion.Font.Style := [fsBold];
 
-          FLabel[cIsUpdatesFoundIndex].Font.Color := clRed;
-          FLabel[cIsUpdatesFoundIndex].Caption := 'New!';
+          FFrame.lblNew.Font.Color := clRed;
+          FFrame.lblNew.Caption := 'New!';
         end else begin
-          FLabel[cVersionIndex].Font.Color := clDefault;
-          FLabel[cIsUpdatesFoundIndex].Caption := '';
+          FFrame.lblVersion.Font.Color := clDefault;
+          FFrame.lblNew.Caption := '';
         end;
 
-        FLabel[cVersionIndex].Caption := VInfo.Version;
-
+        FFrame.lblVersion.Caption := VInfo.Version;
       end else begin
         case VInfo.State of
-          tsNone : FLabel[cStatusInfoIndex].Caption := 'waiting...';
-          tsInProgress: FLabel[cStatusInfoIndex].Caption := 'in progress...';
-          tsFailed: FLabel[cStatusInfoIndex].Caption := 'FAILED';
+          tsNone:       FFrame.lblVersion.Caption := 'waiting...';
+          tsInProgress: FFrame.lblVersion.Caption := 'in progress...';
+          tsFailed:     FFrame.lblVersion.Caption := 'FAILED';
         end;
       end;
     end
   );
-end;
-
-procedure TTaskInfoListener.BuildPanel(const AParent: TWinControl);
-const
-  cPos: array [0..cInfoItemsCount-1] of Integer = (60, 80, 140, 270);
-var
-  I: Integer;
-begin
-  FPanel := TPanel.Create(nil);
-
-  FPanel.Parent := AParent;
-  FPanel.Top := 5;
-  FPanel.Height := 18;
-  FPanel.Align := alTop;
-  FPanel.BevelOuter := bvNone;
-
-  for I := 0 to cInfoItemsCount - 1 do begin
-    FLabel[I] := TLabel.Create(FPanel);
-    with FLabel[I] do begin
-      Parent := FPanel;
-      Left := cPos[I];
-      if I = cNameIndex then begin
-        Alignment := taRightJustify;
-      end;
-      Caption := '';
-    end;
-  end;
 end;
 
 end.

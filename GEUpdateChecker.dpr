@@ -31,7 +31,8 @@ uses
   u_EventLogStorage in 'src\EventLog\u_EventLogStorage.pas',
   frm_EventLogView in 'src\frm_EventLogView.pas' {frmEventLogViewer},
   u_EventLogViewConfig in 'src\u_EventLogViewConfig.pas',
-  c_UpdateCheckerTask in 'src\UpdateCheckerTask\c_UpdateCheckerTask.pas';
+  c_UpdateCheckerTask in 'src\UpdateCheckerTask\c_UpdateCheckerTask.pas',
+  fr_TaskInfo in 'src\fr_TaskInfo.pas' {frTaskInfo: TFrame};
 
 {$R *.res}
 

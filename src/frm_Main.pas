@@ -30,6 +30,20 @@ type
     btnExit: TButton;
     btnAbout: TButton;
     btnTimeLine: TButton;
+    pnlGEEarth: TPanel;
+    pnlGEHistory: TPanel;
+    pnlGESky: TPanel;
+    pnlGEMoon: TPanel;
+    pnlGEMars: TPanel;
+    pnlGEClient: TPanel;
+    pnlGEWebEarth: TPanel;
+    pnlGEWebClient: TPanel;
+    pnlGMClassicEarth: TPanel;
+    pnlGMClassicJSAPI: TPanel;
+    pnlGMEarth: TPanel;
+    pnlGMMars: TPanel;
+    pnlGMMoon: TPanel;
+    pnlBottom: TPanel;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure btnExitClick(Sender: TObject);
@@ -74,6 +88,52 @@ begin
 end;
 
 procedure TfrmMain.BuildTasks;
+
+  function _GetGEPanel(const AType: TGoogleEarthDesktopCheckType): TPanel;
+  begin
+    case AType of
+      gecctEarth:   Result := pnlGEEarth;
+      gecctHistory: Result := pnlGEHistory;
+      gecctSky:     Result := pnlGESky;
+      gecctMars:    Result := pnlGEMars;
+      gecctMoon:    Result := pnlGEMoon;
+      gecctClient:  Result := pnlGEClient;
+    else
+      raise Exception.CreateFmt('GE Desktop - Unexpected type: %d', [Integer(AType)]);
+    end;
+  end;
+
+  function _GetGEWebPanel(const AType: TGoogleEarthWebCheckType): TPanel;
+  begin
+    case AType of
+      gewctEarth:  Result := pnlGEWebEarth;
+      gewctClient: Result := pnlGEWebClient;
+    else
+      raise Exception.CreateFmt('GE Web - Unexpected type: %d', [Integer(AType)]);
+    end;
+  end;
+
+  function _GetGMClassicPanel(const AType: TGoogleMapsCheckType): TPanel;
+  begin
+    case AType of
+      gmctSat: Result := pnlGMClassicEarth;
+      gmctApi: Result := pnlGMClassicJSAPI;
+    else
+      raise Exception.CreateFmt('GM Classic - Unexpected type: %d', [Integer(AType)]);
+    end;
+  end;
+
+  function _GetGMPanel(const AType: TGoogleMapsCheckType): TPanel;
+  begin
+    case AType of
+      gmctEarth: Result := pnlGMEarth;
+      gmctMars:  Result := pnlGMMars;
+      gmctMoon:  Result := pnlGMMoon;
+    else
+      raise Exception.CreateFmt('GM - Unexpected type: %d', [Integer(AType)]);
+    end;
+  end;
+
 var
   VGEDesktopCheckType: TGoogleEarthDesktopCheckType;
   VGEWebCheckType: TGoogleEarthWebCheckType;
@@ -87,7 +147,7 @@ begin
 
   // GoogleEarth Desktop
   for VGEDesktopCheckType := Low(TGoogleEarthDesktopCheckType) to High(TGoogleEarthDesktopCheckType) do begin
-    VListener := TTaskInfoListener.Create(grpGEClassic);
+    VListener := TTaskInfoListener.Create(_GetGEPanel(VGEDesktopCheckType));
     FListeners.Add(VListener);
 
     VTask := TGoogleEarthDesktop.Create(
@@ -103,7 +163,7 @@ begin
 
   // GoogleEarth Web
   for VGEWebCheckType := Low(TGoogleEarthWebCheckType) to High(TGoogleEarthWebCheckType) do begin
-    VListener := TTaskInfoListener.Create(grpGEWeb);
+    VListener := TTaskInfoListener.Create(_GetGEWebPanel(VGEWebCheckType));
     FListeners.Add(VListener);
 
     VTask := TGoogleEarthWeb.Create(
@@ -122,7 +182,7 @@ begin
       Continue;
     end;
 
-    VListener := TTaskInfoListener.Create(grpGM);
+    VListener := TTaskInfoListener.Create(_GetGMPanel(VGMCheckType));
     FListeners.Add(VListener);
 
     VTask := TGoogleMaps.Create(
@@ -138,7 +198,7 @@ begin
   VDownloader := VDownloaderFactory.BuildDownloaderWithCache;
 
   for VGMCheckType in cGoogleMapsClassicSet do begin
-    VListener := TTaskInfoListener.Create(grpGMClassic);
+    VListener := TTaskInfoListener.Create(_GetGMClassicPanel(VGMCheckType));
     FListeners.Add(VListener);
 
     VTask := TGoogleMaps.Create(

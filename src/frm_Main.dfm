@@ -4,7 +4,7 @@ object frmMain: TfrmMain
   BorderIcons = [biSystemMenu]
   BorderStyle = bsSingle
   Caption = 'GoogleEarth Update Checker'
-  ClientHeight = 362
+  ClientHeight = 367
   ClientWidth = 340
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -28,17 +28,69 @@ object frmMain: TfrmMain
     Align = alTop
     Caption = 'Google Earth Desktop'
     TabOrder = 0
-  end
-  object btnExit: TButton
-    Left = 257
-    Top = 331
-    Width = 75
-    Height = 25
-    Align = alCustom
-    Anchors = [akRight, akBottom]
-    Caption = 'Exit'
-    TabOrder = 6
-    OnClick = btnExitClick
+    object pnlGEEarth: TPanel
+      Left = 2
+      Top = 15
+      Width = 330
+      Height = 18
+      Align = alTop
+      BevelOuter = bvNone
+      TabOrder = 0
+      ExplicitTop = 5
+    end
+    object pnlGEHistory: TPanel
+      Left = 2
+      Top = 33
+      Width = 330
+      Height = 18
+      Align = alTop
+      BevelOuter = bvNone
+      TabOrder = 1
+      ExplicitLeft = 3
+      ExplicitTop = 47
+    end
+    object pnlGESky: TPanel
+      Left = 2
+      Top = 51
+      Width = 330
+      Height = 18
+      Align = alTop
+      BevelOuter = bvNone
+      TabOrder = 2
+      ExplicitTop = 108
+    end
+    object pnlGEMoon: TPanel
+      Left = 2
+      Top = 87
+      Width = 330
+      Height = 18
+      Align = alTop
+      BevelOuter = bvNone
+      TabOrder = 4
+      ExplicitLeft = 3
+      ExplicitTop = 108
+    end
+    object pnlGEMars: TPanel
+      Left = 2
+      Top = 69
+      Width = 330
+      Height = 18
+      Align = alTop
+      BevelOuter = bvNone
+      TabOrder = 3
+      ExplicitLeft = 1
+    end
+    object pnlGEClient: TPanel
+      Left = 2
+      Top = 105
+      Width = 330
+      Height = 18
+      Align = alTop
+      BevelOuter = bvNone
+      TabOrder = 5
+      ExplicitLeft = 3
+      ExplicitTop = 108
+    end
   end
   object grpGEWeb: TGroupBox
     AlignWithMargins = True
@@ -49,27 +101,72 @@ object frmMain: TfrmMain
     Align = alTop
     Caption = 'Google Earth Web'
     TabOrder = 1
+    object pnlGEWebEarth: TPanel
+      Left = 2
+      Top = 15
+      Width = 330
+      Height = 18
+      Align = alTop
+      BevelOuter = bvNone
+      TabOrder = 0
+      ExplicitLeft = 4
+      ExplicitTop = 23
+    end
+    object pnlGEWebClient: TPanel
+      Left = 2
+      Top = 33
+      Width = 330
+      Height = 18
+      Align = alTop
+      BevelOuter = bvNone
+      TabOrder = 1
+      ExplicitLeft = 4
+      ExplicitTop = 36
+    end
   end
   object grpGM: TGroupBox
     AlignWithMargins = True
     Left = 3
     Top = 255
     Width = 334
-    Height = 70
+    Height = 73
     Align = alTop
     Caption = 'Google Maps'
     TabOrder = 3
-  end
-  object btnAbout: TButton
-    Left = 8
-    Top = 331
-    Width = 25
-    Height = 25
-    Align = alCustom
-    Anchors = [akLeft, akBottom]
-    Caption = '?'
-    TabOrder = 4
-    OnClick = btnAboutClick
+    ExplicitWidth = 324
+    object pnlGMEarth: TPanel
+      Left = 2
+      Top = 15
+      Width = 330
+      Height = 18
+      Align = alTop
+      BevelOuter = bvNone
+      TabOrder = 0
+      ExplicitLeft = 4
+      ExplicitTop = 23
+    end
+    object pnlGMMars: TPanel
+      Left = 2
+      Top = 33
+      Width = 330
+      Height = 18
+      Align = alTop
+      BevelOuter = bvNone
+      TabOrder = 1
+      ExplicitLeft = 4
+      ExplicitTop = 41
+    end
+    object pnlGMMoon: TPanel
+      Left = 2
+      Top = 51
+      Width = 330
+      Height = 18
+      Align = alTop
+      BevelOuter = bvNone
+      TabOrder = 2
+      ExplicitLeft = 4
+      ExplicitTop = 52
+    end
   end
   object grpGMClassic: TGroupBox
     AlignWithMargins = True
@@ -80,14 +177,71 @@ object frmMain: TfrmMain
     Align = alTop
     Caption = 'Google Maps Classic'
     TabOrder = 2
+    object pnlGMClassicEarth: TPanel
+      Left = 2
+      Top = 15
+      Width = 330
+      Height = 18
+      Align = alTop
+      BevelOuter = bvNone
+      TabOrder = 0
+      ExplicitLeft = 4
+      ExplicitTop = 23
+    end
+    object pnlGMClassicJSAPI: TPanel
+      Left = 2
+      Top = 33
+      Width = 330
+      Height = 18
+      Align = alTop
+      BevelOuter = bvNone
+      TabOrder = 1
+      ExplicitLeft = 4
+      ExplicitTop = 36
+    end
   end
-  object btnTimeLine: TButton
-    Left = 39
+  object pnlBottom: TPanel
+    Left = 0
     Top = 331
-    Width = 75
-    Height = 25
-    Caption = 'Time Line'
-    TabOrder = 5
-    OnClick = btnTimeLineClick
+    Width = 340
+    Height = 30
+    Align = alTop
+    BevelOuter = bvNone
+    TabOrder = 4
+    ExplicitLeft = -3
+    ExplicitTop = 330
+    object btnAbout: TButton
+      Left = 5
+      Top = 5
+      Width = 25
+      Height = 25
+      Align = alCustom
+      Anchors = [akLeft, akBottom]
+      Caption = '?'
+      TabOrder = 0
+      OnClick = btnAboutClick
+    end
+    object btnExit: TButton
+      Left = 260
+      Top = 5
+      Width = 75
+      Height = 25
+      Align = alCustom
+      Anchors = [akRight, akBottom]
+      Caption = 'Exit'
+      TabOrder = 2
+      OnClick = btnExitClick
+    end
+    object btnTimeLine: TButton
+      Left = 36
+      Top = 5
+      Width = 75
+      Height = 25
+      Align = alCustom
+      Anchors = [akLeft, akBottom]
+      Caption = 'Time Line'
+      TabOrder = 1
+      OnClick = btnTimeLineClick
+    end
   end
 end
