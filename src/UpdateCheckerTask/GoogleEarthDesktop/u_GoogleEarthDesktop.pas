@@ -1,5 +1,7 @@
 unit u_GoogleEarthDesktop;
 
+{$DEFINE USE_PROTO}
+
 interface
 
 uses
@@ -41,37 +43,47 @@ implementation
 uses
   Classes,
   SysUtils,
+  ZLib,
+  dbroot_lite,
   c_UserAget,
   c_UpdateCheckerTask,
   i_DownloadResponse,
   u_DateTimeUtils;
 
 const
-  cLang = 'hl=en-GB&gl=us';
+  cParams =
+    'hl=en-GB&gl=us' +
+    {$IFDEF USE_PROTO}
+    '&output=proto'
+    {$ELSE}
+    ''
+    {$ENDIF} +
+    '&cv=' + cGoogleEarthClientVersion +
+    '&ct=pro';
 
   cTaskConf: array [TGoogleEarthDesktopCheckType] of TTaskConf = (
     (GUID:        cGoogleEarthDesktopEathGUID;
-     RequestUrl:  'http://kh.google.com/dbRoot.v5?' + cLang;
+     RequestUrl:  'https://kh.google.com/dbRoot.v5?' + cParams;
      DisplayName: 'Earth'),
 
     (GUID:        cGoogleEarthDesktopHistoryGUID;
-     RequestUrl:  'http://khmdb.google.com/dbRoot.v5?db=tm&' + cLang;
+     RequestUrl:  'https://khmdb.google.com/dbRoot.v5?db=tm&' + cParams;
      DisplayName: 'History'),
 
     (GUID:        cGoogleEarthDesktopSkyGUID;
-     RequestUrl:  'http://khmdb.google.com/dbRoot.v5?db=sky&' + cLang;
+     RequestUrl:  'https://khmdb.google.com/dbRoot.v5?db=sky&' + cParams;
      DisplayName: 'Sky'),
 
     (GUID:        cGoogleEarthDesktopMarsGUID;
-     RequestUrl:  'http://khmdb.google.com/dbRoot.v5?db=mars&' + cLang;
+     RequestUrl:  'https://khmdb.google.com/dbRoot.v5?db=mars&' + cParams;
      DisplayName: 'Mars'),
 
     (GUID:        cGoogleEarthDesktopMoonGUID;
-     RequestUrl:  'http://khmdb.google.com/dbRoot.v5?db=moon&' + cLang;
+     RequestUrl:  'https://khmdb.google.com/dbRoot.v5?db=moon&' + cParams;
      DisplayName: 'Moon'),
 
     (GUID:        cGoogleEarthDesktopClientGUID;
-     RequestUrl:  'http://dl.google.com/earth/client/advanced/current/GoogleEarthProWin.exe';
+     RequestUrl:  'https://dl.google.com/earth/client/advanced/current/GoogleEarthProWin.exe';
      DisplayName: 'Client')
   );
 
@@ -116,12 +128,80 @@ begin
       VIfModifiedSince := '';
     end;
     Result :=
-      'User-Agent: ' + cDesktopClientUserAgent + #13#10 +
+      'User-Agent: ' + cGoogleEarthClientUserAgent + #13#10 +
       VIfModifiedSince +
       'Accept: application/vnd.google-earth.kml+xml, application/vnd.google-earth.kmz, image/*, */*' + #13#10 +
       'Accept-Encoding: gzip,deflate' + #13#10 +
       'Accept-Language: en-us,en,*' + #13#10 +
       'Accept-Charset: iso-8859-1,*,utf-8';
+  end;
+end;
+
+function GetDbRootProtoVersion(const AData: Pointer; const ASize: Int64): string;
+
+  procedure _decrypt(const AKey: TBytes; var AData: TBytes);
+  var
+    I, J: Integer;
+    VKeySize: Integer;
+    VDataSize: Integer;
+  begin
+    VKeySize := Length(AKey);
+    VDataSize := Length(AData);
+
+    Assert(VKeySize > 0);
+    Assert(VDataSize > 0);
+
+    if (VKeySize <= 0) or (VDataSize <= 0) then begin
+      Exit;
+    end;
+
+    J := 16;
+    for I := 0 to VDataSize - 1 do begin
+      AData[I] := AData[I] xor AKey[J];
+      Inc(J);
+      if J mod 8 = 0 then begin
+        Inc(J, 16);
+      end;
+      if J >= VKeySize then begin
+        J := (J + 8) mod 24;
+      end;
+    end;
+  end;
+
+var
+  VRaw: Pointer;
+  VData: TBytes;
+  VProto: TDbRootProto;
+  VEncrypted: TEncryptedDbRootProto;
+  VMagic: Cardinal;
+  VSize, VEstimateSize: Integer;
+begin
+  Result := '';
+  VEncrypted := TEncryptedDbRootProto.Create;
+  try
+    VEncrypted.LoadFromMem(AData, ASize, False);
+    if VEncrypted.encryption_type = ENCRYPTION_XOR then begin
+      VData := VEncrypted.dbroot_data;
+
+      _decrypt(VEncrypted.encryption_data, VData);
+
+      VMagic := PCardinal(@VData[0])^;
+      if VMagic <> $7468DEAD then begin
+        Exit;
+      end;
+      VEstimateSize := PInteger(@VData[4])^;
+      ZDecompress(@VData[8], Length(VData) - 8, VRaw, VSize, VEstimateSize);
+
+      VProto := TDbRootProto.Create;
+      try
+        VProto.LoadFromMem(VRaw, VSize, True);
+        Result := IntToStr(VProto.database_version.quadtree_version);
+      finally
+        VProto.Free;
+      end;
+    end;
+  finally
+    VEncrypted.Free;
   end;
 end;
 
@@ -163,7 +243,13 @@ begin
       FInfo.Version := '-';
       FInfo.IsUpdatesFound := not FPrevInfoExists or (FPrevInfo.LastModified <> FInfo.LastModified);
     end else begin
-      FInfo.Version := GetDbRootVersion(VResponse.Body, VResponse.BodySize);
+      FInfo.Version :=
+        {$IFDEF USE_PROTO}
+        GetDbRootProtoVersion(VResponse.Body, VResponse.BodySize);
+        {$ELSE}
+        GetDbRootVersion(VResponse.Body, VResponse.BodySize);
+        {$ENDIF}
+
       FInfo.IsUpdatesFound := not FPrevInfoExists or (FPrevInfo.Version <> FInfo.Version);
     end;
   end else if VResponse.Code = 304 then begin // Not Modified

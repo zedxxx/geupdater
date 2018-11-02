@@ -1,0 +1,21 @@
+package dbroot_lite;
+
+syntax = "proto2";
+
+message DatabaseVersionProto {
+    required uint32 quadtree_version = 1;
+}
+
+message DbRootProto {    
+    optional DatabaseVersionProto database_version = 13;
+}
+
+message EncryptedDbRootProto {
+    optional EncryptionType encryption_type = 1;
+    enum EncryptionType {
+        ENCRYPTION_XOR = 0;
+    }
+    
+    optional bytes encryption_data = 2;
+    optional bytes dbroot_data = 3;
+}
