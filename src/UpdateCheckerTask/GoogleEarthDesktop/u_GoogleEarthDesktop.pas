@@ -118,7 +118,6 @@ begin
     Result :=
       'User-Agent: ' + cBrowserUserAgent + #13#10 +
       'Accept: */*' + #13#10 +
-      'Accept-Encoding: gzip,deflate' + #13#10 +
       'Accept-Language: en-us,en,*';
   end else begin
     if FPrevInfoExists and (FPrevInfo.LastModified <> 0) then begin
@@ -131,7 +130,6 @@ begin
       'User-Agent: ' + cGoogleEarthClientUserAgent + #13#10 +
       VIfModifiedSince +
       'Accept: application/vnd.google-earth.kml+xml, application/vnd.google-earth.kmz, image/*, */*' + #13#10 +
-      'Accept-Encoding: gzip,deflate' + #13#10 +
       'Accept-Language: en-us,en,*' + #13#10 +
       'Accept-Charset: iso-8859-1,*,utf-8';
   end;

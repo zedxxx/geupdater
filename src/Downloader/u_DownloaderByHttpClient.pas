@@ -41,7 +41,6 @@ implementation
 uses
   System.Classes,
   System.SysUtils,
-  System.ZLib,
   IdGlobalProtocols, // for GMTToLocalDateTime
   u_DateTimeUtils,
   u_DownloadResponse;
@@ -53,6 +52,7 @@ begin
   inherited;
   FLock := TCriticalSection.Create;
   FHttpClient := THTTPClient.Create;
+  FHttpClient.AutomaticDecompression := [THTTPCompressionMethod.Any];
 end;
 
 destructor TDownloaderByHttpClient.Destroy;
@@ -87,11 +87,9 @@ function TDownloaderByHttpClient.BuildResponse(
   const AHttpResponse: IHttpResponse
 ): IDownloadResponse;
 var
-  VContentEncoding: string;
   VHeader: TNetHeader;
   VStringBuilder: TStringBuilder;
   VStream: TMemoryStream;
-  VZLibStream: TStream;
   VLastModifiedUTC: TDateTime;
   VRawHeaders: string;
 begin
@@ -112,33 +110,22 @@ begin
 
   VStream := TMemoryStream.Create;
   try
-    if (AHttpResponse.ContentStream <> nil) and (AHttpResponse.ContentStream.Size > 0) then begin
-      VContentEncoding := LowerCase(AHttpResponse.ContentEncoding);
-      if VContentEncoding = '' then begin
-        VStream.LoadFromStream(AHttpResponse.ContentStream);
-      end else if (VContentEncoding = 'gzip') or (VContentEncoding = 'deflate') then begin
-        VZLibStream := TDecompressionStream.Create(AHttpResponse.ContentStream, 15 + 32);
-        try
-          VStream.CopyFrom(VZLibStream, 0);
-        finally
-          VZLibStream.Free;
-        end;
-      end else begin
-        raise Exception.Create('Unsupported Content-Encoding: ' + VContentEncoding);
-      end;
+    if AHttpResponse.ContentStream <> nil then begin
+      VStream.LoadFromStream(AHttpResponse.ContentStream);
     end;
-  except
-    VStream.Free;
-    raise;
-  end;
 
-  Result :=
-    TDownloadResponse.Create(
-      AHttpResponse.StatusCode,
-      VRawHeaders,
-      VLastModifiedUTC,
-      VStream
-    );
+    Result :=
+      TDownloadResponse.Create(
+        AHttpResponse.StatusCode,
+        VRawHeaders,
+        VLastModifiedUTC,
+        VStream
+      );
+
+    VStream := nil;
+  finally
+    VStream.Free;
+  end;
 end;
 
 function TDownloaderByHttpClient.DoGetRequest(

@@ -140,7 +140,7 @@ begin
         ];
 
         FIdHTTP.Request.Accept := '';
-        FIdHTTP.Request.AcceptEncoding := '';
+        FIdHTTP.Request.AcceptEncoding := 'gzip, deflate';
         FIdHTTP.Request.UserAgent := '';
         FIdHTTP.HandleRedirects := True;
         FIdHTTP.OnChunkReceived := Self.OnChunkReceived;

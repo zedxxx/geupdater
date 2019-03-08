@@ -73,7 +73,6 @@ begin
   Result :=
     'User-Agent: ' + cBrowserUserAgent + #13#10 +
     'Accept: */*' + #13#10 +
-    'Accept-Encoding: gzip,deflate' + #13#10 +
     'Accept-Language: en-us,en,*';
 end;
 
