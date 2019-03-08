@@ -1,6 +1,7 @@
 program GEUpdateChecker;
 
 uses
+  Winapi.Windows,
   Vcl.Forms,
   c_UserAget in 'src\c_UserAget.pas',
   frm_About in 'src\frm_About.pas' {frmAbout},
@@ -35,6 +36,21 @@ uses
   fr_TaskInfo in 'src\fr_TaskInfo.pas' {frTaskInfo: TFrame};
 
 {$R *.res}
+
+const
+  IMAGE_DLLCHARACTERISTICS_NX_COMPAT = $0100;
+  IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE = $0040;
+
+{$SetPEOptFlags IMAGE_DLLCHARACTERISTICS_NX_COMPAT} // enables DEP
+{$SetPEOptFlags IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE} // enables ASLR
+
+{$SetPEFlags IMAGE_FILE_EXECUTABLE_IMAGE}
+
+{$IFNDEF DEBUG}
+  {$SetPEFlags IMAGE_FILE_DEBUG_STRIPPED}
+  {$SetPEFlags IMAGE_FILE_LINE_NUMS_STRIPPED}
+  {$SetPEFlags IMAGE_FILE_LOCAL_SYMS_STRIPPED}
+{$ENDIF}
 
 begin
   if not TScheduler.AppCanStart then begin
