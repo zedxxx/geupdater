@@ -267,8 +267,15 @@ begin
 end;
 
 procedure TfrmMain.btnAboutClick(Sender: TObject);
+var
+  VfrmAbout: TfrmAbout;
 begin
-  frmAbout.ShowModal;
+  VfrmAbout := TfrmAbout.Create(Self);
+  try
+    VfrmAbout.ShowModal;
+  finally
+    VfrmAbout.Free;
+  end;
 end;
 
 procedure TfrmMain.btnExitClick(Sender: TObject);
