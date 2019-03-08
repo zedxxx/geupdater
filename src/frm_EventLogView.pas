@@ -43,7 +43,7 @@ type
     procedure PrepareGuidInfo;
     function GetItemIndex(const ANode: PVirtualNode): Int64; inline;
     procedure UpdateFormCaption(const ANode: PVirtualNode);
-    procedure OnVTNodeClick(Sender: TBaseVirtualTree; const HitInfo: THitInfo);
+    procedure OnVTFocusChanged(Sender: TBaseVirtualTree; Node: PVirtualNode; Column: TColumnIndex);
     procedure OnVTBeforeCellPaint(Sender: TBaseVirtualTree;
       TargetCanvas: TCanvas; Node: PVirtualNode; Column: TColumnIndex;
       CellPaintMode: TVTCellPaintMode; CellRect: TRect; var ContentRect: TRect);
@@ -127,7 +127,7 @@ var
 begin
   // Init with default values
   VTreeShowOpt.SortColumn := 0;
-  VTreeShowOpt.SortDirection := 0;
+  VTreeShowOpt.SortDirection := 1;
 
   SetLength(VTreeColumnsState, 5);
 
@@ -170,7 +170,7 @@ begin
     OnGetText := Self.OnVTGetText;
     OnHeaderClick := Self.OnVTHeaderClick;
     OnBeforeCellPaint := Self.OnVTBeforeCellPaint;
-    OnNodeClick := Self.OnVTNodeClick;
+    OnFocusChanged := Self.OnVTFocusChanged;
 
     TreeOptions.MiscOptions := [toReadOnly];
     NodeDataSize := 0;
@@ -184,6 +184,7 @@ begin
     TreeOptions.MiscOptions := [
       toFullRepaintOnResize,
       toInitOnSave,
+      toGridExtensions,
       toToggleOnDblClick,
       toWheelPanning
     ];
@@ -191,6 +192,8 @@ begin
     TreeOptions.PaintOptions := [
       toShowButtons,
       toShowDropmark,
+      toShowHorzGridLines,
+      //toShowVertGridLines,
       toThemeAware,
       toUseBlendedImages
     ];
@@ -339,7 +342,7 @@ var
   I, J: Int64;
   VColor: TColor;
 begin
-  if not FVirtualTree.Focused or (FVirtualTree.FocusedNode = nil)  then begin
+  if FVirtualTree.FocusedNode = nil then begin
     Exit;
   end;
 
@@ -418,14 +421,13 @@ begin
   end else begin
     VCount := 0;
   end;
-  Self.Caption := Format('[%d/%d] Time Line', [VCount, Length(FEvents)]);
+  Self.Caption := Format('Time Line [%d/%d]', [VCount, Length(FEvents)]);
 end;
 
-procedure TfrmEventLogViewer.OnVTNodeClick(Sender: TBaseVirtualTree;
-  const HitInfo: THitInfo
-);
+procedure TfrmEventLogViewer.OnVTFocusChanged(Sender: TBaseVirtualTree;
+  Node: PVirtualNode; Column: TColumnIndex);
 begin
-  UpdateFormCaption(HitInfo.HitNode);
+  UpdateFormCaption(Node);
   FVirtualTree.Refresh;
 end;
 
