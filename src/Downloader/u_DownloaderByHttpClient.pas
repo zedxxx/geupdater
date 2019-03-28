@@ -3,6 +3,7 @@ unit u_DownloaderByHttpClient;
 interface
 
 uses
+  System.Classes,
   System.SyncObjs,
   System.Net.HttpClient,
   System.Net.URLClient,
@@ -14,13 +15,16 @@ type
   private
     FLock: TCriticalSection;
     FHttpClient: THttpClient;
-
     function RawHeadersToNetHeaders(
       const ARawHeaders: string
     ): TNetHeaders;
     function BuildResponse(
       const AHttpResponse: IHttpResponse
     ): IDownloadResponse;
+    function GetResponseBody(
+      const AContentEncoding: string;
+      const AContentStream: TStream
+    ): TMemoryStream;
   private
     { IDownloader }
     function DoHeadRequest(
@@ -39,7 +43,7 @@ type
 implementation
 
 uses
-  System.Classes,
+  System.Zlib,
   System.SysUtils,
   IdGlobalProtocols, // for GMTToLocalDateTime
   u_DateTimeUtils,
@@ -52,7 +56,15 @@ begin
   inherited;
   FLock := TCriticalSection.Create;
   FHttpClient := THTTPClient.Create;
-  FHttpClient.AutomaticDecompression := [THTTPCompressionMethod.Any];
+
+  // AutomaticDecompression supported in Windows 8.1 and newer
+  if (Win32MajorVersion > 8) or
+    ((Win32MajorVersion = 8) and (Win32MinorVersion >= 1))
+  then begin
+    FHttpClient.AutomaticDecompression := [THTTPCompressionMethod.Any];
+  end else begin
+    FHttpClient.AutomaticDecompression := [];
+  end;
 end;
 
 destructor TDownloaderByHttpClient.Destroy;
@@ -83,13 +95,61 @@ begin
   end;
 end;
 
+function TDownloaderByHttpClient.GetResponseBody(
+  const AContentEncoding: string;
+  const AContentStream: TStream
+): TMemoryStream;
+const
+  cZlibMagic = $9C78; // 0x789C
+var
+  VMagic: Word;
+  VStream: TMemoryStream;
+  VZlibStream: TDecompressionStream;
+  VWindowBits: Integer;
+begin
+  if AContentStream = nil then begin
+    Result := nil;
+    Exit;
+  end;
+
+  VStream := TMemoryStream.Create;
+  try
+    if (AContentEncoding = '') or (AContentEncoding = 'identity') then begin
+      VStream.LoadFromStream(AContentStream);
+    end else begin
+      VWindowBits := 15;
+      if AContentEncoding = 'gzip' then begin
+        VWindowBits := VWindowBits + 16;
+      end else
+      if (AContentEncoding = 'deflate') then begin
+        AContentStream.ReadBuffer(VMagic, 2);
+        AContentStream.Seek(-2, soCurrent);
+        if VMagic <> cZlibMagic then begin
+          VWindowBits := -VWindowBits;
+        end;
+      end else begin
+        raise Exception.Create('Unsupported Content-Encoding: ' + AContentEncoding);
+      end;
+      VZlibStream := TDecompressionStream.Create(AContentStream, VWindowBits);
+      try
+        VStream.CopyFrom(VZlibStream, 0);
+      finally
+        VZlibStream.Free;
+      end;
+    end;
+    Result := VStream;
+    VStream := nil;
+  finally
+    VStream.Free;
+  end;
+end;
+
 function TDownloaderByHttpClient.BuildResponse(
   const AHttpResponse: IHttpResponse
 ): IDownloadResponse;
 var
   VHeader: TNetHeader;
   VStringBuilder: TStringBuilder;
-  VStream: TMemoryStream;
   VLastModifiedUTC: TDateTime;
   VRawHeaders: string;
 begin
@@ -108,24 +168,16 @@ begin
     VStringBuilder.Free;
   end;
 
-  VStream := TMemoryStream.Create;
-  try
-    if AHttpResponse.ContentStream <> nil then begin
-      VStream.LoadFromStream(AHttpResponse.ContentStream);
-    end;
-
-    Result :=
-      TDownloadResponse.Create(
-        AHttpResponse.StatusCode,
-        VRawHeaders,
-        VLastModifiedUTC,
-        VStream
-      );
-
-    VStream := nil;
-  finally
-    VStream.Free;
-  end;
+  Result :=
+    TDownloadResponse.Create(
+      AHttpResponse.StatusCode,
+      VRawHeaders,
+      VLastModifiedUTC,
+      GetResponseBody(
+        LowerCase(AHttpResponse.ContentEncoding),
+        AHttpResponse.ContentStream
+      )
+    );
 end;
 
 function TDownloaderByHttpClient.DoGetRequest(
@@ -138,6 +190,9 @@ begin
   FLock.Acquire;
   try
     VHeaders := RawHeadersToNetHeaders(ARawHeaders);
+    if FHttpClient.AutomaticDecompression = [] then begin
+      VHeaders := VHeaders + [TNetHeader.Create('Accept-Encoding', 'gzip, deflate')];
+    end;
     VHttpResponse := FHttpClient.Get(AURL, nil, VHeaders);
     Result := BuildResponse(VHttpResponse);
   finally
