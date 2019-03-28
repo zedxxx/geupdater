@@ -121,7 +121,7 @@ begin
       if AContentEncoding = 'gzip' then begin
         VWindowBits := VWindowBits + 16;
       end else
-      if (AContentEncoding = 'deflate') then begin
+      if AContentEncoding = 'deflate' then begin
         AContentStream.ReadBuffer(VMagic, 2);
         AContentStream.Seek(-2, soCurrent);
         if VMagic <> cZlibMagic then begin
@@ -132,7 +132,7 @@ begin
       end;
       VZlibStream := TDecompressionStream.Create(AContentStream, VWindowBits);
       try
-        VStream.CopyFrom(VZlibStream, 0);
+        VStream.LoadFromStream(VZlibStream);
       finally
         VZlibStream.Free;
       end;
