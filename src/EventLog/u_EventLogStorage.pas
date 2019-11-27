@@ -81,10 +81,10 @@ begin
 
   FConnection.Properties.Add('encoding="UTF-8"');
   FConnection.Properties.Add('foreing_key=on');
-  FConnection.Properties.Add('cache_size=2000');
-  FConnection.Properties.Add('synchronous=FULL');
+  FConnection.Properties.Add('cache_size=-2000');
+  FConnection.Properties.Add('synchronous=NORMAL');
   FConnection.Properties.Add('main.journal_mode=WAL');
-  FConnection.Properties.Add('main.locking_mode=EXCLUSIVE');
+  FConnection.Properties.Add('main.locking_mode=NORMAL');
 
   FConnection.TransactIsolationLevel := tiReadCommitted;
 
