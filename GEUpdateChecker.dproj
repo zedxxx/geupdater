@@ -72,10 +72,10 @@
         <UWP_DelphiLogo150>$(BDS)\bin\Artwork\Windows\UWP\delphi_UwpDefault_150.png</UWP_DelphiLogo150>
         <SanitizedProjectName>GEUpdateChecker</SanitizedProjectName>
         <VerInfo_Locale>1033</VerInfo_Locale>
-        <VerInfo_Keys>CompanyName=zed;FileDescription=$(MSBuildProjectName);FileVersion=2019.11.27.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProgramID=$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
+        <VerInfo_Keys>CompanyName=zed;FileDescription=$(MSBuildProjectName);FileVersion=2019.12.5.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProgramID=$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
         <VerInfo_MajorVer>2019</VerInfo_MajorVer>
-        <VerInfo_MinorVer>11</VerInfo_MinorVer>
-        <VerInfo_Release>27</VerInfo_Release>
+        <VerInfo_MinorVer>12</VerInfo_MinorVer>
+        <VerInfo_Release>5</VerInfo_Release>
         <DCC_UnitSearchPath>3rdparty/ProtoBufGenerator;3rdparty/ZeosLib;3rdparty/ZeosLib/core;3rdparty/ZeosLib/component;3rdparty/ZeosLib/dbc;3rdparty/ZeosLib/parsesql;3rdparty/ZeosLib/plain;3rdparty/VirtualTreeView;3rdparty/Synopse;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
     </PropertyGroup>
