@@ -76,7 +76,7 @@
         <VerInfo_MajorVer>2019</VerInfo_MajorVer>
         <VerInfo_MinorVer>11</VerInfo_MinorVer>
         <VerInfo_Release>27</VerInfo_Release>
-        <DCC_UnitSearchPath>3rdparty/ProtoBufGenerator;3rdparty/ZeosLib;3rdparty/ZeosLib/core;3rdparty/ZeosLib/component;3rdparty/ZeosLib/dbc;3rdparty/ZeosLib/parsesql;3rdparty/ZeosLib/plain;3rdparty/VirtualTreeView;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <DCC_UnitSearchPath>3rdparty/ProtoBufGenerator;3rdparty/ZeosLib;3rdparty/ZeosLib/core;3rdparty/ZeosLib/component;3rdparty/ZeosLib/dbc;3rdparty/ZeosLib/parsesql;3rdparty/ZeosLib/plain;3rdparty/VirtualTreeView;3rdparty/Synopse;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
@@ -124,17 +124,20 @@
     <PropertyGroup Condition="'$(Cfg_2_Win32)'!=''">
         <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
         <Icon_MainIcon>res\Main.ico</Icon_MainIcon>
+        <DCC_MapFile>3</DCC_MapFile>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2_Win64)'!=''">
         <BT_BuildType>Debug</BT_BuildType>
         <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
         <Icon_MainIcon>res\Main.ico</Icon_MainIcon>
         <DCC_UseMSBuildExternally>true</DCC_UseMSBuildExternally>
+        <DCC_MapFile>3</DCC_MapFile>
     </PropertyGroup>
     <ItemGroup>
         <DelphiCompile Include="$(MainSource)">
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
+        <DCCReference Include="src\u_AppLog.pas"/>
         <DCCReference Include="src\c_UserAget.pas"/>
         <DCCReference Include="src\frm_About.pas">
             <Form>frmAbout</Form>
@@ -229,7 +232,7 @@
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName=".bin\GEUpdateChecker.exe" Configuration="Debug" Class="ProjectOutput">
+                <DeployFile LocalName=".bin\Win32\GEUpdateChecker.exe" Configuration="Debug" Class="ProjectOutput">
                     <Platform Name="Win32">
                         <RemoteName>GEUpdateChecker.exe</RemoteName>
                         <Overwrite>true</Overwrite>

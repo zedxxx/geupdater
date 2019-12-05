@@ -3,6 +3,7 @@ program GEUpdateChecker;
 uses
   Winapi.Windows,
   Vcl.Forms,
+  u_AppLog in 'src\u_AppLog.pas',
   c_UserAget in 'src\c_UserAget.pas',
   frm_About in 'src\frm_About.pas' {frmAbout},
   frm_Main in 'src\frm_Main.pas' {frmMain},
