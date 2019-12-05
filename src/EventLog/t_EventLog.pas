@@ -4,6 +4,7 @@ interface
 
 type
   TEventLogItem = record
+    ID: Int64;
     TimeStamp: TDateTime;
     GUID: TGUID;
     Version: string;

@@ -29,6 +29,7 @@ type
   private
     { IEventLogStorage }
     procedure AddItem(const AItem: TEventLogItem);
+    procedure DeleteItem(const AItemID: Int64);
     function FindLast(const AGuid: TGUID; out AItem: TEventLogItem): Boolean;
     function FetchAll: TArray<TEventLogItem>;
   public
@@ -218,6 +219,42 @@ begin
   end;
 end;
 
+procedure TEventLogStorageBySQLite.DeleteItem(const AItemID: Int64);
+var
+  VQuery: TZQuery;
+begin
+  FLock.Acquire;
+  try
+    FConnection.StartTransaction;
+    try
+      VQuery := TZQuery.Create(nil);
+      try
+        VQuery.Connection := FConnection;
+
+        VQuery.SQL.Text :=
+          'DELETE FROM ' + cEventsTableName + ' ' +
+          'WHERE ID = :RowID';
+
+        VQuery.ParamByName('RowID').AsLargeInt := AItemID;
+        VQuery.ExecSQL;
+
+        if VQuery.RowsAffected <> 1 then begin
+          raise Exception.CreateFmt('Failed delete item with ID=%d', [AItemID]);
+        end;
+      finally
+        VQuery.Free;
+      end;
+
+      FConnection.Commit;
+    except
+      FConnection.Rollback;
+      raise;
+    end;
+  finally
+    FLock.Release;
+  end;
+end;
+
 class procedure TEventLogStorageBySQLite.ItemFromQuery(
   const AGuid: TGUID;
   const AQuery: TZQuery;
@@ -225,6 +262,7 @@ class procedure TEventLogStorageBySQLite.ItemFromQuery(
 );
 begin
   AItem.GUID := AGuid;
+  AItem.ID := AQuery.FieldByName('ID').AsLargeInt;
   AItem.TimeStamp := Int64ToDateTime(AQuery.FieldByName('TimeStamp').AsLargeInt);
   AItem.LastModified := Int64ToDateTime(AQuery.FieldByName('LastModified').AsLargeInt);
   AItem.Version := UTF8ToString(AQuery.FieldByName('Version').AsAnsiString);
@@ -251,7 +289,7 @@ begin
       VQuery.Connection := FConnection;
 
       VQuery.SQL.Text :=
-        'SELECT TimeStamp,LastModified,Version FROM ' + cEventsTableName + ' ' +
+        'SELECT ID,TimeStamp,LastModified,Version FROM ' + cEventsTableName + ' ' +
         'WHERE GuidID=' + IntToStr(VGuidID) + ' ' +
         'ORDER BY ID DESC LIMIT 1';
       VQuery.Open;
@@ -307,7 +345,7 @@ begin
       VDict := GetGuidDictByID;
 
       VQuery.Connection := FConnection;
-      VQuery.SQL.Text := 'SELECT GuidID,TimeStamp,LastModified,Version FROM ' + cEventsTableName;
+      VQuery.SQL.Text := 'SELECT ID,GuidID,TimeStamp,LastModified,Version FROM ' + cEventsTableName;
       VQuery.Open;
 
       VCount := GetItemsCount(VQuery);

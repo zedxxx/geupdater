@@ -8,6 +8,7 @@ uses
   System.SysUtils,
   System.Variants,
   System.Classes,
+  System.UITypes,
   System.Generics.Collections,
   Vcl.Graphics,
   Vcl.Controls,
@@ -50,6 +51,8 @@ type
     procedure OnVTGetText(Sender: TBaseVirtualTree; Node: PVirtualNode;
       Column: TColumnIndex; TextType: TVSTTextType; var CellText: UnicodeString);
     procedure OnVTHeaderClick(Sender: TVTHeader; HitInfo: TVTHeaderHitInfo);
+    procedure OnVTKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure UpdateTree;
   public
     constructor Create(
       const AOwner: TComponent;
@@ -171,6 +174,7 @@ begin
     OnHeaderClick := Self.OnVTHeaderClick;
     OnBeforeCellPaint := Self.OnVTBeforeCellPaint;
     OnFocusChanged := Self.OnVTFocusChanged;
+    OnKeyDown := Self.OnVTKeyDown;
 
     TreeOptions.MiscOptions := [toReadOnly];
     NodeDataSize := 0;
@@ -251,7 +255,6 @@ begin
   end;
 end;
 
-
 procedure TfrmEventLogViewer.FormDestroy(Sender: TObject);
 var
   I: Integer;
@@ -279,7 +282,7 @@ begin
   FreeAndNil(FGuidInfo);
 end;
 
-procedure TfrmEventLogViewer.FormShow(Sender: TObject);
+procedure TfrmEventLogViewer.UpdateTree;
 var
   I: Integer;
   VInfo: TGuidInfo;
@@ -316,6 +319,11 @@ begin
       '%d events, loaded at %.4f seconds',
       [Length(FEvents), VTimer.Elapsed.TotalSeconds]
     );
+end;
+
+procedure TfrmEventLogViewer.FormShow(Sender: TObject);
+begin
+  UpdateTree;
 end;
 
 function TfrmEventLogViewer.GetItemIndex(const ANode: PVirtualNode): Int64;
@@ -406,6 +414,45 @@ begin
     Sender.SortDirection := sdDescending;
   end else begin
     Sender.SortDirection := sdAscending;
+  end;
+end;
+
+procedure TfrmEventLogViewer.OnVTKeyDown(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+var
+  I: Int64;
+  VNode: PVirtualNode;
+  VResult: TModalResult;
+begin
+  if (Key <> VK_DELETE) or (FVirtualTree.SelectedCount <> 1) then begin
+    Exit;
+  end;
+
+  VNode := FVirtualTree.FocusedNode;
+  if VNode = nil then begin
+    Exit;
+  end;
+
+  I := GetItemIndex(VNode);
+
+  VResult := MessageDlg(
+    'Delete record #' + IntToStr(I + 1) + ' from the database?',
+    mtConfirmation, [mbYes, mbCancel], 0
+  );
+
+  if VResult = mrYes then begin
+    try
+      FStorage.DeleteItem(FEvents[I].ID);
+      UpdateTree;
+    except
+      on E: Exception do begin
+        MessageDlg(
+          'Can''t delete record #' + IntToStr(I + 1) + ' from the database.' + #13#10 +
+          E.ClassName + ': ' + E.Message,
+          mtError, [mbOK], 0
+        );
+      end;
+    end;
   end;
 end;
 
