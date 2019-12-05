@@ -53,7 +53,29 @@ const
   {$SetPEFlags IMAGE_FILE_LOCAL_SYMS_STRIPPED}
 {$ENDIF}
 
+procedure Win64ReserveMem;
+{$IFDEF WIN64}
+var
+  P: Pointer;
 begin
+  while True do begin
+    P := VirtualAlloc(nil, 4 * 1024 * 1024, MEM_RESERVE, PAGE_NOACCESS);
+    if (P = nil) or (NativeUInt(P) >= $FFFFFFFF) then begin
+      Break;
+    end;
+  end;
+end;
+{$ELSE}
+begin
+  //
+end;
+{$ENDIF}
+
+begin
+  {$IFDEF DEBUG}
+  Win64ReserveMem;
+  {$ENDIF}
+
   if not TScheduler.AppCanStart then begin
     Exit;
   end;
