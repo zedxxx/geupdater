@@ -85,6 +85,9 @@ const
     (GUID:        cGoogleEarthDesktopClientGUID;
      RequestUrl:  'https://dl.google.com/earth/client/advanced/current/GoogleEarthProWin.exe';
      DisplayName: 'Client')
+     
+     // ToDo: Check for GoogleEarth Enterprise Client (EC)
+     // https://dl.google.com/dl/earth/client/advanced/current/GoogleEarthEcWin.exe
   );
 
 { TGoogleEarthDesktop }
