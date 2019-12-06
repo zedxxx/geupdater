@@ -58,8 +58,8 @@ begin
   FHttpClient := THTTPClient.Create;
 
   // AutomaticDecompression supported in Windows 8.1 and newer
-  if (Win32MajorVersion > 8) or
-    ((Win32MajorVersion = 8) and (Win32MinorVersion >= 1))
+  if (Win32MajorVersion > 6) or
+    ((Win32MajorVersion = 6) and (Win32MinorVersion >= 3))
   then begin
     FHttpClient.AutomaticDecompression := [THTTPCompressionMethod.Any];
   end else begin
