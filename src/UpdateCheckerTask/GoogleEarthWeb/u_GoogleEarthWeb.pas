@@ -83,10 +83,20 @@ var
 begin
   Result := '';
   if AText <> '' then begin
-    VPattern := '\"app_min(.*?)\.html\":"(.*?)/app_min(.*?)\.html"';
+    VPattern := '"app_min\.html":"(.*?)/app_min\.html"';
     VMatch := TRegEx.Match(AText, VPattern, [roIgnoreCase, roMultiLine]);
     if VMatch.Success then begin
-      Result := VMatch.Groups.Item[2].Value;
+      Result := VMatch.Groups.Item[1].Value;
+    end;
+
+    if Result <> '' then begin
+      Exit;
+    end;
+
+    VPattern := 'data-version="(.*?)"';
+    VMatch := TRegEx.Match(AText, VPattern, [roIgnoreCase, roMultiLine]);
+    if VMatch.Success then begin
+      Result := VMatch.Groups.Item[1].Value;
     end;
   end;
 end;
