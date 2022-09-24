@@ -8,7 +8,7 @@
 {*********************************************************}
 
 {@********************************************************}
-{    Copyright (c) 1999-2012 Zeos Development Group       }
+{    Copyright (c) 1999-2020 Zeos Development Group       }
 {                                                         }
 { License Agreement:                                      }
 {                                                         }
@@ -1060,6 +1060,7 @@ function SQLDequotedStr(const S: string; QuoteLeft, QuoteRight: Char): string; o
 function SameText(Val1, Val2: PAnsiChar; Len: LengthInt): Boolean; overload;
 function SameText(Val1, Val2: PWideChar; Len: LengthInt): Boolean; overload;
 
+procedure Trim(var L: NativeUInt; var P: PAnsiChar); overload;
 function Trim(P: PAnsiChar; L: LengthInt): RawByteString; overload;
 function Trim(P: PAnsiChar): RawByteString; overload;
 function Trim(P: PWideChar; L: LengthInt): ZWideString; overload;
@@ -2223,7 +2224,7 @@ begin
     if OffSet = 1
     then List.Add(Str)
     else begin
-      SetString(temp, (P+OffSet-1), (L-(OffSet-LD))-1);
+      SetString(temp, (P+OffSet-1), (L-OffSet+1));
       List.Add(temp);
     end;
 end;
@@ -2397,7 +2398,9 @@ begin
     Result[I] := Value[I];
 end;
 
-function BytesToVar(const Value: RawByteString): Variant; overload;
+{$IFNDEF WITH_TBYTES_AS_RAWBYTESTRING}
+{$IFDEF WITH_NOT_INLINED_WARNING}{$PUSH}{$WARN 6058 off : Call to subroutine "operator := (const Source: Byte): Variant;" marked as inline is not inlined}{$ENDIF}
+function BytesToVar(const Value: RawByteString): Variant;
 var
   I: Integer;
   P: PByte;
@@ -2409,6 +2412,8 @@ begin
     Inc(P);
   end;
 end;
+{$IFDEF WITH_NOT_INLINED_WARNING}{$POP}{$ENDIF}
+{$ENDIF WITH_TBYTES_AS_RAWBYTESTRING}
 
 {**
   Converts variant into an array of bytes.
@@ -4361,6 +4366,32 @@ begin;
   end;
 end;
 
+procedure QuickSort(List: PPointerList; L, R: Integer; Compare: TZListSortCompare);
+var
+  I, J: Integer;
+  P, T: Pointer;
+begin;
+  repeat
+    I := L;
+    J := R;
+    P := List^[(L + R) shr 1];
+    repeat;
+      while Compare(List^[I], P)<0 do
+        Inc(I);         //*
+      while Compare(List^[J], P)>0 do
+        Dec(J);         //*
+      if I<=J then begin;                            //**
+        T := List^[I]; List^[I]:=List^[J]; List^[J]:=T;
+        Inc(I);
+        Dec(J);
+      end;
+    until I>J;
+    if L<J then
+      QuickSort(List, L, J, Compare);      //***
+    L := I;
+  until I >= R;
+end;
+
 {$IFDEF FPC} {$POP} {$ENDIF}
 
 {$IFDEF RangeCheckEnabled} {$R+} {$ENDIF}
@@ -4544,9 +4575,13 @@ end;
 procedure TZSortedList.Sort(Compare: TZListSortCompare);
 begin
   {$IFDEF TLIST_ISNOT_PPOINTERLIST}
-  HybridSortSha_0AA(@List, Count, Compare);
+  if Count > 1 then
+    HybridSortSha_0AA(@List, Count, Compare);
+    //QuickSort(@List, 0, Count-1, Compare);
   {$ELSE}
-  HybridSortSha_0AA(List, Count, Compare);
+  if Count > 1 then
+    HybridSortSha_0AA(List, Count, Compare);
+    //QuickSort(List, 0, Count-1, Compare);
   {$ENDIF}
 end;
 
@@ -5950,6 +5985,17 @@ begin
 end;
 {$IFDEF RangeCheckEnabled} {$R+} {$ENDIF}
 {$IFDEF OverFlowCheckEnabled} {$Q+} {$ENDIF}
+
+procedure Trim(var L: NativeUInt; var P: PAnsiChar);
+var PEnd: PAnsiChar;
+begin
+  PEnd := P + L -1;
+  while (P <= PEnd) and (Ord(P^   ) <= Ord(' ')) do
+    Inc(P);
+  while (PEnd >= P) and (Ord(PEnd^) <= Ord(' ')) do
+    Dec(PEnd);
+  L := (PEnd+1)-P;
+end;
 
 function Trim(P: PAnsiChar; L: LengthInt): RawByteString;
 var PEnd: PAnsiChar;

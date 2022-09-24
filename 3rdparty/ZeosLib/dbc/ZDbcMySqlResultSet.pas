@@ -8,7 +8,7 @@
 {*********************************************************}
 
 {@********************************************************}
-{    Copyright (c) 1999-2012 Zeos Development Group       }
+{    Copyright (c) 1999-2020 Zeos Development Group       }
 {                                                         }
 { License Agreement:                                      }
 {                                                         }
@@ -58,7 +58,7 @@ interface
 {$IFNDEF ZEOS_DISABLE_MYSQL} //if set we have an empty unit
 uses
   Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils, Types,
-  {$IFDEF NO_UNIT_CONTNRS}ZClasses{$ELSE}Contnrs{$ENDIF},
+  ZClasses, {$IFNDEF NO_UNIT_CONTNRS}Contnrs,{$ENDIF}
   ZDbcIntfs, ZDbcResultSet, ZDbcResultSetMetadata, ZCompatibility, ZDbcCache,
   ZDbcCachedResultSet, ZDbcGenericResolver, ZDbcMySqlStatement,
   ZPlainMySqlDriver, ZPlainMySqlConstants, ZSelectSchema;
@@ -236,8 +236,9 @@ implementation
 
 uses
   Math, {$IFDEF WITH_UNITANSISTRINGS}AnsiStrings,{$ENDIF}
-  ZFastCode, ZSysUtils, ZMessages, ZEncoding, {$IFNDEF NO_UNIT_CONTNRS}ZClasses,{$ENDIF}
-  ZDbcMySqlUtils, ZDbcMySQL, ZDbcUtils, ZDbcMetadata, ZDbcLogging;
+  ZFastCode, ZSysUtils, ZMessages, ZEncoding, ZTokenizer,
+  ZGenericSqlAnalyser,
+  ZDbcUtils, ZDbcMetadata, ZDbcLogging, ZDbcMySqlUtils, ZDbcMySql;
 
 { TZMySQLResultSetMetadata }
 
@@ -338,25 +339,45 @@ var
   Current: TZColumnInfo;
   I: Integer;
   TableColumns: IZResultSet;
+  Connection: IZConnection;
+  Driver: IZDriver;
+  IdentifierConvertor: IZIdentifierConvertor;
+  Analyser: IZStatementAnalyser;
+  Tokenizer: IZTokenizer;
 begin
-  if not FHas_ExtendedColumnInfos then
-    inherited LoadColumns
-  else if Metadata.GetConnection.GetDriver.GetStatementAnalyser.DefineSelectSchemaFromQuery(Metadata.GetConnection.GetDriver.GetTokenizer, SQL) <> nil then
-    for I := 0 to ResultSet.ColumnsInfo.Count - 1 do begin
-      Current := TZColumnInfo(ResultSet.ColumnsInfo[i]);
-      ClearColumn(Current);
-      if Current.TableName = '' then
-        continue;
-      TableColumns := Metadata.GetColumns(Current.CatalogName, Current.SchemaName, Metadata.AddEscapeCharToWildcards(Metadata.GetIdentifierConvertor.Quote(Current.TableName)),'');
-      if TableColumns <> nil then begin
-        TableColumns.BeforeFirst;
-        while TableColumns.Next do
-          if TableColumns.GetString(ColumnNameIndex) = Current.ColumnName then begin
-            FillColumInfoFromGetColumnsRS(Current, TableColumns, Current.ColumnName);
-            Break;
+  if not FHas_ExtendedColumnInfos
+  then inherited LoadColumns
+  else begin
+    Connection := Metadata.GetConnection;
+    Driver := Connection.GetDriver;
+    Analyser := Driver.GetStatementAnalyser;
+    Tokenizer := Driver.GetTokenizer;
+    IdentifierConvertor := Metadata.GetIdentifierConvertor;
+    try
+      if Analyser.DefineSelectSchemaFromQuery(Tokenizer, SQL) <> nil then
+        for I := 0 to ResultSet.ColumnsInfo.Count - 1 do begin
+          Current := TZColumnInfo(ResultSet.ColumnsInfo[i]);
+          ClearColumn(Current);
+          if Current.TableName = '' then
+            continue;
+          TableColumns := Metadata.GetColumns(Current.CatalogName, Current.SchemaName, Metadata.AddEscapeCharToWildcards(IdentifierConvertor.Quote(Current.TableName)),'');
+          if TableColumns <> nil then begin
+            TableColumns.BeforeFirst;
+            while TableColumns.Next do
+              if TableColumns.GetString(ColumnNameIndex) = Current.ColumnName then begin
+                FillColumInfoFromGetColumnsRS(Current, TableColumns, Current.ColumnName);
+                Break;
+              end;
           end;
-      end;
+        end;
+    finally
+      Driver := nil;
+      Connection := nil;
+      Analyser := nil;
+      Tokenizer := nil;
+      IdentifierConvertor := nil;
     end;
+  end;
   Loaded := True;
 end;
 
@@ -441,7 +462,7 @@ var
   FieldOffsets: PMYSQL_FIELDOFFSETS;
   MySQL_FieldType_Bit_1_IsBoolean: Boolean;
 begin
-  FieldOffsets := GetFieldOffsets(FPlainDriver.GetClientVersion);
+  FieldOffsets := GetFieldOffsets(FPlainDriver.IsMariaDBDriver, FPlainDriver.GetClientVersion);
   if fServerCursor
   then FQueryHandle := FPlainDriver.use_result(FHandle)
   else begin
@@ -459,7 +480,7 @@ begin
   for I := 0 to High(FMySQLTypes) do begin
     FPlainDriver.SeekField(FQueryHandle, I);
     FieldHandle := FPlainDriver.FetchField(FQueryHandle);
-    FMySQLTypes[i] := PMysqlFieldType(NativeUInt(FieldHandle)+FieldOffSets._type)^;
+    FMySQLTypes[i] := {%H-}PMysqlFieldType({%H-}NativeUInt(FieldHandle)+FieldOffSets._type)^;
     if FieldHandle = nil then
       Break;
 
@@ -1093,7 +1114,7 @@ begin
 
   { Initialize Bind Array and Column Array }
   FBindBuffer := TZMySqlResultSetBindBuffer.Create(FPlainDriver,FieldCount,FColumnArray);
-  FIELDOFFSETS := GetFieldOffsets(FPlainDriver.GetClientVersion);
+  FIELDOFFSETS := GetFieldOffsets(FPlainDriver.IsMariaDBDriver, FPlainDriver.GetClientVersion);
   { EH: no we skip that! We use the refetch logic of
   https://bugs.mysql.com/file.php?id=12361&bug_id=33086
 

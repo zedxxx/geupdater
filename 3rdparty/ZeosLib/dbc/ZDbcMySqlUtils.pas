@@ -9,7 +9,7 @@
 {*********************************************************}
 
 {@********************************************************}
-{    Copyright (c) 1999-2012 Zeos Development Group       }
+{    Copyright (c) 1999-2020 Zeos Development Group       }
 {                                                         }
 { License Agreement:                                      }
 {                                                         }
@@ -157,7 +157,7 @@ function ReverseLongWordBytes(Src: Pointer; Len: Byte): LongWord;
 function ReverseQuadWordBytes(Src: Pointer; Len: Byte): UInt64;
 
 function GetBindOffsets(IsMariaDB: Boolean; Version: Integer): TMYSQL_BINDOFFSETS;
-function GetFieldOffsets(Version: Integer): PMYSQL_FIELDOFFSETS;
+function GetFieldOffsets(IsMariaDB: Boolean; Version: Integer): PMYSQL_FIELDOFFSETS;
 
 {$ENDIF ZEOS_DISABLE_MYSQL} //if set we have an empty unit
 implementation
@@ -533,7 +533,7 @@ begin
       end
     end else
       Result.Precision := Integer(FieldLength)*Ord(not (PMysqlFieldType(NativeUInt(MYSQL_FIELD)+FieldOffsets._type)^ in
-        [FIELD_TYPE_BLOB, FIELD_TYPE_TINY_BLOB, FIELD_TYPE_MEDIUM_BLOB, FIELD_TYPE_LONG_BLOB]));
+        [FIELD_TYPE_BLOB, FIELD_TYPE_TINY_BLOB, FIELD_TYPE_MEDIUM_BLOB, FIELD_TYPE_LONG_BLOB, FIELD_TYPE_GEOMETRY]));
     Result.Scale := PUInt(NativeUInt(MYSQL_FIELD)+FieldOffsets.decimals)^;
     Result.AutoIncrement := (AUTO_INCREMENT_FLAG and PUInt(NativeUInt(MYSQL_FIELD)+FieldOffsets.flags)^ <> 0);// or
       //(TIMESTAMP_FLAG and MYSQL_FIELD.flags <> 0);
@@ -599,7 +599,8 @@ begin
   end else if TypeName = 'set' then begin
     ColumnSize := 255;
     FieldType := stString;
-  end else if ZFastCode.Pos({$IFDEF UNICODE}RawByteString{$ENDIF}('int'), TypeName) > 0 then begin
+  end else if not StartsWith(TypeName, {$IFDEF UNICODE}RawByteString{$ENDIF}('po')) and  //exclude "point" type
+    (ZFastCode.Pos({$IFDEF UNICODE}RawByteString{$ENDIF}('int'), TypeName) > 0) then begin
     if StartsWith(TypeName, {$IFDEF UNICODE}RawByteString{$ENDIF}('tiny')) then begin
 lByte:
       FieldType := TZSQLType(Ord(stByte)+Ord(Signed));  //0 - 255 or -128 - 127
@@ -857,9 +858,9 @@ begin
     result.buffer_type:=0;
 end;
 
-function GetFieldOffsets(Version: Integer): PMYSQL_FIELDOFFSETS;
+function GetFieldOffsets(IsMariaDB: Boolean; Version: Integer): PMYSQL_FIELDOFFSETS;
 begin
-  if (Version >= 50100) then
+  if (Version >= 50100) or IsMariaDB then
     result := @MYSQL_FIELD51_Offset
   else if (Version >= 40100) then
     Result := @MYSQL_FIELD41_Offset
