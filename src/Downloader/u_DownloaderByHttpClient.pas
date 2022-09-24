@@ -45,7 +45,6 @@ implementation
 uses
   System.Zlib,
   System.SysUtils,
-  IdGlobalProtocols, // for GMTToLocalDateTime
   u_DateTimeUtils,
   u_DownloadResponse;
 
@@ -153,10 +152,7 @@ var
   VLastModifiedUTC: TDateTime;
   VRawHeaders: string;
 begin
-  VLastModifiedUTC := GMTToLocalDateTime(AHttpResponse.LastModified);
-  if VLastModifiedUTC <> 0 then begin
-    VLastModifiedUTC := LocalTimeToUTC(VLastModifiedUTC);
-  end;
+  VLastModifiedUTC := RFC1123ToDateTime(AHttpResponse.LastModified);
 
   VStringBuilder := TStringBuilder.Create;
   try

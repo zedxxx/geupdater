@@ -6,12 +6,14 @@ function LocalTimeToUTC(const ALocalTime: TDateTime): TDateTime;
 function UTCToLocalTime(const AUTC: TDateTime): TDateTime;
 
 function DateTimeToRFC1123(const ADate: TDateTime): string;
+function RFC1123ToDateTime(const AStr: string): TDateTime;
 
 implementation
 
 uses
   Windows,
-  SysUtils;
+  SysUtils,
+  IdGlobalProtocols; // for GMTToLocalDateTime
 
 function LocalTimeToUTC(const ALocalTime: TDateTime): TDateTime;
 var
@@ -58,6 +60,14 @@ begin
       '%2.2d %s %4.4d %2.2d:%2.2d:%2.2d',
       [VDay, Copy(cStrMonth, 1 + 3 * (VMonth - 1), 3), VYear, VHour, VMin, VSec]
     ) + ' GMT';
+end;
+
+function RFC1123ToDateTime(const AStr: string): TDateTime;
+begin
+  Result := GMTToLocalDateTime(AStr);
+  if Result <> 0 then begin
+    Result := LocalTimeToUTC(Result);
+  end;
 end;
 
 end.
