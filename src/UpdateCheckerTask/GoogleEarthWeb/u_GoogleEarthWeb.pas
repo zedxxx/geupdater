@@ -34,7 +34,7 @@ uses
   Classes,
   SysUtils,
   RegularExpressions,
-  c_UserAget,
+  c_UserAgent,
   c_UpdateCheckerTask,
   i_DownloadResponse,
   u_PlanetoidMetadata;

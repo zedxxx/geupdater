@@ -45,7 +45,7 @@ uses
   SysUtils,
   ZLib,
   dbroot_lite,
-  c_UserAget,
+  c_UserAgent,
   c_UpdateCheckerTask,
   i_DownloadResponse,
   u_DateTimeUtils;

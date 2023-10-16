@@ -1,4 +1,4 @@
-unit c_UserAget;
+unit c_UserAgent;
 
 interface
 
@@ -6,10 +6,10 @@ const
   cBrowserUserAgent =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
     'AppleWebKit/537.36 (KHTML, like Gecko) ' +
-    'Chrome/102.0.5005.61/63' + ' ' +
+    'Chrome/118.0.0.0' + ' ' +
     'Safari/537.36';
 
-  cGoogleEarthClientVersion = '7.3.4.8642';
+  cGoogleEarthClientVersion = '7.3.6.9345';
 
   cGoogleEarthClientUserAgent =
     'GoogleEarth/' + cGoogleEarthClientVersion +
