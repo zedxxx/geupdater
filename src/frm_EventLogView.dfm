@@ -10,12 +10,10 @@ object frmEventLogViewer: TfrmEventLogViewer
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
-  OldCreateOrder = False
   Position = poOwnerFormCenter
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   OnShow = FormShow
-  PixelsPerInch = 96
   TextHeight = 13
   object lblInfo: TLabel
     Left = 8
@@ -36,7 +34,7 @@ object frmEventLogViewer: TfrmEventLogViewer
   object pnlTreeView: TPanel
     Left = 0
     Top = 0
-    Width = 652
+    Width = 655
     Height = 443
     Align = alCustom
     Anchors = [akLeft, akTop, akRight, akBottom]
@@ -53,5 +51,7 @@ object frmEventLogViewer: TfrmEventLogViewer
     Caption = 'Close'
     TabOrder = 1
     OnClick = btnCloseClick
+    ExplicitLeft = 568
+    ExplicitTop = 448
   end
 end
