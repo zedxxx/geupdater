@@ -48,6 +48,10 @@ begin
 end;
 
 procedure TTaskInfoListener.Update(const AInfo: TTaskInfo);
+const
+  cStateCaptionText: array[TTaskState] of string = (
+    'waiting...', 'in progress...', 'HTTP ERROR', 'FAILED', ''
+  );
 var
   VInfo: TTaskInfo;
 begin
@@ -61,6 +65,13 @@ begin
         if VInfo.LastModified <> 0 then begin
           FFrame.lblLastModified.Caption :=
             FormatDateTime('yyyy-mm-dd hh:nn:ss', UTCToLocalTime(VInfo.LastModified));
+        end else
+        if VInfo.TimeStamp <> 0 then begin
+          FFrame.lblLastModified.Caption :=
+            FormatDateTime('yyyy-mm-dd hh:nn:ss', UTCToLocalTime(VInfo.TimeStamp));
+
+          FFrame.lblLastModified.Font.Color := clGrayText;
+          //FFrame.lblLastModified.Font.Style := [fsItalic];
         end else begin
           FFrame.lblLastModified.Caption := '';
         end;
@@ -78,11 +89,7 @@ begin
 
         FFrame.lblVersion.Caption := VInfo.Version;
       end else begin
-        case VInfo.State of
-          tsNone:       FFrame.lblVersion.Caption := 'waiting...';
-          tsInProgress: FFrame.lblVersion.Caption := 'in progress...';
-          tsFailed:     FFrame.lblVersion.Caption := 'FAILED';
-        end;
+        FFrame.lblVersion.Caption := cStateCaptionText[VInfo.State];
       end;
     end
   );

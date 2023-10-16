@@ -45,7 +45,9 @@ begin
        VProxyParams.UseProxy := False;
        Result := TDownloaderByIndy.Create(VProxyParams);
     end;
-    dftHttpClient: Result := TDownloaderByHttpClient.Create;
+    dftHttpClient: begin
+      Result := TDownloaderByHttpClient.Create;
+    end;
   else
     raise Exception.Create(
       'Unknown DownloaderFactory Type: ' + IntToStr(Integer(FType))

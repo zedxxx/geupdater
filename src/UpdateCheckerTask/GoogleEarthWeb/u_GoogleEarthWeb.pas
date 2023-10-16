@@ -15,9 +15,12 @@ type
   TGoogleEarthWeb = class(TUpdateCheckerTaskBase)
   private
     FCheckType: TGoogleEarthWebCheckType;
-    function GetHeaders: string;
+  private
+    class function GetVersion(const AData: Pointer; const ASize: Int64): string;
+    class function GetClientVersion(const AText: string): string;
   protected
     function GetConf: TTaskConf; override;
+    function GetHeaders: string; override;
     procedure DoExecute; override;
   public
     constructor Create(
@@ -36,6 +39,7 @@ uses
   RegularExpressions,
   c_UserAgent,
   c_UpdateCheckerTask,
+  i_DownloadRequest,
   i_DownloadResponse,
   u_PlanetoidMetadata;
 
@@ -76,7 +80,49 @@ begin
     'Accept-Language: en-us,en,*';
 end;
 
-function GetClientVersion(const AText: string): string;
+procedure TGoogleEarthWeb.DoExecute;
+var
+  VRequest: IDownloadRequest;
+  VResponse: IDownloadResponse;
+begin
+  VRequest := BuildRequest;
+  VResponse := FDownloader.DoGetRequest(VRequest);
+
+  FInfo.HttpRequest := VRequest;
+  FInfo.HttpResponse := VResponse;
+
+  if VResponse.Code = 200 then begin
+    FInfo.State := tsFinished;
+    FInfo.LastModified := VResponse.LastModified;
+    case FCheckType of
+      gewctEarth:  FInfo.Version := GetVersion(VResponse.Body, VResponse.BodySize);
+      gewctClient: FInfo.Version := GetClientVersion(VResponse.GetBodyAsText);
+    else
+      Assert(False);
+    end;
+    FInfo.IsUpdatesFound := not FPrevInfoExists or (FPrevInfo.Version <> FInfo.Version);
+  end else begin
+    FInfo.State := tsHttpError;
+  end;
+end;
+
+class function TGoogleEarthWeb.GetVersion(const AData: Pointer; const ASize: Int64): string;
+var
+  VMetadata: TPlanetoidMetadataRec;
+begin
+  Result := '';
+  if ASize > 0 then begin
+    if ParseMetadata(AData, ASize, VMetadata) then begin
+      if VMetadata.Epoch_02 = VMetadata.Epoch_05 then begin
+        Result := IntToStr(VMetadata.Epoch_02);
+      end else begin
+        Result := Format('%d,%d', [VMetadata.Epoch_02, VMetadata.Epoch_05]);
+      end;
+    end;
+  end;
+end;
+
+class function TGoogleEarthWeb.GetClientVersion(const AText: string): string;
 var
   VPattern: string;
   VMatch: TMatch;
@@ -98,44 +144,6 @@ begin
     if VMatch.Success then begin
       Result := VMatch.Groups.Item[1].Value;
     end;
-  end;
-end;
-
-function GetVersion(const AData: Pointer; const ASize: Int64): string;
-var
-  VMetadata: TPlanetoidMetadataRec;
-begin
-  Result := '';
-  if ASize > 0 then begin
-    if ParseMetadata(AData, ASize, VMetadata) then begin
-      if VMetadata.Epoch_02 = VMetadata.Epoch_05 then begin
-        Result := IntToStr(VMetadata.Epoch_02);
-      end else begin
-        Result := Format('%d,%d', [VMetadata.Epoch_02, VMetadata.Epoch_05]);
-      end;
-    end;
-  end;
-end;
-
-procedure TGoogleEarthWeb.DoExecute;
-var
-  VRawHeaders: string;
-  VResponse: IDownloadResponse;
-begin
-  VRawHeaders := GetHeaders;
-  VResponse := FDownloader.DoGetRequest(FInfo.Conf.RequestUrl, VRawHeaders);
-  if VResponse.Code = 200 then begin
-    FInfo.State := tsFinished;
-    FInfo.LastModified := VResponse.LastModified;
-    case FCheckType of
-      gewctEarth:  FInfo.Version := GetVersion(VResponse.Body, VResponse.BodySize);
-      gewctClient: FInfo.Version := GetClientVersion(VResponse.GetBodyAsText);
-    else
-      Assert(False);
-    end;
-    FInfo.IsUpdatesFound := not FPrevInfoExists or (FPrevInfo.Version <> FInfo.Version);
-  end else begin
-    FInfo.State := tsFailed;
   end;
 end;
 

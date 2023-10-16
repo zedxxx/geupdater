@@ -3,7 +3,7 @@ unit t_TaskInfo;
 interface
 
 type
-  TTaskState = (tsNone, tsInProgress, tsFailed, tsFinished);
+  TTaskState = (tsNone, tsInProgress, tsHttpError, tsFailed, tsFinished);
 
   TTaskConf = record
     GUID: string;
@@ -17,6 +17,10 @@ type
     LastModified: TDateTime;
     Version: string;
     IsUpdatesFound: Boolean;
+
+    TimeStamp: TDateTime;
+    HttpRequest: IInterface;
+    HttpResponse: IInterface;
   end;
   PTaskInfo = ^TTaskInfo;
 

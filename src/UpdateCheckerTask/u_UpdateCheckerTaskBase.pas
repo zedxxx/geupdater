@@ -6,6 +6,7 @@ uses
   t_TaskInfo,
   t_EventLog,
   i_Downloader,
+  i_DownloadRequest,
   i_TaskInfoListener,
   i_EventLogStorage,
   i_UpdateCheckerTask;
@@ -21,8 +22,10 @@ type
     FPrevInfoExists: Boolean;
     procedure ClearInfo(var AInfo: TTaskInfo);
     procedure UpdateListener;
+    function BuildRequest: IDownloadRequest;
   protected
     function GetConf: TTaskConf; virtual; abstract;
+    function GetHeaders: string; virtual; abstract;
     procedure DoExecute; virtual; abstract;
   private
     { IUpdateCheckerTask }
@@ -40,6 +43,7 @@ implementation
 
 uses
   SysUtils,
+  u_DownloadRequest,
   u_DateTimeUtils;
 
 { TUpdateCheckerTaskBase }
@@ -70,22 +74,41 @@ begin
   UpdateListener;
 end;
 
+function TUpdateCheckerTaskBase.BuildRequest: IDownloadRequest;
+begin
+  Result := TDownloadRequest.Create(FInfo.Conf.RequestUrl, GetHeaders);
+end;
+
 procedure TUpdateCheckerTaskBase.Execute;
 var
   VItem: TEventLogItem;
+  VTimeStamp: TDateTime;
 begin
   FInfo.State := tsInProgress;
   UpdateListener;
   try
     try
       DoExecute;
-      if FInfo.State = tsFinished then begin
-        if FInfo.IsUpdatesFound or not FPrevInfoExists then begin
-          VItem.TimeStamp := LocalTimeToUTC(Now);
-          VItem.GUID := StringToGUID(FInfo.Conf.GUID);
-          VItem.Version := FInfo.Version;
-          VItem.LastModified := FInfo.LastModified;
-          FEventLog.AddItem(VItem);
+      case FInfo.State of
+        tsFinished: begin
+          VTimeStamp := LocalTimeToUTC(Now);
+          if FInfo.IsUpdatesFound or not FPrevInfoExists then begin
+            VItem.TimeStamp := VTimeStamp;
+            VItem.GUID := StringToGUID(FInfo.Conf.GUID);
+            VItem.Version := FInfo.Version;
+            VItem.LastModified := FInfo.LastModified;
+            FEventLog.AddItem(VItem);
+          end;
+          if FInfo.IsUpdatesFound then begin
+            FInfo.TimeStamp := VTimeStamp;
+          end else
+          if FPrevInfoExists then begin
+            FInfo.TimeStamp := FPrevInfo.TimeStamp;
+          end;
+        end;
+
+        tsHttpError: begin
+          // ToDo: Log http response
         end;
       end;
     except
@@ -106,6 +129,9 @@ begin
   AInfo.LastModified := 0;
   AInfo.Version := '';
   AInfo.IsUpdatesFound := False;
+  AInfo.TimeStamp := 0;
+  AInfo.HttpRequest := nil;
+  AInfo.HttpResponse := nil;
 end;
 
 procedure TUpdateCheckerTaskBase.UpdateListener;

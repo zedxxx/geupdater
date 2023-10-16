@@ -6,6 +6,7 @@ uses
   System.SyncObjs,
   System.Generics.Collections,
   i_Downloader,
+  i_DownloadRequest,
   i_DownloadResponse;
 
 type
@@ -15,15 +16,8 @@ type
     FLock: TCriticalSection;
     FCache: TDictionary<string, IDownloadResponse>;
   private
-    function DoHeadRequest(
-      const AUrl: string;
-      const ARawHeaders: string
-    ): IDownloadResponse;
-
-    function DoGetRequest(
-      const AUrl: string;
-      const ARawHeaders: string
-    ): IDownloadResponse;
+    function DoHeadRequest(const ARequest: IDownloadRequest): IDownloadResponse;
+    function DoGetRequest(const ARequest: IDownloadRequest): IDownloadResponse;
   public
     constructor Create(const ADownloader: IDownloader);
     destructor Destroy; override;
@@ -53,32 +47,26 @@ begin
   inherited;
 end;
 
-function TDownloaderWithRamCache.DoGetRequest(
-  const AUrl: string;
-  const ARawHeaders: string
-): IDownloadResponse;
+function TDownloaderWithRamCache.DoGetRequest(const ARequest: IDownloadRequest): IDownloadResponse;
 begin
   FLock.Acquire;
   try
-    if not FCache.TryGetValue(AUrl, Result) then begin
-      Result := FDownloader.DoGetRequest(AUrl, ARawHeaders);
-      FCache.Add(AUrl, Result);
+    if not FCache.TryGetValue(ARequest.Url, Result) then begin
+      Result := FDownloader.DoGetRequest(ARequest);
+      FCache.Add(ARequest.Url, Result);
     end;
   finally
     FLock.Release;
   end;
 end;
 
-function TDownloaderWithRamCache.DoHeadRequest(
-  const AUrl: string;
-  const ARawHeaders: string
-): IDownloadResponse;
+function TDownloaderWithRamCache.DoHeadRequest(const ARequest: IDownloadRequest): IDownloadResponse;
 begin
   FLock.Acquire;
   try
-    if not FCache.TryGetValue(AUrl, Result) then begin
-      Result := FDownloader.DoHeadRequest(AUrl, ARawHeaders);
-      FCache.Add(AUrl, Result);
+    if not FCache.TryGetValue(ARequest.Url, Result) then begin
+      Result := FDownloader.DoHeadRequest(ARequest);
+      FCache.Add(ARequest.Url, Result);
     end;
   finally
     FLock.Release;

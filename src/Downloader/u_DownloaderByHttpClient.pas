@@ -8,6 +8,7 @@ uses
   System.Net.HttpClient,
   System.Net.URLClient,
   i_Downloader,
+  i_DownloadRequest,
   i_DownloadResponse;
 
 type
@@ -27,14 +28,8 @@ type
     ): TMemoryStream;
   private
     { IDownloader }
-    function DoHeadRequest(
-      const AUrl: string;
-      const ARawHeaders: string
-    ): IDownloadResponse;
-    function DoGetRequest(
-      const AUrl: string;
-      const ARawHeaders: string
-    ): IDownloadResponse;
+    function DoHeadRequest(const ARequest: IDownloadRequest): IDownloadResponse;
+    function DoGetRequest(const ARequest: IDownloadRequest): IDownloadResponse;
   public
     constructor Create;
     destructor Destroy; override;
@@ -55,15 +50,7 @@ begin
   inherited;
   FLock := TCriticalSection.Create;
   FHttpClient := THTTPClient.Create;
-
-  // AutomaticDecompression supported in Windows 8.1 and newer
-  if (Win32MajorVersion > 6) or
-    ((Win32MajorVersion = 6) and (Win32MinorVersion >= 3))
-  then begin
-    FHttpClient.AutomaticDecompression := [THTTPCompressionMethod.Any];
-  end else begin
-    FHttpClient.AutomaticDecompression := [];
-  end;
+  FHttpClient.AutomaticDecompression := [];
 end;
 
 destructor TDownloaderByHttpClient.Destroy;
@@ -176,37 +163,33 @@ begin
     );
 end;
 
-function TDownloaderByHttpClient.DoGetRequest(
-  const AUrl, ARawHeaders: string
-): IDownloadResponse;
+function TDownloaderByHttpClient.DoGetRequest(const ARequest: IDownloadRequest): IDownloadResponse;
 var
   VHeaders: TNetHeaders;
   VHttpResponse: IHttpResponse;
 begin
   FLock.Acquire;
   try
-    VHeaders := RawHeadersToNetHeaders(ARawHeaders);
+    VHeaders := RawHeadersToNetHeaders(ARequest.RawHeaders);
     if FHttpClient.AutomaticDecompression = [] then begin
       VHeaders := VHeaders + [TNetHeader.Create('Accept-Encoding', 'gzip, deflate')];
     end;
-    VHttpResponse := FHttpClient.Get(AURL, nil, VHeaders);
+    VHttpResponse := FHttpClient.Get(ARequest.Url, nil, VHeaders);
     Result := BuildResponse(VHttpResponse);
   finally
     FLock.Release;
   end;
 end;
 
-function TDownloaderByHttpClient.DoHeadRequest(
-  const AUrl, ARawHeaders: string
-): IDownloadResponse;
+function TDownloaderByHttpClient.DoHeadRequest(const ARequest: IDownloadRequest): IDownloadResponse;
 var
   VHeaders: TNetHeaders;
   VHttpResponse: IHttpResponse;
 begin
   FLock.Acquire;
   try
-    VHeaders := RawHeadersToNetHeaders(ARawHeaders);
-    VHttpResponse := FHttpClient.Head(AURL, VHeaders);
+    VHeaders := RawHeadersToNetHeaders(ARequest.RawHeaders);
+    VHttpResponse := FHttpClient.Head(ARequest.Url, VHeaders);
     Result := BuildResponse(VHttpResponse);
   finally
     FLock.Release;

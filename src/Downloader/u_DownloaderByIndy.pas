@@ -8,6 +8,7 @@ uses
   IdHTTP,
   IdGlobal,
   i_Downloader,
+  i_DownloadRequest,
   i_DownloadResponse;
 
 type
@@ -36,14 +37,8 @@ type
       const ARequestType: TRequestType
     ): IDownloadResponse;
   protected
-    function DoHeadRequest(
-      const AUrl: string;
-      const ARawHeaders: string
-    ): IDownloadResponse;
-    function DoGetRequest(
-      const AUrl: string;
-      const ARawHeaders: string
-    ): IDownloadResponse;
+    function DoHeadRequest(const ARequest: IDownloadRequest): IDownloadResponse;
+    function DoGetRequest(const ARequest: IDownloadRequest): IDownloadResponse;
   public
     constructor Create(const AProxyParams: TProxyParams);
     destructor Destroy; override;
@@ -181,20 +176,14 @@ begin
   end;
 end;
 
-function TDownloaderByIndy.DoGetRequest(
-  const AUrl: string;
-  const ARawHeaders: string
-): IDownloadResponse;
+function TDownloaderByIndy.DoGetRequest(const ARequest: IDownloadRequest): IDownloadResponse;
 begin
-  Result := DoRequest(AUrl, ARawHeaders, rtGet);
+  Result := DoRequest(ARequest.Url, ARequest.RawHeaders, rtGet);
 end;
 
-function TDownloaderByIndy.DoHeadRequest(
-  const AUrl: string;
-  const ARawHeaders: string
-): IDownloadResponse;
+function TDownloaderByIndy.DoHeadRequest(const ARequest: IDownloadRequest): IDownloadResponse;
 begin
-  Result := DoRequest(AUrl, ARawHeaders, rtHead);
+  Result := DoRequest(ARequest.Url, ARequest.RawHeaders, rtHead);
 end;
 
 end.

@@ -15,6 +15,8 @@ type
     FLastModified: TDateTime;
     FBody: TMemoryStream;
     FBodyAsText: string;
+
+    function BodyToString: string;
   protected
     function GetCode: Integer;
     function GetRawHeaders: string;
@@ -57,13 +59,28 @@ begin
   FLastModified := ALastModified;
   FBody := ABody;
   FBody.Position := 0;
-  FBodyAsText := '';
+  FBodyAsText := BodyToString;
 end;
 
 destructor TDownloadResponse.Destroy;
 begin
   FreeAndNil(FBody);
   inherited;
+end;
+
+function TDownloadResponse.BodyToString: string;
+var
+  VText: AnsiString;
+begin
+  if FBody.Size > 0 then begin
+    SetLength(VText, FBody.Size);
+    FBody.Position := 0;
+    FBody.ReadBuffer(VText[1], FBody.Size);
+    FBody.Position := 0;
+    Result := string(VText);
+  end else begin
+    Result := '';
+  end;
 end;
 
 function TDownloadResponse.GetBody: Pointer;
@@ -77,18 +94,8 @@ begin
 end;
 
 function TDownloadResponse.GetBodyAsText: string;
-var
-  VText: AnsiString;
 begin
   Result := FBodyAsText;
-  if (Result = '') and (FBody.Size > 0) then begin
-    SetLength(VText, FBody.Size);
-    FBody.Position := 0;
-    FBody.ReadBuffer(VText[1], FBody.Size);
-    FBody.Position := 0;
-    FBodyAsText := string(VText);
-    Result := FBodyAsText;
-  end;
 end;
 
 function TDownloadResponse.GetCode: Integer;

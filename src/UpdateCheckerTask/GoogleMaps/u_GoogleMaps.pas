@@ -19,9 +19,14 @@ type
   TGoogleMaps = class(TUpdateCheckerTaskBase)
   private
     FCheckType: TGoogleMapsCheckType;
-    function GetHeaders: string;
+  private
+    class function GetSatVersion(const AText: string): string; static;
+    class function GetApiVersion(const AText: string): string; static;
+    class function GetDbVersion(const AText: string): string; static;
+    class function GetVersion(const AData: Pointer; const ASize: Int64): string; static;
   protected
     function GetConf: TTaskConf; override;
+    function GetHeaders: string; override;
     procedure DoExecute; override;
   public
     constructor Create(
@@ -40,6 +45,7 @@ uses
   RegularExpressions,
   c_UserAgent,
   c_UpdateCheckerTask,
+  i_DownloadRequest,
   i_DownloadResponse,
   u_PlanetoidMetadata;
 
@@ -92,7 +98,35 @@ begin
     'Accept-Language: en-us,en,*';
 end;
 
-function GetSatVersion(const AText: string): string;
+procedure TGoogleMaps.DoExecute;
+var
+  VRequest: IDownloadRequest;
+  VResponse: IDownloadResponse;
+begin
+  VRequest := BuildRequest;
+  VResponse := FDownloader.DoGetRequest(VRequest);
+
+  FInfo.HttpRequest := VRequest;
+  FInfo.HttpResponse := VResponse;
+
+  if VResponse.Code = 200 then begin
+    FInfo.State := tsFinished;
+    FInfo.LastModified := VResponse.LastModified;
+    case FCheckType of
+      gmctSat: FInfo.Version := GetSatVersion(VResponse.GetBodyAsText);
+      gmctApi: FInfo.Version := GetApiVersion(VResponse.GetBodyAsText);
+      gmctEarth: FInfo.Version := GetVersion(VResponse.Body, VResponse.BodySize);
+      gmctMars, gmctMoon: FInfo.Version := GetDbVersion(VResponse.GetBodyAsText);
+    else
+      Assert(False);
+    end;
+    FInfo.IsUpdatesFound := not FPrevInfoExists or (FPrevInfo.Version <> FInfo.Version);
+  end else begin
+    FInfo.State := tsHttpError;
+  end;
+end;
+
+class function TGoogleMaps.GetSatVersion(const AText: string): string;
 var
   VPattern: string;
   VMatch: TMatch;
@@ -107,14 +141,14 @@ begin
   end;
 end;
 
-function GetApiVersion(const AText: string): string;
+class function TGoogleMaps.GetApiVersion(const AText: string): string;
 var
   VPattern: string;
   VMatch: TMatch;
 begin
   Result := '';
   if AText <> '' then begin
-    VPattern := '\[\"https://maps\.googleapis\.com/maps-api-(.*?)",\"(.*?)\"\]';
+    VPattern := '\[\s*\"https://maps\.googleapis\.com/maps-api-(.*?)"\s*,\s*\"(.*?)\"\]';
     VMatch := TRegEx.Match(AText, VPattern, [roIgnoreCase, roMultiLine]);
     if VMatch.Success then begin
       Result := VMatch.Groups.Item[2].Value;
@@ -122,7 +156,7 @@ begin
   end;
 end;
 
-function GetDbVersion(const AText: string): string;
+class function TGoogleMaps.GetDbVersion(const AText: string): string;
 var
   VPattern: string;
   VMatch: TMatch;
@@ -137,7 +171,7 @@ begin
   end;
 end;
 
-function GetVersion(const AData: Pointer; const ASize: Int64): string;
+class function TGoogleMaps.GetVersion(const AData: Pointer; const ASize: Int64): string;
 var
   VMetadata: TPlanetoidMetadataRec;
 begin
@@ -150,30 +184,6 @@ begin
         Result := Format('%d,%d', [VMetadata.Epoch_02, VMetadata.Epoch_05]);
       end;
     end;
-  end;
-end;
-
-procedure TGoogleMaps.DoExecute;
-var
-  VRawHeaders: string;
-  VResponse: IDownloadResponse;
-begin
-  VRawHeaders := GetHeaders;
-  VResponse := FDownloader.DoGetRequest(FInfo.Conf.RequestUrl, VRawHeaders);
-  if VResponse.Code = 200 then begin
-    FInfo.State := tsFinished;
-    FInfo.LastModified := VResponse.LastModified;
-    case FCheckType of
-      gmctSat: FInfo.Version := GetSatVersion(VResponse.GetBodyAsText);
-      gmctApi: FInfo.Version := GetApiVersion(VResponse.GetBodyAsText);
-      gmctEarth: FInfo.Version := GetVersion(VResponse.Body, VResponse.BodySize);
-      gmctMars, gmctMoon: FInfo.Version := GetDbVersion(VResponse.GetBodyAsText);
-    else
-      Assert(False);
-    end;
-    FInfo.IsUpdatesFound := not FPrevInfoExists or (FPrevInfo.Version <> FInfo.Version);
-  end else begin
-    FInfo.State := tsFailed;
   end;
 end;
 

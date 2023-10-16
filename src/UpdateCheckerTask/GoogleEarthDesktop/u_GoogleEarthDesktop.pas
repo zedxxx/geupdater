@@ -24,10 +24,16 @@ type
   TGoogleEarthDesktop = class(TUpdateCheckerTaskBase)
   private
     FCheckType: TGoogleEarthDesktopCheckType;
-    function GetHeaders: string;
     function IsClientCheck: Boolean; inline;
+  private
+    {$IFDEF USE_PROTO}
+    class function GetEpochVersionProto(const AData: Pointer; const ASize: Int64): string;
+    {$ELSE}
+    class function GetEpochVersion(const AData: Pointer; const ASize: Int64): string;
+    {$ENDIF}
   protected
     function GetConf: TTaskConf; override;
+    function GetHeaders: string; override;
     procedure DoExecute; override;
   public
     constructor Create(
@@ -47,6 +53,7 @@ uses
   dbroot_lite,
   c_UserAgent,
   c_UpdateCheckerTask,
+  i_DownloadRequest,
   i_DownloadResponse,
   u_DateTimeUtils;
 
@@ -85,7 +92,7 @@ const
     (GUID:        cGoogleEarthDesktopClientGUID;
      RequestUrl:  'https://dl.google.com/earth/client/advanced/current/GoogleEarthProWin.exe';
      DisplayName: 'Client')
-     
+
      // ToDo: Check for GoogleEarth Enterprise Client (EC)
      // https://dl.google.com/dl/earth/client/advanced/current/GoogleEarthEcWin.exe
   );
@@ -103,14 +110,14 @@ begin
   FCheckType := ACheckType;
 end;
 
-function TGoogleEarthDesktop.GetConf: TTaskConf;
-begin
-  Result := cTaskConf[FCheckType];
-end;
-
 function TGoogleEarthDesktop.IsClientCheck: Boolean;
 begin
   Result := FCheckType = gecctClient;
+end;
+
+function TGoogleEarthDesktop.GetConf: TTaskConf;
+begin
+  Result := cTaskConf[FCheckType];
 end;
 
 function TGoogleEarthDesktop.GetHeaders: string;
@@ -138,7 +145,52 @@ begin
   end;
 end;
 
-function GetDbRootProtoVersion(const AData: Pointer; const ASize: Int64): string;
+procedure TGoogleEarthDesktop.DoExecute;
+var
+  VRequest: IDownloadRequest;
+  VResponse: IDownloadResponse;
+begin
+  VRequest := BuildRequest;
+
+  if IsClientCheck then begin
+    VResponse := FDownloader.DoHeadRequest(VRequest);
+  end else begin
+    VResponse := FDownloader.DoGetRequest(VRequest);
+  end;
+
+  FInfo.HttpRequest := VRequest;
+  FInfo.HttpResponse := VResponse;
+
+  if VResponse.Code = 200 then begin
+    FInfo.State := tsFinished;
+    FInfo.LastModified := VResponse.LastModified;
+
+    if IsClientCheck then begin
+      FInfo.Version := '-';
+      FInfo.IsUpdatesFound := not FPrevInfoExists or (FPrevInfo.LastModified <> FInfo.LastModified);
+    end else begin
+      FInfo.Version :=
+        {$IFDEF USE_PROTO}
+        GetEpochVersionProto(VResponse.Body, VResponse.BodySize);
+        {$ELSE}
+        GetEpochVersion(VResponse.Body, VResponse.BodySize);
+        {$ENDIF}
+
+      FInfo.IsUpdatesFound := not FPrevInfoExists or (FPrevInfo.Version <> FInfo.Version);
+    end;
+  end else
+  if VResponse.Code = 304 then begin // Not Modified
+    Assert(FPrevInfoExists);
+    FInfo.State := tsFinished;
+    FInfo.LastModified := FPrevInfo.LastModified;
+    FInfo.Version := FPrevInfo.Version;
+  end else begin
+    FInfo.State := tsHttpError;
+  end;
+end;
+
+{$IFDEF USE_PROTO}
+class function TGoogleEarthDesktop.GetEpochVersionProto(const AData: Pointer; const ASize: Int64): string;
 
   procedure _decrypt(const AKey: TBytes; var AData: TBytes);
   var
@@ -205,62 +257,21 @@ begin
     VEncrypted.Free;
   end;
 end;
-
-function GetDbRootVersion(const AData: Pointer; const ASize: Int64): string;
+{$ELSE}
+class function TGoogleEarthDesktop.GetEpochVersion(const AData: Pointer; const ASize: Int64): string;
 var
   VPtr: PByte;
   VVersion: PWord;
 begin
+  Assert(AData <> nil);
   Result := '';
   VPtr := AData;
-  Assert(VPtr <> nil);
   if ASize > 8 then begin
     Inc(VPtr, 6);
     VVersion := PWord(VPtr);
     Result := IntToStr(VVersion^ xor $4200);
   end;
 end;
-
-procedure TGoogleEarthDesktop.DoExecute;
-var
-  VUrl: string;
-  VRawHeaders: string;
-  VResponse: IDownloadResponse;
-begin
-  VUrl := FInfo.Conf.RequestUrl;
-  VRawHeaders := GetHeaders;
-
-  if IsClientCheck then begin
-    VResponse := FDownloader.DoHeadRequest(VUrl, VRawHeaders);
-  end else begin
-    VResponse := FDownloader.DoGetRequest(VUrl, VRawHeaders);
-  end;
-
-  if VResponse.Code = 200 then begin
-    FInfo.State := tsFinished;
-    FInfo.LastModified := VResponse.LastModified;
-
-    if IsClientCheck then begin
-      FInfo.Version := '-';
-      FInfo.IsUpdatesFound := not FPrevInfoExists or (FPrevInfo.LastModified <> FInfo.LastModified);
-    end else begin
-      FInfo.Version :=
-        {$IFDEF USE_PROTO}
-        GetDbRootProtoVersion(VResponse.Body, VResponse.BodySize);
-        {$ELSE}
-        GetDbRootVersion(VResponse.Body, VResponse.BodySize);
-        {$ENDIF}
-
-      FInfo.IsUpdatesFound := not FPrevInfoExists or (FPrevInfo.Version <> FInfo.Version);
-    end;
-  end else if VResponse.Code = 304 then begin // Not Modified
-    Assert(FPrevInfoExists);
-    FInfo.State := tsFinished;
-    FInfo.LastModified := FPrevInfo.LastModified;
-    FInfo.Version := FPrevInfo.Version;
-  end else begin
-    FInfo.State := tsFailed;
-  end;
-end;
+{$ENDIF}
 
 end.

@@ -3,8 +3,7 @@ program GEUpdateChecker;
 uses
   Winapi.Windows,
   Vcl.Forms,
-  u_AppLog in 'src\u_AppLog.pas',
-  c_UserAget in 'src\c_UserAget.pas',
+  c_UserAgent in 'src\c_UserAgent.pas',
   frm_About in 'src\frm_About.pas' {frmAbout},
   frm_Main in 'src\frm_Main.pas' {frmMain},
   u_DateTimeUtils in 'src\u_DateTimeUtils.pas',
@@ -34,7 +33,9 @@ uses
   frm_EventLogView in 'src\frm_EventLogView.pas' {frmEventLogViewer},
   u_EventLogViewConfig in 'src\u_EventLogViewConfig.pas',
   c_UpdateCheckerTask in 'src\UpdateCheckerTask\c_UpdateCheckerTask.pas',
-  fr_TaskInfo in 'src\fr_TaskInfo.pas' {frTaskInfo: TFrame};
+  fr_TaskInfo in 'src\fr_TaskInfo.pas' {frTaskInfo: TFrame},
+  u_DownloadRequest in 'src\Downloader\u_DownloadRequest.pas',
+  i_DownloadRequest in 'src\Downloader\i_DownloadRequest.pas';
 
 {$R *.res}
 
@@ -53,29 +54,7 @@ const
   {$SetPEFlags IMAGE_FILE_LOCAL_SYMS_STRIPPED}
 {$ENDIF}
 
-procedure Win64ReserveMem;
-{$IFDEF WIN64}
-var
-  P: Pointer;
 begin
-  while True do begin
-    P := VirtualAlloc(nil, 4 * 1024 * 1024, MEM_RESERVE, PAGE_NOACCESS);
-    if (P = nil) or (NativeUInt(P) >= $FFFFFFFF) then begin
-      Break;
-    end;
-  end;
-end;
-{$ELSE}
-begin
-  //
-end;
-{$ENDIF}
-
-begin
-  {$IFDEF DEBUG}
-  Win64ReserveMem;
-  {$ENDIF}
-
   if not TScheduler.AppCanStart then begin
     Exit;
   end;
