@@ -7,17 +7,16 @@ object frmMain: TfrmMain
   ClientHeight = 367
   ClientWidth = 340
   Color = clBtnFace
+  CustomTitleBar.CaptionAlignment = taCenter
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
-  OldCreateOrder = False
   Position = poScreenCenter
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   OnShow = FormShow
-  PixelsPerInch = 96
   TextHeight = 13
   object grpGEClassic: TGroupBox
     AlignWithMargins = True
@@ -36,7 +35,6 @@ object frmMain: TfrmMain
       Align = alTop
       BevelOuter = bvNone
       TabOrder = 0
-      ExplicitTop = 5
     end
     object pnlGEHistory: TPanel
       Left = 2
@@ -46,8 +44,6 @@ object frmMain: TfrmMain
       Align = alTop
       BevelOuter = bvNone
       TabOrder = 1
-      ExplicitLeft = 3
-      ExplicitTop = 47
     end
     object pnlGESky: TPanel
       Left = 2
@@ -57,7 +53,6 @@ object frmMain: TfrmMain
       Align = alTop
       BevelOuter = bvNone
       TabOrder = 2
-      ExplicitTop = 108
     end
     object pnlGEMoon: TPanel
       Left = 2
@@ -67,8 +62,6 @@ object frmMain: TfrmMain
       Align = alTop
       BevelOuter = bvNone
       TabOrder = 4
-      ExplicitLeft = 3
-      ExplicitTop = 108
     end
     object pnlGEMars: TPanel
       Left = 2
@@ -78,7 +71,6 @@ object frmMain: TfrmMain
       Align = alTop
       BevelOuter = bvNone
       TabOrder = 3
-      ExplicitLeft = 1
     end
     object pnlGEClient: TPanel
       Left = 2
@@ -88,8 +80,6 @@ object frmMain: TfrmMain
       Align = alTop
       BevelOuter = bvNone
       TabOrder = 5
-      ExplicitLeft = 3
-      ExplicitTop = 108
     end
   end
   object grpGEWeb: TGroupBox
@@ -109,8 +99,6 @@ object frmMain: TfrmMain
       Align = alTop
       BevelOuter = bvNone
       TabOrder = 0
-      ExplicitLeft = 4
-      ExplicitTop = 23
     end
     object pnlGEWebClient: TPanel
       Left = 2
@@ -120,8 +108,6 @@ object frmMain: TfrmMain
       Align = alTop
       BevelOuter = bvNone
       TabOrder = 1
-      ExplicitLeft = 4
-      ExplicitTop = 36
     end
   end
   object grpGM: TGroupBox
@@ -133,7 +119,6 @@ object frmMain: TfrmMain
     Align = alTop
     Caption = 'Google Maps'
     TabOrder = 3
-    ExplicitWidth = 324
     object pnlGMEarth: TPanel
       Left = 2
       Top = 15
@@ -142,8 +127,6 @@ object frmMain: TfrmMain
       Align = alTop
       BevelOuter = bvNone
       TabOrder = 0
-      ExplicitLeft = 4
-      ExplicitTop = 23
     end
     object pnlGMMars: TPanel
       Left = 2
@@ -153,8 +136,6 @@ object frmMain: TfrmMain
       Align = alTop
       BevelOuter = bvNone
       TabOrder = 1
-      ExplicitLeft = 4
-      ExplicitTop = 41
     end
     object pnlGMMoon: TPanel
       Left = 2
@@ -164,8 +145,6 @@ object frmMain: TfrmMain
       Align = alTop
       BevelOuter = bvNone
       TabOrder = 2
-      ExplicitLeft = 4
-      ExplicitTop = 52
     end
   end
   object grpGMClassic: TGroupBox
@@ -185,8 +164,6 @@ object frmMain: TfrmMain
       Align = alTop
       BevelOuter = bvNone
       TabOrder = 0
-      ExplicitLeft = 4
-      ExplicitTop = 23
     end
     object pnlGMClassicJSAPI: TPanel
       Left = 2
@@ -196,8 +173,6 @@ object frmMain: TfrmMain
       Align = alTop
       BevelOuter = bvNone
       TabOrder = 1
-      ExplicitLeft = 4
-      ExplicitTop = 36
     end
   end
   object pnlBottom: TPanel
@@ -208,8 +183,6 @@ object frmMain: TfrmMain
     Align = alTop
     BevelOuter = bvNone
     TabOrder = 4
-    ExplicitLeft = -3
-    ExplicitTop = 330
     object btnAbout: TButton
       Left = 5
       Top = 5

@@ -11,10 +11,8 @@ object frmAbout: TfrmAbout
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
-  OldCreateOrder = False
   Position = poMainFormCenter
   OnShow = FormShow
-  PixelsPerInch = 96
   TextHeight = 13
   object txtVersion: TStaticText
     Left = 30
@@ -60,14 +58,13 @@ object frmAbout: TfrmAbout
     ParentFont = False
     TabOrder = 3
   end
-  object txtMailTo: TStaticText
-    Left = 86
+  object txtHomePage: TStaticText
+    Left = 30
     Top = 54
-    Width = 83
+    Width = 198
     Height = 17
     Cursor = crHandPoint
-    Hint = 'mailto: starmen@tut.by'
-    Caption = 'starmen@tut.by'
+    Caption = 'https://bitbucket.org/zedxxx/geupdater'
     DragCursor = crDefault
     Font.Charset = DEFAULT_CHARSET
     Font.Color = clBlue
@@ -76,10 +73,10 @@ object frmAbout: TfrmAbout
     Font.Style = [fsUnderline]
     ParentFont = False
     ParentShowHint = False
-    ShowHint = True
+    ShowHint = False
     TabOrder = 2
     Transparent = False
-    OnClick = txtMailToClick
+    OnClick = txtHomePageClick
   end
   object btnOk: TButton
     Left = 90

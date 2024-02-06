@@ -18,10 +18,10 @@ type
     txtVersion: TStaticText;
     txtBuild: TStaticText;
     txtCopyright: TStaticText;
-    txtMailTo: TStaticText;
+    txtHomePage: TStaticText;
     btnOk: TButton;
     procedure FormShow(Sender: TObject);
-    procedure txtMailToClick(Sender: TObject);
+    procedure txtHomePageClick(Sender: TObject);
     procedure btnOkClick(Sender: TObject);
   end;
 
@@ -47,12 +47,12 @@ begin
   txtCopyright.Caption := 'Copyright ' + #169 + ' 2009-' + FormatDateTime('yyyy', VBuildTime) + ', zed';
 end;
 
-procedure TfrmAbout.txtMailToClick(Sender: TObject);
+procedure TfrmAbout.txtHomePageClick(Sender: TObject);
 begin
   ShellExecute(
     Application.Handle,
     PChar('open'),
-    PChar('mailto:starmen@tut.by'),
+    PChar(txtHomePage.Caption),
     nil,
     nil,
     SW_SHOW
