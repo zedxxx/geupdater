@@ -7,10 +7,10 @@ const
   cBrowserUserAgent =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
     'AppleWebKit/537.36 (KHTML, like Gecko) ' +
-    'Chrome/121.0.0.0' + ' ' +
+    'Chrome/140.0.0.0' + ' ' +
     'Safari/537.36';
 
-  cGoogleEarthClientVersion = '7.3.6.9750';
+  cGoogleEarthClientVersion = '7.3.6.10441';
 
   cGoogleEarthClientUserAgent =
     'GoogleEarth/' + cGoogleEarthClientVersion +
