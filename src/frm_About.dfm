@@ -61,10 +61,10 @@ object frmAbout: TfrmAbout
   object txtHomePage: TStaticText
     Left = 30
     Top = 54
-    Width = 198
+    Width = 187
     Height = 17
     Cursor = crHandPoint
-    Caption = 'https://bitbucket.org/zedxxx/geupdater'
+    Caption = 'https://github.com/zedxxx/geupdater'
     DragCursor = crDefault
     Font.Charset = DEFAULT_CHARSET
     Font.Color = clBlue
