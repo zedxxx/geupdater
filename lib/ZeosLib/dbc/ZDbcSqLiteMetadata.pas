@@ -69,8 +69,11 @@ type
 //      const TypeNamePattern: string; const Types: TIntegerDynArray): IZResultSet; override;
   public
     // database/driver/server info:
+    /// <summary>What's the name of this database product?</summary>
+    /// <returns>database product name</returns>
     function GetDatabaseProductName: string; override;
-    function GetDatabaseProductVersion: string; override;
+    /// <summary>What's the name of this ZDBC driver?
+    /// <returns>ZDBC driver name</returns>
     function GetDriverName: string; override;
 //    function GetDriverVersion: string; override; -> Same as parent
     function GetDriverMajorVersion: Integer; override;
@@ -88,7 +91,6 @@ type
 //    function SupportsConvert: Boolean; override; -> Not implemented
 //    function SupportsConvertForTypes(FromType: TZSQLType; ToType: TZSQLType):
 //      Boolean; override; -> Not implemented
-//    function SupportsTableCorrelationNames: Boolean; override; -> Not implemented
 //    function SupportsDifferentTableCorrelationNames: Boolean; override; -> Not implemented
     function SupportsExpressionsInOrderBy: Boolean; override;
     function SupportsOrderByUnrelated: Boolean; override;
@@ -210,14 +212,41 @@ type
     function UncachedGetTables(const Catalog: string; const {%H-}SchemaPattern: string;
       const TableNamePattern: string; const Types: TStringDynArray): IZResultSet; override;
 //    function UncachedGetSchemas: IZResultSet; override;  -> not implemented
+    /// <summary>Gets the catalog names available in this database. The results
+    ///  are ordered by catalog name.
+    ///  The catalog column is:
+    ///  <C>TABLE_CAT</C> String => catalog name</summary>
+    /// <returns><c>ResultSet</c> - each row has a single String column that is
+    ///  a catalog name</returns>
     function UncachedGetCatalogs: IZResultSet; override;
+    /// <summary>Gets the table types available in this database. The results
+    ///  are ordered by table type.
+    ///  The table type is:
+    ///  <c>TABLE_TYPE</c> String => table type. Typical types are "TABLE",
+    ///  "VIEW", "SYSTEM TABLE", "GLOBAL TEMPORARY","LOCAL TEMPORARY", "ALIAS",
+    ///  "SYNONYM".</summary>
+    /// <returns><c>ResultSet</c> - each row has a single String column that is
+    ///  a table type</returns>
     function UncachedGetTableTypes: IZResultSet; override;
     function UncachedGetColumns(const Catalog: string; const SchemaPattern: string;
       const TableNamePattern: string; const ColumnNamePattern: string): IZResultSet; override;
-//    function UncachedGetTablePrivileges(const Catalog: string; const SchemaPattern: string;  -> not implemented
-//      const TableNamePattern: string): IZResultSet; override;
-//    function UncachedGetColumnPrivileges(const Catalog: string; const Schema: string;  -> not implemented
-//      const Table: string; const ColumnNamePattern: string): IZResultSet; override;
+    /// <summary>Gets a description of a table's primary key columns. They
+    ///  are ordered by COLUMN_NAME.
+    ///  Each primary key column description has the following columns:
+ 	  ///  <c>TABLE_CAT</c> String => table catalog (may be null)
+ 	  ///  <c>TABLE_SCHEM</c> String => table schema (may be null)
+ 	  ///  <c>TABLE_NAME</c> String => table name
+ 	  ///  <c>COLUMN_NAME</c> String => column name
+ 	  ///  <c>KEY_SEQ</c> short => sequence number within primary key
+ 	  ///  <c>PK_NAME</c> String => primary key name (may be null)</summary>
+    /// <param>"Catalog" a catalog name; An empty catalog means drop catalog
+    ///  name from the selection criteria</param>
+    /// <param>"schema" a schema name; An empty schema means drop schema
+    ///  name from the selection criteria</param>
+    /// <param>"table" a table name; An empty table means drop table
+    ///  name from the selection criteria</param>
+    /// <returns><c>ResultSet</c> - each row is a primary key column description</returns>
+    /// <remarks>see GetSearchStringEscape</remarks>
     function UncachedGetPrimaryKeys(const Catalog: string; const Schema: string;
       const Table: string): IZResultSet; override;
 //    function UncachedGetImportedKeys(const Catalog: string; const Schema: string;
@@ -248,35 +277,18 @@ implementation
 
 uses
   ZDbcUtils, ZDbcSqLite, ZFastCode, ZSelectSchema, ZMatchPattern,
-  ZEncoding;
+  ZEncoding, ZDbcCachedResultSet;
 
 { TZSQLiteDatabaseInfo }
 
 //----------------------------------------------------------------------
 // First, a variety of minor information about the target database.
 
-{**
-  What's the name of this database product?
-  @return database product name
-}
 function TZSQLiteDatabaseInfo.GetDatabaseProductName: string;
 begin
   Result := 'SQLite';
 end;
 
-{**
-  What's the version of this database product?
-  @return database version
-}
-function TZSQLiteDatabaseInfo.GetDatabaseProductVersion: string;
-begin
-  Result := '';
-end;
-
-{**
-  What's the name of this JDBC driver?
-  @return JDBC driver name
-}
 function TZSQLiteDatabaseInfo.GetDriverName: string;
 begin
   Result := 'Zeos Database Connectivity Driver for SQLite';
@@ -317,7 +329,7 @@ end;
 }
 function TZSQLiteDatabaseInfo.SupportsMixedCaseIdentifiers: Boolean;
 begin
-  Result := True;
+  Result := False;
 end;
 
 {**
@@ -1212,20 +1224,6 @@ begin
     ConstructVirtualResultSet(TableColumnsDynArray));
 end;
 
-{**
-  Gets the table types available in this database.  The results
-  are ordered by table type.
-
-  <P>The table type is:
-   <OL>
- 	<LI><B>TABLE_TYPE</B> String => table type.  Typical types are "TABLE",
- 			"VIEW",	"SYSTEM TABLE", "GLOBAL TEMPORARY",
- 			"LOCAL TEMPORARY", "ALIAS", "SYNONYM".
-   </OL>
-
-  @return <code>ResultSet</code> - each row has a single String column that is a
-  table type
-}
 function TZSQLiteDatabaseMetadata.UncachedGetTableTypes: IZResultSet;
 const
   TableTypeCount = 2;
@@ -1307,11 +1305,12 @@ const
 var
   Temp_scheme, TempTableNamePattern: String;
   UndefinedVarcharAsStringLength: Integer;
+  SQLiteIntAffinity: Boolean;
   ResSet, TblRS: IZResultSet;
   TblTmp, SchemaTmp: RawByteString;
   TableTypes: TStringDynArray;
   procedure FillResult(const RS: IZResultSet; UndefinedVarcharAsStringLength: Integer; ColumnNamePattern: String;
-    Const SchemaName, TableName: RawByteString);
+    Const SchemaName, TableName: RawByteString; SQLiteIntAffinity: Boolean);
   var
     Len: NativeUInt;
     Precision, Decimals: Integer;
@@ -1338,7 +1337,7 @@ var
       aiIdx := ZFastCode.Pos('AUTOINCREMENT', CreateSQLUp);
       if (aiIdx > 0) then begin
         if IC.IsCaseSensitive(ColumnName) then
-          ColumnName := IC.Quote(ColumnName);
+          ColumnName := IC.Quote(ColumnName, iqColumn);
         colIdx := ZFastCode.Pos(ColumnName, CreateSQL);
         if (colIdx > 0) and (colIdx < aiIdx) then begin
           colIdx := PosEx('INTEGER', CreateSQLUp, colIdx);
@@ -1386,14 +1385,14 @@ var
         if SchemaName <> '' then
           Result.UpdateRawByteString(CatalogNameIndex, SchemaName);
         Result.UpdateRawByteString(TableNameIndex, TableName);
-        Result.UpdatePAnsiChar(ColumnNameIndex, P, @Len);
+        Result.UpdatePAnsiChar(ColumnNameIndex, P, Len);
         TypeTmp := GetRawByteString(type_index);
         SQLType := ConvertSQLiteTypeToSQLType(TypeTmp, UndefinedVarcharAsStringLength,
-          Precision, Decimals, ConSettings.CPType);
+          Precision, Decimals, SQLiteIntAffinity);
         Result.UpdateSmall(TableColColumnTypeIndex, Ord(SQLType));
 
         Len := Length(TypeTmp);
-        Result.UpdatePAnsiChar(TableColColumnTypeNameIndex, Pointer(TypeTmp), @Len);
+        Result.UpdatePAnsiChar(TableColColumnTypeNameIndex, Pointer(TypeTmp), Len);
 
         Result.UpdateInt(TableColColumnSizeIndex, Precision);  //Precision will be converted higher up
         if SQLType = stString then begin
@@ -1405,7 +1404,7 @@ var
         end else if SQLType = stBytes then
           Result.UpdateInt(TableColColumnBufLengthIndex, Precision)
         else if not (SQLType in [stAsciiStream, stUnicodeStream, stBinaryStream]) then
-          Result.UpdateInt(TableColColumnBufLengthIndex, ZSQLTypeToBuffSize(SQLType));
+          Result.UpdateInt(TableColColumnBufLengthIndex, ZSQLTypeToBuffSize[SQLType]);
 
         Result.UpdateInt(TableColColumnDecimalDigitsIndex, Decimals);
         Result.UpdateInt(TableColColumnNumPrecRadixIndex, 0);
@@ -1423,7 +1422,7 @@ var
 
         P := GetPAnsiChar(dflt_value_index, Len);
         if Len > 0 then
-          Result.UpdatePAnsiChar(TableColColumnColDefIndex, P, @Len);
+          Result.UpdatePAnsiChar(TableColColumnColDefIndex, P, Len);
 
         Result.UpdateInt(TableColColumnOrdPosIndex, GetInt(cid_index) +1);
         S := GetString(name_index);
@@ -1448,7 +1447,11 @@ var
 begin
   Result:=inherited UncachedGetColumns(Catalog, SchemaPattern, TableNamePattern, ColumnNamePattern);
 
-  UndefinedVarcharAsStringLength := (GetConnection as IZSQLiteConnection).GetUndefinedVarcharAsStringLength;
+  with GetConnection as IZSQLiteConnection do begin
+    UndefinedVarcharAsStringLength := GetUndefinedVarcharAsStringLength;
+    SQLiteIntAffinity := GetSQLiteIntAffinity;
+  end;
+
   with GetStatement do begin
     if HasNoWildcards(TableNamePattern) and HasNoWildcards(SchemaPattern) and ((ColumnNamePattern = '') or (ColumnNamePattern = '%')) then begin
       TempTableNamePattern := StripEscape(TableNamePattern);
@@ -1470,7 +1473,7 @@ begin
       SchemaTmp := Temp_scheme;
       {$ENDIF}
       ResSet := GetStatement.ExecuteQuery('PRAGMA '+SchemaTmp+'.table_info('''+TblTmp+''')');
-      FillResult(ResSet, UndefinedVarcharAsStringLength, ColumnNamePattern, SchemaTmp, TblTmp);
+      FillResult(ResSet, UndefinedVarcharAsStringLength, ColumnNamePattern, SchemaTmp, TblTmp, SQLiteIntAffinity);
     end else begin
       {$IFDEF WITH_VAR_INIT_WARNING}TableTypes := nil;{$ENDIF}
       SetLength(TableTypes, 1);
@@ -1480,34 +1483,12 @@ begin
         SchemaTmp := TblRS.GetRawByteString(CatalogNameIndex);
         TblTmp := TblRS.GetRawByteString(TableNameIndex);
         ResSet := GetStatement.ExecuteQuery('PRAGMA '+SchemaTmp+'.table_info('''+TblTmp+''')');
-        FillResult(ResSet, UndefinedVarcharAsStringLength, ColumnNamePattern, SchemaTmp, TblTmp);
+        FillResult(ResSet, UndefinedVarcharAsStringLength, ColumnNamePattern, SchemaTmp, TblTmp, SQLiteIntAffinity);
       end;
     end;
   end;
 end;
 
-{**
-  Gets a description of a table's primary key columns.  They
-  are ordered by COLUMN_NAME.
-
-  <P>Each primary key column description has the following columns:
-   <OL>
- 	<LI><B>TABLE_CAT</B> String => table catalog (may be null)
- 	<LI><B>TABLE_SCHEM</B> String => table schema (may be null)
- 	<LI><B>TABLE_NAME</B> String => table name
- 	<LI><B>COLUMN_NAME</B> String => column name
- 	<LI><B>KEY_SEQ</B> short => sequence number within primary key
- 	<LI><B>PK_NAME</B> String => primary key name (may be null)
-   </OL>
-
-  @param catalog a catalog name; "" retrieves those without a
-  catalog; null means drop catalog name from the selection criteria
-  @param schema a schema name; "" retrieves those
-  without a schema
-  @param table a table name
-  @return <code>ResultSet</code> - each row is a primary key column description
-  @exception SQLException if a database access error occurs
-}
 function TZSQLiteDatabaseMetadata.UncachedGetPrimaryKeys(const Catalog: string;
   const Schema: string; const Table: string): IZResultSet;
 const
@@ -1548,7 +1529,7 @@ begin
       Result.MoveToInsertRow;
       Result.UpdateRawByteString(CatalogNameIndex, {$IFDEF UNICODE}Raw_Schema{$ELSE}Temp_scheme{$ENDIF});
       Result.UpdateRawByteString(TableNameIndex, {$IFDEF UNICODE}Raw_Table{$ELSE}Temp_Table{$ENDIF});
-      Result.UpdatePAnsiChar(PrimaryKeyColumnNameIndex, GetPAnsiChar(name_index, Len), @Len);
+      Result.UpdatePAnsiChar(PrimaryKeyColumnNameIndex, GetPAnsiChar(name_index, Len), Len);
       Result.UpdateInt(PrimaryKeyKeySeqIndex, GetInt(cid_index)+1);
       Result.InsertRow;
     end;
@@ -1757,9 +1738,9 @@ begin
           Result.UpdateRawByteString(CatalogNameIndex, {$IFDEF UNICODE}Raw_Schema{$ELSE}Temp_scheme{$ENDIF});
           Result.UpdateRawByteString(TableNameIndex, {$IFDEF UNICODE}Raw_Table{$ELSE}Table{$ENDIF});
           Result.UpdateBoolean(IndexInfoColNonUniqueIndex, MainResultSet.GetInt(main_unique_field_index) = 0);
-          Result.UpdatePAnsiChar(IndexInfoColIndexNameIndex, MainResultSet.GetPAnsiChar(main_name_field_index, Len), @Len);
+          Result.UpdatePAnsiChar(IndexInfoColIndexNameIndex, MainResultSet.GetPAnsiChar(main_name_field_index, Len), Len);
           Result.UpdateInt(IndexInfoColOrdPositionIndex, ResultSet.GetInt(sub_seqno_field_index)+FirstDbcIndex);
-          Result.UpdatePAnsiChar(IndexInfoColColumnNameIndex, ResultSet.GetPAnsiChar(sub_name_field_index, Len), @Len);
+          Result.UpdatePAnsiChar(IndexInfoColColumnNameIndex, ResultSet.GetPAnsiChar(sub_name_field_index, Len), Len);
           Result.UpdateRawByteString(IndexInfoColAscOrDescIndex, 'A');
           Result.UpdateInt(IndexInfoColCardinalityIndex, 0);
           Result.UpdateInt(IndexInfoColPagesIndex, 0);
@@ -1775,6 +1756,16 @@ end;
 function TZSQLiteDatabaseMetadata.UncachedGetCatalogs: IZResultSet;
 var RS: IZResultSet;
     Len: NativeUInt;
+  procedure DoSort(const RS: IZResultSet);
+    var VR: IZVirtualResultSet;
+      SortedColums: TIntegerDynArray;
+  begin
+    SortedColums := nil;
+    SetLength(SortedColums, 1);
+    SortedColums[0] := FirstDbcIndex;
+    VR := RS as IZVirtualResultSet;
+    VR.SortRows(SortedColums, False);
+  end;
 begin
   Result := inherited UncachedGetCatalogs;
   RS := GetConnection.CreateStatement.ExecuteQuery(
@@ -1783,11 +1774,13 @@ begin
   with RS do begin
     while Next do begin
       Result.MoveToInsertRow;
-      Result.UpdatePAnsiChar(CatalogNameIndex, GetPAnsiChar(FirstDbcIndex+1, Len), @Len);
+      Result.UpdatePAnsiChar(CatalogNameIndex, GetPAnsiChar(FirstDbcIndex+1, Len), Len);
       Result.InsertRow;
     end;
     Close;
   end;
+  if Result.GetRow > 1 then
+    DoSort(Result);
 end;
 
 {**

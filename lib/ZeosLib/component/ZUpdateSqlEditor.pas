@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -74,6 +74,8 @@ uses
 type
 
   TWaitMethod = procedure of object;
+
+  TZProtectedAbstractRWTxnUpdateObjDataSet = Class(TZAbstractRWTxnUpdateObjDataSet);
 
   { TZUpdateSQLEditForm }
 
@@ -124,7 +126,7 @@ type
     procedure SQLMemoKeyPress(Sender: TObject; var Key: Char);
   private
     StmtIndex: Integer;
-    DataSet: TZAbstractDataset;
+    DataSet: TZProtectedAbstractRWTxnUpdateObjDataSet;
     QuoteChar: string;
     ConnectionOpened: Boolean;
     UpdateSQL: TZUpdateSQL;
@@ -198,7 +200,7 @@ implementation
 {$ENDIF}
 
 uses Dialogs, {$IFNDEF FPC}LibHelp, {$ENDIF}TypInfo, ZCompatibility, ZSqlMetadata,
-  ZDbcIntfs, ZTokenizer, ZGenericSqlAnalyser, ZSelectSchema, ZDbcMetadata;
+  ZDbcIntfs, ZTokenizer, ZGenericSqlAnalyser, ZSelectSchema, ZDbcMetadata, ZExceptions;
 
 { TZUpdateSqlEditor }
 
@@ -208,10 +210,12 @@ begin
     EditUpdateSQL(TZUpdateSQL(Component));
 end;
 
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "Index" not used} {$ENDIF}
 function TZUpdateSqlEditor.GetVerb(Index: Integer): string;
 begin
   Result := 'UpdateSql editor...';
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 function TZUpdateSqlEditor.GetVerbCount: Integer;
 begin
@@ -293,7 +297,7 @@ begin
   end;
 end;
 
-procedure GetDataKeyNames(Dataset: TDataset; ErrorName: string; List: TStrings);
+procedure GetDataKeyNames(Dataset: TDataset; const ErrorName: string; List: TStrings);
 var
   I: Integer;
 begin
@@ -309,7 +313,7 @@ begin
       {$ELSE}
         if not (FieldDefs[I].DataType in [ftBlob..ftTypedBinary]) then
       {$ENDIF}
-          List.AddObject(FieldDefs[I].Name, Pointer(Ord(not FieldDefs[I].Required)));
+          List.AddObject(FieldDefs[I].Name, {%H-}Pointer(Ord(not FieldDefs[I].Required)));
     finally
       List.EndUpdate;
     end;
@@ -319,7 +323,7 @@ begin
   end;
 end;
 
-procedure GetDataFieldNames(Dataset: TDataset; ErrorName: string; List: TStrings);
+procedure GetDataFieldNames(Dataset: TDataset; const ErrorName: string; List: TStrings);
 var
   I: Integer;
 begin
@@ -330,7 +334,7 @@ begin
     try
       List.Clear;
       for I := 0 to FieldDefs.Count - 1 do
-        List.AddObject(FieldDefs[I].Name, Pointer(not FieldDefs[I].Required));
+        List.AddObject(FieldDefs[I].Name, {%H-}Pointer(not FieldDefs[I].Required));
     finally
       List.EndUpdate;
     end;
@@ -510,7 +514,7 @@ begin
       NextToken;
       while FToken = stSymbol do
       begin
-        List.AddObject(FTokenString, Pointer(Integer(FSymbolQuoted)));
+        List.AddObject(FTokenString, {%H-}Pointer(Integer(FSymbolQuoted)));
         if NextToken = stSymbol then NextToken;
         if FToken = stComma then NextToken
         else break;
@@ -597,9 +601,9 @@ var
 begin
   Result := False;
   ConnectionOpened := False;
-  if Assigned(UpdateSQL.DataSet) and (UpdateSQL.DataSet is TZAbstractDataset) then
+  if Assigned(UpdateSQL.DataSet) and (UpdateSQL.DataSet is TZAbstractRWTxnUpdateObjDataSet) then
   begin
-    DataSet := TZAbstractDataset(UpdateSQL.DataSet);
+    DataSet := TZProtectedAbstractRWTxnUpdateObjDataSet(UpdateSQL.DataSet);
     DataSetName := Format('%s%s%s', [DataSet.Owner.Name, DotSep, DataSet.Name]);
     if Assigned(DataSet.Connection) and not DataSet.Connection.Connected then
     begin
@@ -670,6 +674,7 @@ end;
 procedure TZUpdateSQLEditForm.GenInsertSQL(const TableName: string;
   UpdateFields, SQL: TStrings);
 
+  {$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "Index" not used} {$ENDIF}
   procedure GenFieldList(const TabName, ParamChar: String);
   var
     L: string;
@@ -694,7 +699,7 @@ procedure TZUpdateSQLEditForm.GenInsertSQL(const TableName: string;
     end;
     SQL.Add(L+')');
   end;
-
+  {$IFDEF FPC} {$POP} {$ENDIF}
 begin
   SQL.Add(Format('INSERT INTO %s', [TableName])); { Do not localize }
   GenFieldList(GetTableRef(TableName), '');
@@ -730,7 +735,7 @@ var
   TableName: string;
 begin
   if (KeyFieldList.SelCount = 0) or (UpdateFieldList.SelCount = 0) then
-    raise Exception.Create(SSQLGenSelect);
+    raise EZSQLException.Create(SSQLGenSelect);
   KeyFields := TStringList.Create;
   try
     GetSelectedItems(KeyFieldList, KeyFields);
@@ -794,7 +799,7 @@ begin
       while ResultSet.Next do
       begin
         if ResultSet.GetBooleanByName('SEARCHABLE') then
-          KeyFieldList.Items.AddObject(ResultSet.GetStringByName('COLUMN_NAME'), Pointer(ResultSet.GetIntByName('NULLABLE') <> 0));
+          KeyFieldList.Items.AddObject(ResultSet.GetStringByName('COLUMN_NAME'), {%H-}Pointer(ResultSet.GetIntByName('NULLABLE') <> 0));
         if ResultSet.GetBooleanByName('WRITABLE') then
           UpdateFieldList.Items.Add(ResultSet.GetStringByName('COLUMN_NAME')) ;
       end;
@@ -888,8 +893,8 @@ begin
 end;
 
 type
-  THackDataSet = class(TZAbstractDataset);
-  
+  THackDataSet = class(TZAbstractRWDataSet);
+
 procedure TZUpdateSQLEditForm.InitUpdateTableNames;
 var
   I: Integer;
@@ -899,34 +904,28 @@ var
   SelectSchema: IZSelectSchema;
 begin
   QuoteChar := '""';
-  if Assigned(DataSet) and Assigned(DataSet.Connection)
-    and Assigned(DataSet.Connection.DbcConnection)then
-  begin
+  if Assigned(DataSet) and Assigned(DataSet.Connection) and DataSet.Connection.Connected then begin
     QuoteChar := DataSet.Connection.DbcConnection.GetMetadata.GetDatabaseInfo.
       GetIdentifierQuoteString;
     if Length(QuoteChar) = 1 then
       QuoteChar := QuoteChar + QuoteChar;
     { Parses the Select statement and retrieves a schema object. }
-    Tokenizer := DataSet.Connection.DbcDriver.GetTokenizer;
-    StatementAnalyser := DataSet.Connection.DbcDriver.GetStatementAnalyser;
+    Tokenizer := DataSet.Connection.DbcConnection.GetTokenizer;
+    StatementAnalyser := DataSet.Connection.DbcConnection.GetStatementAnalyser;
     SelectSchema := StatementAnalyser.DefineSelectSchemaFromQuery(Tokenizer,
       THackDataSet(DataSet).SQL.Text);
-    if Assigned(SelectSchema) then
-    begin
+    if Assigned(SelectSchema) then begin
       UpdateTableName.Clear;
       for I := 0 to SelectSchema.TableCount - 1 do
         UpdateTableName.Items.Add(SelectSchema.Tables[I].Table);//!!!Schema support
     end;
-  end
-  else
-    if Assigned(Dataset) then
-    begin
-      TableName := '';
-      if SQLText[ukModify].Count > 0 then
-        ParseUpdateSql(SQLText[ukModify].Text, QuoteChar, TableName, nil, nil);
-      if TableName <> '' then
-        UpdateTableName.Items.Add(TableName);
-    end;
+  end else if Assigned(Dataset) then begin
+    TableName := '';
+    if SQLText[ukModify].Count > 0 then
+      ParseUpdateSql(SQLText[ukModify].Text, QuoteChar, TableName, nil, nil);
+    if TableName <> '' then
+      UpdateTableName.Items.Add(TableName);
+  end;
   if UpdateTableName.Items.Count > 0 then
      UpdateTableName.ItemIndex := 0;
 end;

@@ -40,7 +40,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -58,29 +58,26 @@ interface
 
 uses
   Types, SysUtils, Classes, {$IFDEF MSEgui}mclasses, mdb{$ELSE}DB{$ENDIF},
-  ZDbcIntfs, ZAbstractDataset, ZCompatibility;
+  ZDbcIntfs, ZAbstractRODataset, ZCompatibility
+  {$IFNDEF DISABLE_ZPARAM},ZDatasetParam{$ENDIF};
 
 type
 
   {**
     Abstract dataset to access to stored procedures.
   }
-  TZStoredProc = class(TZAbstractDataset)
+  TZStoredProc = class(TZAbstractRODataset)
   private
     FMetaResultSet: IZResultset;
-    procedure RetrieveParamValues;
     function GetStoredProcName: string;
     procedure SetStoredProcName(const Value: string);
-    //function GetParamType(const Value: TZProcedureColumnType): TParamType;
   protected
     function CreateStatement(const SQL: string; Properties: TStrings):
       IZPreparedStatement; override;
-    procedure SetStatementParams(Statement: IZPreparedStatement;
-      ParamNames: TStringDynArray; Params: TParams;
+    procedure SetStatementParams(const Statement: IZPreparedStatement;
+      const ParamNames: TStringDynArray; Params: {$IFNDEF DISABLE_ZPARAM}TZParams{$ELSE}TParams{$ENDIF};
       DataLink: TDataLink); override;
     procedure InternalOpen; override;
-    procedure InternalClose; override;
-
   protected
     function PSIsSQLBased: Boolean; override;
   {$IFDEF WITH_IPROVIDER}
@@ -105,6 +102,7 @@ type
     function BOR: Boolean;
     function EOR: Boolean;
   published
+    property Connection;
     property Active;
     property ParamCheck;
     property Params;
@@ -112,13 +110,14 @@ type
     property Options;
     property StoredProcName: string read GetStoredProcName
       write SetStoredProcName;
+    property Transaction;
   end;
 
 implementation
 
 uses
-  ZAbstractRODataset, ZMessages, ZDatasetUtils, ZDbcMetadata
-  {$IFDEF WITH_ASBYTES}, ZSysUtils{$ENDIF}
+  ZMessages, ZDatasetUtils, ZDbcMetadata, ZExceptions
+  {$IFDEF WITH_ASBYTES}, ZSysUtils{$ENDIF} ,FmtBCD
   {$IFDEF WITH_INLINE_ANSICOMPARETEXT}, Windows{$ENDIF};
 
 { TZStoredProc }
@@ -134,39 +133,15 @@ function TZStoredProc.CreateStatement(const SQL: string; Properties: TStrings):
 var
   I: Integer;
   CallableStatement: IZCallableStatement;
-  Catalog, Schema, ObjectName: string;
 begin
   CallableStatement := Connection.DbcConnection.PrepareCallWithParams(
     Trim(SQL), Properties);
 
-  CallableStatement.ClearParameters;
-
-  if Supports(CallableStatement, IZParamNamedCallableStatement) then
-    if Assigned(FMetaResultSet) then
-      FMetaResultSet.BeforeFirst
-    else
-    begin //i need allways all types to cast and there names
-      SplitQualifiedObjectName(Trim(SQL), Catalog, Schema, ObjectName);
-      Schema := Connection.DbcConnection.GetMetadata.AddEscapeCharToWildcards(Schema);
-      ObjectName := Connection.DbcConnection.GetMetadata.AddEscapeCharToWildcards(ObjectName);
-      FMetaResultSet := Connection.DbcConnection.GetMetadata.GetProcedureColumns(Catalog, Schema, ObjectName, '');
-    end;
-
-  for I := 0 to Params.Count - 1 do
-  begin
-    CallableStatement.RegisterParamType( I{$IFNDEF GENERIC_INDEX}+1{$ENDIF}, ord(DatasetTypeToProcColDbc[Params[I].ParamType]));
-    if Params[I].ParamType in [ptResult, ptOutput, ptInputOutput] then
-      CallableStatement.RegisterOutParameter(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF},
-        Ord(ConvertDatasetToDbcType(Params[I].DataType)));
-
-    if Supports(CallableStatement, IZParamNamedCallableStatement) and
-      Assigned(FMetaResultSet) then
-      if FMetaResultSet.Next then
-        (CallableStatement as IZParamNamedCallableStatement).RegisterParamTypeAndName(
-          I, FMetaResultSet.GetString(ProcColTypeNameIndex),
-          Params[i].Name, FMetaResultSet.GetInt(ProcColPrecisionIndex),
-          FMetaResultSet.GetInt(ProcColLengthIndex));
-  end;
+  if not Connection.DbcConnection.UseMetadata then
+    for I := 0 to Params.Count - 1 do
+      with Params[I] do
+        CallableStatement.RegisterParameter(I, ConvertDatasetToDbcType(DataType),
+        DatasetTypeToProcColDbc[ParamType], Name, Precision, NumericScale);
   Result := CallableStatement;
 end;
 
@@ -177,126 +152,21 @@ end;
   @param Params a collection of SQL parameters.
   @param DataLink a datalink to get parameters.
 }
-procedure TZStoredProc.SetStatementParams(Statement: IZPreparedStatement;
-  ParamNames: TStringDynArray; Params: TParams; DataLink: TDataLink);
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "ParamNames/DataLink" not used} {$ENDIF}
+procedure TZStoredProc.SetStatementParams(const Statement: IZPreparedStatement;
+  const ParamNames: TStringDynArray; Params: {$IFNDEF DISABLE_ZPARAM}TZParams{$ELSE}TParams{$ENDIF}; DataLink: TDataLink);
 var
   I: Integer;
-  Param: TParam;
+  Param: {$IFNDEF DISABLE_ZPARAM}TZParam{$ELSE}TParam{$ENDIF};
 begin
-  for I := 0 to Params.Count - 1 do
-  begin
+  for I := 0 to Params.Count - 1 do begin
     Param := Params[I];
-
     if Params[I].ParamType in [ptResult, ptOutput] then
-     Continue;
-
+      Continue;
     SetStatementParam(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF}, Statement, Param);
   end;
 end;
-
-{**
-  Retrieves parameter values from callable statement.
-}
-procedure TZStoredProc.RetrieveParamValues;
-var
-  I: Integer;
-  Param: TParam;
-  FCallableStatement: IZCallableStatement;
-  TempBlob: IZBlob;
-begin
-  if Assigned(Statement) then
-    Statement.QueryInterface(IZCallableStatement, FCallableStatement);
-  if not Assigned(FCallableStatement) then
-    Exit;
-
-  for I := 0 to Params.Count - 1 do
-  begin
-    Param := Params[I];
-
-    if not (Param.ParamType in [ptResult, ptOutput, ptInputOutput]) then
-      Continue;
-
-    if FCallableStatement.IsNull(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF}) then
-      Param.Clear
-    else
-      case Param.DataType of
-        ftBoolean:
-          Param.AsBoolean := FCallableStatement.GetBoolean(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
-        {$IFDEF WITH_FTBYTE}
-        ftByte:
-          Param.AsByte := FCallableStatement.GetByte(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
-        {$ENDIF WITH_FTBYTE}
-        {$IFDEF WITH_FTSHORTINT}
-        ftShortInt:
-          Param.AsShortInt := FCallableStatement.GetShort(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
-        {$ENDIF WITH_FTSHORTINT}
-        {$IFDEF WITH_FTSHORTINT}
-        ftWord:
-          Param.AsWord := FCallableStatement.GetWord(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
-        {$ENDIF WITH_FTSHORTINT}
-        ftSmallInt:
-          Param.AsSmallInt := FCallableStatement.GetSmall(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
-        {$IFDEF WITH_FTLONGWORD}
-        ftLongWord:
-          Param.AsLongWord := FCallableStatement.GetUInt(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
-        {$ENDIF WITH_FTLONGWORD}
-        ftInteger, ftAutoInc:
-          Param.AsInteger := FCallableStatement.GetInt(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
-        {$IFDEF WITH_PARAM_ASLARGEINT}
-        ftLargeInt:
-          Param.AsLargeInt := FCallableStatement.GetLong(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
-        {$ENDIF}
-        {$IFDEF WITH_FTSINGLE}
-        ftSingle:
-          Param.AsSingle := FCallableStatement.GetFloat(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
-        {$ENDIF WITH_FTSINGLE}
-        ftFloat:
-          Param.AsFloat := FCallableStatement.GetDouble(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
-        {$IFDEF WITH_FTEXTENDED}
-        ftExtended:
-          Param.AsFloat := FCallableStatement.GetBigDecimal(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
-        {$ENDIF}
-        ftBCD:
-          Param.AsCurrency := FCallableStatement.GetCurrency(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
-        ftString:
-          begin
-            Param.AsString := FCallableStatement.GetString(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
-            {$IFDEF UNICODE}Param.DataType := ftString;{$ENDIF} //Hack: D12_UP sets ftWideString on assigning a UnicodeString
-          end;
-        ftWideString:
-          {$IFDEF WITH_FTWIDESTRING}Param.AsWideString{$ELSE}Param.Value{$ENDIF} := FCallableStatement.GetUnicodeString(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
-        ftMemo:
-          begin
-            Param.AsMemo := FCallableStatement.GetString(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
-            {$IFDEF UNICODE}Param.DataType := ftMemo;{$ENDIF} //Hack: D12_UP sets ftWideMemo on assigning a UnicodeString
-          end;
-        {$IFDEF WITH_WIDEMEMO}
-        ftWideMemo:
-        begin
-          Param.AsWideString := FCallableStatement.GetUnicodeString(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
-          Param.DataType := ftWideMemo;
-        end;
-        {$ENDIF}
-        ftBytes, ftVarBytes:
-          Param.Value := FCallableStatement.GetBytes(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
-        ftDate:
-          Param.AsDate := FCallableStatement.GetDate(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
-        ftTime:
-          Param.AsTime := FCallableStatement.GetTime(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
-        ftDateTime:
-          Param.AsDateTime := FCallableStatement.GetTimestamp(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
-        ftBlob:
-          begin
-            TempBlob := FCallableStatement.GetValue(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF}).VInterface as IZBlob;
-            if not TempBlob.IsEmpty then
-              Param.SetBlobData({$IFDEF WITH_TVALUEBUFFER}TValueBuffer{$ENDIF}(TempBlob.GetBuffer), TempBlob.Length);
-            TempBlob := nil;
-          end
-        else
-           raise EZDatabaseError.Create(SUnKnownParamDataType);
-      end;
-  end;
-end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {**
   Performs internal query opening.
@@ -304,16 +174,8 @@ end;
 procedure TZStoredProc.InternalOpen;
 begin
   inherited InternalOpen;
-
-  RetrieveParamValues;
-end;
-
-{**
-  Performs internal query closing.
-}
-procedure TZStoredProc.InternalClose;
-begin
-  inherited InternalClose;
+  if Resultset.GetType <> rtForwardOnly then
+    Resultset.BeforeFirst;
 end;
 
 function TZStoredProc.GetStoredProcName: string;
@@ -323,36 +185,51 @@ end;
 
 procedure TZStoredProc.SetStoredProcName(const Value: string);
 var
-  OldParams: TParams;
+  OldParams: {$IFNDEF DISABLE_ZPARAM}TZParams{$ELSE}TParams{$ENDIF};
   Catalog, Schema, ObjectName: string;
   ColumnType: TZProcedureColumnType;
+  SQLType: TZSQLType;
+  Precision: Integer;
+  Metadata: IZDatabaseMetadata;
+  DatabaseInfo: IZDatabaseInfo;
 begin
-  if AnsiCompareText(Trim(SQL.Text), Trim(Value)) <> 0 then
-  begin
+  Catalog := Trim(SQL.Text);
+  ObjectName := Trim(Value);
+  if (AnsiCompareText(Catalog, ObjectName) <> 0) or ((Params.Count = 0) and
+     not (csDesigning in ComponentState) and not Active) then begin
     SQL.Text := Value;
-    if ParamCheck and (Value <> '') and not (csLoading in ComponentState) and Assigned(Connection) then
-    begin
+    if ParamCheck and (Value <> '') and not (csLoading in ComponentState) and Assigned(Connection) then begin
       CheckConnected;
+      Metadata := Connection.DbcConnection.GetMetadata;
+      DatabaseInfo := Metadata.GetDatabaseInfo;
       Connection.ShowSQLHourGlass;
       try
-        SplitQualifiedObjectName(Value,
-          Connection.DbcConnection.GetMetadata.GetDatabaseInfo.SupportsCatalogsInProcedureCalls,
-          Connection.DbcConnection.GetMetadata.GetDatabaseInfo.SupportsSchemasInProcedureCalls,
-          Catalog, Schema, ObjectName);
-        Schema := Connection.DbcConnection.GetMetadata.AddEscapeCharToWildcards(Schema);
-        ObjectName := Connection.DbcConnection.GetMetadata.AddEscapeCharToWildcards(ObjectName);
-        FMetaResultSet := Connection.DbcConnection.GetMetadata.GetProcedureColumns(Catalog, Schema, ObjectName, '');
-        OldParams := TParams.Create;
+        SplitQualifiedObjectName(Value, DatabaseInfo.SupportsCatalogsInProcedureCalls,
+          DatabaseInfo.SupportsSchemasInProcedureCalls, Catalog, Schema, ObjectName);
+        If Catalog = '' Then Catalog := Self.Connection.Catalog;
+        Schema := Metadata.AddEscapeCharToWildcards(Schema);
+        ObjectName := Metadata.AddEscapeCharToWildcards(ObjectName);
+        FMetaResultSet := Metadata.GetProcedureColumns(Catalog, Schema, ObjectName, '');
+        OldParams := {$IFNDEF DISABLE_ZPARAM}TZParams{$ELSE}TParams{$ENDIF}.Create;
         try
           OldParams.Assign(Params);
           Params.Clear;
-          while FMetaResultSet.Next do
-          begin
+          while FMetaResultSet.Next do begin
             ColumnType := TZProcedureColumnType(FMetaResultSet.GetInt(ProcColColumnTypeIndex));
-            //if ColumnType >= 0 then //-1 is result column
-              Params.CreateParam(ConvertDbcToDatasetType(TZSqlType(FMetaResultSet.GetInt(ProcColDataTypeIndex))),
+            SQLType := TZSqlType(FMetaResultSet.GetInt(ProcColDataTypeIndex));
+            if Ord(SQLType) >= Ord(stString)
+            then Precision := FMetaResultSet.GetInt(ProcColLengthIndex)
+            else Precision := FMetaResultSet.GetInt(ProcColPrecisionIndex);
+            {$IFNDEF DISABLE_ZPARAM}
+            Params.CreateParam(SQLType,
+                FMetaResultSet.GetString(ProcColColumnNameIndex),
+                ProcColDbcToDatasetType[ColumnType], Precision, FMetaResultSet.GetInt(ProcColScaleIndex));
+            {$ELSE}
+            Params.CreateParam(ConvertDbcToDatasetType(SQLType,
+              Connection.ControlsCodePage, Precision),
                 FMetaResultSet.GetString(ProcColColumnNameIndex),
                 ProcColDbcToDatasetType[ColumnType]);
+            {$ENDIF}
           end;
           Params.AssignValues(OldParams);
         finally
@@ -360,6 +237,8 @@ begin
         end;
       finally
         Connection.HideSQLHourGlass;
+        DatabaseInfo := nil;
+        Metadata := nil;
       end;
     end;
   end;
@@ -367,58 +246,53 @@ end;
 
 procedure TZStoredProc.ExecProc;
 begin
-  Connection.ShowSQLHourGlass;
-  try
-    if Active then
-      Close;
-    ExecSQL;
-    RetrieveParamValues;
-  finally
-    Connection.HideSQLHourGlass;
-  end;
+  ExecSQL;
 end;
 
 {**
   Procedure the First retrieved resultset if the givens
 }
 procedure TZStoredProc.FirstResultSet;
+var CallableStmt: IZCallableStatement;
 begin
-  if Assigned(Statement) then
-    if Statement.GetMoreResults then
-      SetAnotherResultset((Statement as IZCallableStatement).GetFirstResultSet);
+  if Assigned(Statement) and Supports(Statement, IZCallableStatement, CallableStmt) then
+    SetAnotherResultset(CallableStmt.GetFirstResultSet);
 end;
 
 {**
   Procedure the Previous retrieved resultset if the givens
 }
 procedure TZStoredProc.PreviousResultSet;
+var CallableStmt: IZCallableStatement;
 begin
-  if Assigned(Statement) then
-    if Statement.GetMoreResults then
-      SetAnotherResultset((Statement as IZCallableStatement).GetPreviousResultSet);
+  if Assigned(Statement) and Supports(Statement, IZCallableStatement, CallableStmt) then
+    SetAnotherResultset(CallableStmt.GetPreviousResultSet);
 end;
 
 {**
   Procedure the Next retrieved resultset if the givens
 }
 function TZStoredProc.NextResultSet: Boolean;
+var CallableStmt: IZCallableStatement;
+  RS: IZResultSet;
 begin
   Result := False;
-  if Assigned(Statement) then
-    if Statement.GetMoreResults then begin
-      Result := True;
-      SetAnotherResultset((Statement as IZCallableStatement).GetNextResultSet);
-    end;
+  if Assigned(Statement) and Supports(Statement, IZCallableStatement, CallableStmt) then begin
+    RS := CallableStmt.GetNextResultSet;
+    Result := RS <> nil;
+    if Result then
+      SetAnotherResultset(RS);
+  end;
 end;
 
 {**
   Procedure the Last retrieved resultset if the givens
 }
 procedure TZStoredProc.LastResultSet;
+var CallableStmt: IZCallableStatement;
 begin
-  if Assigned(Statement) then
-    if Statement.GetMoreResults then
-      SetAnotherResultset((Statement as IZCallableStatement).GetLastResultSet);
+  if Assigned(Statement) and Supports(Statement, IZCallableStatement, CallableStmt) then
+    SetAnotherResultset(CallableStmt.GetLastResultSet)
 end;
 
 {**
@@ -430,7 +304,7 @@ procedure TZStoredProc.SetResultSet(const Index: Integer);
 begin
   if Assigned(Statement) then
     if ( Index < 0 ) or ( Index > (Statement as IZCallableStatement).GetResultSetCount -1 ) then
-      raise Exception.Create(Format(SListIndexError, [Index]))
+      raise EZSQLException.Create(Format(SListIndexError, [Index]))
     else
       SetAnotherResultset((Statement as IZCallableStatement).GetResultSetByIndex(Index));
 end;
@@ -452,11 +326,13 @@ end;
   @result <code>True</code> if first ResultSet
 }
 function TZStoredProc.BOR: Boolean;
+var CallableStmt: IZCallableStatement;
 begin
   Result := True;
-  if Assigned(Statement) then
-    if Statement.GetMoreResults then
-      Result := (Statement as IZCallableStatement).BOR;
+  if Assigned(Statement) and Supports(Statement, IZCallableStatement, CallableStmt) then begin
+    Result := CallableStmt.BOR;
+    CallableStmt := nil;
+  end;
 end;
 
 {**
@@ -464,35 +340,14 @@ end;
   @result <code>True</code> if Last ResultSet
 }
 function TZStoredProc.EOR: Boolean;
+var CallableStmt: IZCallableStatement;
 begin
   Result := True;
-  if Assigned(Statement) then
-    if Statement.GetMoreResults then
-      Result := (Statement as IZCallableStatement).EOR;
-end;
-
-{**
-  Converts procedure column type to dataset param type.
-  @param Value a initial procedure column type.
-  @return a corresponding param type.
-}
-{function TZStoredProc.GetParamType(const Value: TZProcedureColumnType): TParamType;
-begin
-  case Value of
-    pctIn:
-      Result := ptInput;
-    pctInOut:
-      Result := ptInputOutput;
-    pctOut:
-      Result := ptOutput;
-    pctReturn:
-      Result := ptResult;
-    pctResultSet:
-      Result := ptResult;
-  else
-    Result := ptUnknown;
+  if Assigned(Statement) and Supports(Statement, IZCallableStatement, CallableStmt) then begin
+    Result := CallableStmt.EOR;
+    CallableStmt := nil;
   end;
-end;}
+end;
 
 {**
   Checks if dataset can execute SQL queries?
@@ -536,4 +391,3 @@ end;
 {$ENDIF}
 
 end.
-

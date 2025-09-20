@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -84,7 +84,7 @@ uses SysUtils, ZCompatibility;
 
 { Check if Text equal to pattern }
 function IsMatch(const Pattern, Text: string): Boolean;
-function Like(const Pattern: ZWideString; PText: PWideChar; TLen: Cardinal): Boolean; overload;
+function Like(const Pattern: UnicodeString; PText: PWideChar; TLen: Cardinal): Boolean; overload;
 function Like(const Pattern: RawByteString; PText: PAnsiChar; TLen: Cardinal): Boolean; overload;
 
 implementation
@@ -491,7 +491,7 @@ MA:   Result := MATCH_ABORT;
 MV: Result := MATCH_VALID;
 end;
 
-function Like(const Pattern: ZWideString; PText: PWideChar; TLen: Cardinal): Boolean;
+function Like(const Pattern: UnicodeString; PText: PWideChar; TLen: Cardinal): Boolean;
 var PPattern, PLast, TLast: PWideChar;
 begin
   PPattern := Pointer(Pattern);

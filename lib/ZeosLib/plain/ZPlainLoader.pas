@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -92,7 +92,7 @@ type
     property Loaded: Boolean read FLoaded write FLoaded;
     property Handle: THandle { M.A. LongWord} read FHandle write FHandle;
     property CurrentLocation: String read FCurrentLocation write FCurrentLocation;
-    function GetAddress(ProcName: {$IFDEF HAVE_GetProcAddressW}PWideChar{$ELSE}PAnsiChar{$ENDIF}): Pointer;
+    function GetAddress(ProcName: {$IFDEF HAVE_GetProcAddressW}PWideChar{$ELSE}PAnsiChar{$ENDIF}; IsRequired: Boolean = False): Pointer;
   end;
 
 implementation
@@ -105,7 +105,8 @@ uses SysUtils,
     libc,
   {$ENDIF} *)
 {$ENDIF}
-  ZMessages;
+  ZMessages,
+  ZExceptions;
 
 { TZNativeLibraryLoader }
 
@@ -183,18 +184,26 @@ begin
 {$IF not declared(LoadLibraryEx)}
   temp := ''; //init for FPC
   try
+    {$IFDEF WINDOWS}
+    //change path to library path so dependencies can be loaded.
+    //only makes sense on Windows
     if newpath <> '' then begin
       temp := GetCurrentDir;
       SetCurrentDir(newpath);
     end;
+    {$ENDIF}
 {$IFEND}
   // AB modif END
 
 {$IFDEF UNIX}
   {$IFDEF FPC}
     FHandle := LoadLibrary(PAnsiChar(Location));
-  {$ELSE} //Kylix
+  {$ELSE} //Delphi
+    {$IFDEF LINUX64} //Delphi Linux64
+    FHandle := LoadLibrary(PWideChar(Location));
+    {$ELSE} //Kylix
     FHandle := HMODULE(dlopen(PAnsiChar(Location), RTLD_GLOBAL));
+    {$ENDIF}
   {$ENDIF}
 {$ELSE}
   {$IF declared(LoadLibraryEx)} //windows only
@@ -212,13 +221,14 @@ begin
 {$IF not declared(LoadLibraryEx)}
   // AB modif BEGIN
   finally
+    {$IFDEF WINDOWS}
     if temp<>'' then
       SetCurrentDir(temp);
+    {$ENDIF}
   end;
 {$IFEND !LoadLibraryEx}
   // AB modif END
-  if (FHandle <> INVALID_HANDLE_VALUE) and (FHandle <> 0) then
-  begin
+  if (FHandle <> INVALID_HANDLE_VALUE) and (FHandle <> 0) then  begin
     FLoaded := True;
     FCurrentLocation := Location;
     Result := True;
@@ -235,21 +245,21 @@ var
 begin
   TriedLocations := '';
   for I := 0 to High(FLocations) do
-    begin
-      if ZLoadLibrary(FLocations[I]) then
-        Break
-      else
-        if TriedLocations <> '' then
-          TriedLocations := TriedLocations + ', ' + FLocations[I]
-        else
-          TriedLocations := FLocations[I];
-    end;
+    if ZLoadLibrary(FLocations[I]) then
+      Break
+    else if TriedLocations <> ''
+      then TriedLocations := TriedLocations + ', ' + FLocations[I]
+      else TriedLocations := FLocations[I];
 
   if not Loaded then
-    if (Length(FLocations) > 0) and FileExists(FLocations[High(FLocations)]) then
-      raise Exception.Create(Format(SLibraryNotCompatible, [TriedLocations]))
-    else
-      raise Exception.Create(Format(SLibraryNotFound, [TriedLocations]));
+    if (Length(FLocations) > 0) and FileExists(FLocations[High(FLocations)])
+    then begin
+      if Length(FLocations) = 1 then
+        RaiseLastOsError
+      else
+        raise EZSQLException.Create(Format(SLibraryNotCompatible, [TriedLocations]));
+    end
+    else raise EZSQLException.Create(Format(SLibraryNotFound, [TriedLocations]));
   Result := True;
 end;
 
@@ -257,9 +267,9 @@ function TZNativeLibraryLoader.LoadNativeLibraryStrict(const Location: String): 
 begin
   If not ZLoadLibrary(Location) then
     if FileExists(Location) then
-      raise Exception.Create(Format(SLibraryNotCompatible, [Location]))
+      raise EZSQLException.Create(Format(SLibraryNotCompatible, [Location]))
     else
-      raise Exception.Create(Format(SLibraryNotFound, [Location]));
+      raise EZSQLException.Create(Format(SLibraryNotFound, [Location]));
   Result := True;
 end;
 
@@ -280,9 +290,15 @@ end;
   @param ProcName a name of the procedure.
   @return a procedure address.
 }
-function TZNativeLibraryLoader.GetAddress(ProcName: {$IFDEF HAVE_GetProcAddressW}PWideChar{$ELSE}PAnsiChar{$ENDIF}): Pointer;
+function TZNativeLibraryLoader.GetAddress(ProcName: {$IFDEF HAVE_GetProcAddressW}PWideChar{$ELSE}PAnsiChar{$ENDIF};
+  IsRequired: Boolean = False): Pointer;
 begin
   Result := GetProcAddress(Handle, ProcName);
+  if IsRequired and (Result = nil) then begin
+    FreeLibrary(FHandle);
+    raise EZSQLException.Create('Required method "'+String(ProcName)+'" is not exported by library. Check if the library is valid!');
+  end;
+
 end;
 
 end.

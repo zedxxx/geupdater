@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -60,7 +60,7 @@ interface
 
 uses
   Types, Classes, ZClasses, ZCompatibility, ZDbcIntfs,
-  ZConnectionGroup, ZAbstractConnection, ZURL,
+  ZConnectionGroup, ZAbstractConnection,
 {$IFDEF WITH_UNIT_WIDESTRINGS}
   WideStrings,
 {$ENDIF}
@@ -226,16 +226,17 @@ implementation
 
 {$IFDEF WITH_PROPERTY_EDITOR}
 
-uses SysUtils, Forms, Dialogs, Controls, DB, TypInfo, ZSysUtils, ZSelectSchema
+uses SysUtils, Forms, Dialogs, Controls, DB, TypInfo, ZExceptions,
+  {$IFDEF WITH_LCONVENCODING}ZEncoding,{$ENDIF}
+  ZSysUtils, ZSelectSchema, ZDatasetUtils, ZPlainDriver, ZMessages
 {$IFDEF USE_METADATA}
   , ZSqlMetadata
 {$ENDIF}
-{$IFNDEF UNIX}
-  {$IFNDEF FPC}
-  {$IFDEF ENABLE_ADO}
-, ZDbcAdoUtils
-  {$ENDIF}
-  {$ENDIF}
+  {$IF defined(ENABLE_ADO) or defined(ENABLE_OLEDB)}
+, ZDbcOleDBUtils
+  {$IFEND}
+{$IFDEF ENABLE_ODBC}
+,ZDbcODBCUtils
 {$ENDIF}
 {$IFDEF SHOW_WARNING}
 ,ZMessages
@@ -381,7 +382,7 @@ var
   Metadata: IZDatabaseMetadata;
   ResultSet: IZResultSet;
   Schema, Tablename:String;
-  IdentifierConvertor: IZIdentifierConvertor;
+  IdentifierConverter: IZIdentifierConverter;
   Catalog: string;
   IsTZSqlMetadata: Boolean;
 begin
@@ -389,7 +390,7 @@ begin
   if Assigned(Connection) and Connection.Connected then
   begin
     Metadata := Connection.DbcConnection.GetMetadata;
-    IdentifierConvertor := Metadata.GetIdentifierConvertor;
+    IdentifierConverter := Metadata.GetIdentifierConverter;
     Catalog := Connection.Catalog;
     Schema := '';
 {$IFDEF USE_METADATA}
@@ -416,24 +417,25 @@ begin
       try
         // Look for the Tables of the defined Catalog and Schema
         ResultSet := Metadata.GetTables(Catalog, Metadata.AddEscapeCharToWildcards(Schema), '', nil);
-        while ResultSet.Next do
+        while ResultSet.Next do begin
           if IsTZSqlMetadata then
-            List.Add(IdentifierConvertor.Quote(ResultSet.GetStringByName('TABLE_NAME')))
+            List.Add(IdentifierConverter.Quote(ResultSet.GetStringByName('TABLE_NAME'), iqTable))
           else begin
-            TableName := IdentifierConvertor.Quote(ResultSet.GetStringByName('TABLE_NAME'));
+            TableName := IdentifierConverter.Quote(ResultSet.GetStringByName('TABLE_NAME'), iqTable);
             if Connection.DbcConnection.GetMetadata.GetDatabaseInfo.SupportsSchemasInTableDefinitions
             then Schema := ResultSet.GetStringByName('TABLE_SCHEM')
             else Schema := '';
             if (Catalog <> '') and Connection.DbcConnection.GetMetadata.GetDatabaseInfo.SupportsCatalogsInTableDefinitions
             then if Schema <> ''
-              then TableName := IdentifierConvertor.Quote(Catalog) + '.'+ IdentifierConvertor.Quote(Schema) + '.' + TableName
-              else TableName := IdentifierConvertor.Quote(Catalog) + '.' + TableName
+              then TableName := IdentifierConverter.Quote(Catalog, iqCatalog) + '.'+ IdentifierConverter.Quote(Schema, iqSchema) + '.' + TableName
+              else TableName := IdentifierConverter.Quote(Catalog, iqCatalog) + '.' + TableName
             else if (Schema <> '') then
-              TableName := IdentifierConvertor.Quote(Schema) + '.' + TableName;
+              TableName := IdentifierConverter.Quote(Schema, iqSchema) + '.' + TableName;
             List.Add(TableName);
           end;
+        end;
       finally
-        ResultSet.Close;
+        //ResultSet.Close;
       end;
     end;
   end;
@@ -449,13 +451,13 @@ procedure TZProcedureNamePropertyEditor.GetValueList(List: TStrings);
 var
   Connection: TZAbstractConnection;
   Metadata: IZDatabaseMetadata;
-  IdentifierConvertor: IZIdentifierConvertor;
+  IdentifierConverter: IZIdentifierConverter;
   ResultSet: IZResultSet;
   Catalog, Schema: string;
   ProcedureName: string;
   IsTZSqlMetadata: Boolean;
 
-  procedure ExtractOverload(OverloadSeparator: String);
+  procedure ExtractOverload(const OverloadSeparator: String);
   var
     I: Integer;
     SL: TStrings;
@@ -478,7 +480,7 @@ begin
   if Assigned(Connection) and Connection.Connected then
   begin
     Metadata := Connection.DbcConnection.GetMetadata;
-    IdentifierConvertor := Metadata.GetIdentifierConvertor;
+    IdentifierConverter := Metadata.GetIdentifierConverter;
     Catalog := Connection.Catalog;
     Schema := '';
 {$IFDEF USE_METADATA}
@@ -513,7 +515,7 @@ begin
             if not ( StartsWith(ProcedureName, MetaData.GetDatabaseInfo.GetIdentifierQuoteString) or
                      EndsWith(ProcedureName, MetaData.GetDatabaseInfo.GetIdentifierQuoteString) or
                      (Pos('.', ProcedureName) > 0) ) then
-              ProcedureName := IdentifierConvertor.Quote(ProcedureName);
+              ProcedureName := IdentifierConverter.Quote(ProcedureName, iqStoredProcedure);
           if IsTZSqlMetadata then
             List.Add(ProcedureName)
           else begin
@@ -522,10 +524,10 @@ begin
             else Schema := '';
             if (Catalog <> '') and Metadata.GetDatabaseInfo.SupportsCatalogsInProcedureCalls
             then if Schema <> ''
-              then ProcedureName := IdentifierConvertor.Quote(Catalog) +'.'+ IdentifierConvertor.Quote(Schema) + '.' + ProcedureName
-              else ProcedureName := IdentifierConvertor.Quote(Catalog) +'.'+ ProcedureName
+              then ProcedureName := IdentifierConverter.Quote(Catalog, iqCatalog) +'.'+ IdentifierConverter.Quote(Schema, iqSchema) + '.' + ProcedureName
+              else ProcedureName := IdentifierConverter.Quote(Catalog, iqCatalog) +'.'+ ProcedureName
             else if Schema <> '' then
-              ProcedureName := IdentifierConvertor.Quote(Schema) + '.' + ProcedureName;
+              ProcedureName := IdentifierConverter.Quote(Schema, iqSchema) + '.' + ProcedureName;
             List.Add(ProcedureName);
           end;
         end;
@@ -658,27 +660,36 @@ var
   I: Integer;
   SDyn: TStringDynArray;
   Url: TZURL;
+  PlainDriver: IZPlainDriver;
+  Driver: IZDriver;
 begin
 
-  if GetZComponent is TZAbstractConnection then
-    Connection := (GetZComponent as TZAbstractConnection)
-  else
-    Connection := nil;
+  if GetZComponent is TZAbstractConnection
+  then Connection := (GetZComponent as TZAbstractConnection)
+  else Connection := nil;
 
-  if Assigned(Connection) then
-  begin
-    if Connection.Protocol = '' then
-      List.Append('No Protocol selected!')
-    else
-    begin
+  if Assigned(Connection) then begin
+    SDyn := nil;
+    if Connection.Protocol = ''
+    then List.Append('No Protocol selected!')
+    else begin
       Url := TZURL.Create;
       Url.Protocol :=  Connection.Protocol;
-      SDyn := DriverManager.GetDriver(Url.URL).GetSupportedClientCodePages(Url,
-        {$IFNDEF UNICODE}Connection.AutoEncodeStrings, {$ENDIF}True, Connection.ControlsCodePage);
-      Url.Free;
+      try
+        Driver := DriverManager.GetDriver(Url.URL);
+        if Driver = nil then
+          raise EZSQLException.Create(SDriverWasNotFound);
+        PlainDriver := Driver.GetPlainDriver(URL, False);
+        if PlainDriver = nil then begin
+          List.Append('No PlainDriver found');
+          Exit;
+        end;
+        SDyn := PlainDriver.GetClientCodePages;
+      finally
+        Url.Free;
+      end;
       for i := 0 to high(SDyn) do
         List.Append(SDyn[i]);
-
       TStringList(List).Sort;
     end;
   end;
@@ -779,15 +790,19 @@ begin
     if ((GetZComponent as TZAbstractConnection).Protocol = 'mssql') or
     ((GetZComponent as TZAbstractConnection).Protocol = 'sybase') then
       inherited
-{$IFNDEF UNIX}
-{$IFNDEF FPC}
-{$IFDEF ENABLE_ADO}
+{$IF defined(ENABLE_ADO) or defined(ENABLE_OLEDB)}
     else
-    if ((GetZComponent as TZAbstractConnection).Protocol = 'ado') then
-      (GetZComponent as TZAbstractConnection).Database := PromptDataSource(Application.Handle,
-        (GetZComponent as TZAbstractConnection).Database)
-{$ENDIF}
-{$ENDIF}
+    if ((GetZComponent as TZAbstractConnection).Protocol = 'ado') or
+       ((GetZComponent as TZAbstractConnection).Protocol = 'OleDB') then
+      (GetZComponent as TZAbstractConnection).Database := String(PromptDataSource({$IFDEF FPC}Application.MainFormHandle{$ELSE}Application.Handle{$ENDIF},
+        WideString((GetZComponent as TZAbstractConnection).Database)))
+{$IFEND}
+{$IFDEF ENABLE_ODBC}
+    else
+    if ((GetZComponent as TZAbstractConnection).Protocol = 'odbc_a') or
+       ((GetZComponent as TZAbstractConnection).Protocol = 'odbc_w') then
+      (GetZComponent as TZAbstractConnection).Database := GetConnectionString({%H-}Pointer({$IFDEF FPC}Application.MainFormHandle{$ELSE}Application.Handle{$ENDIF}),
+        (GetZComponent as TZAbstractConnection).Database, (GetZComponent as TZAbstractConnection).LibLocation)
 {$ENDIF}
     else
     begin
@@ -1159,15 +1174,19 @@ begin
     if ((GetZComponent as TZConnectionGroup).Protocol = 'mssql') or
     ((GetZComponent as TZConnectionGroup).Protocol = 'sybase') then
       inherited
-{$IFNDEF UNIX}
-{$IFNDEF FPC}
-{$IFDEF ENABLE_ADO}
+{$IF defined(ENABLE_ADO) or defined(ENABLE_OLEDB)}
     else
-    if ((GetZComponent as TZConnectionGroup).Protocol = 'ado') then
-      (GetZComponent as TZConnectionGroup).Database := PromptDataSource(Application.Handle,
-        (GetZComponent as TZConnectionGroup).Database)
-{$ENDIF}
-{$ENDIF}
+    if ((GetZComponent as TZConnectionGroup).Protocol = 'ado') or
+       ((GetZComponent as TZConnectionGroup).Protocol = 'OleDB') then
+      (GetZComponent as TZConnectionGroup).Database := String(PromptDataSource({$IFDEF FPC}Application.MainFormHandle{$ELSE}Application.Handle{$ENDIF},
+        WideString((GetZComponent as TZConnectionGroup).Database)))
+{$IFEND}
+{$IFDEF ENABLE_ODBC}
+    else
+    if ((GetZComponent as TZConnectionGroup).Protocol = 'odbc_a') or
+       ((GetZComponent as TZConnectionGroup).Protocol = 'odbc_w') then
+      (GetZComponent as TZConnectionGroup).Database := GetConnectionString({%H-}Pointer({$IFDEF FPC}Application.MainFormHandle{$ELSE}Application.Handle{$ENDIF}),
+        (GetZComponent as TZConnectionGroup).Database, (GetZComponent as TZConnectionGroup).LibraryLocation)
 {$ENDIF}
     else
     begin
@@ -1245,5 +1264,3 @@ end;
 {$ENDIF}
 
 end.
-
-

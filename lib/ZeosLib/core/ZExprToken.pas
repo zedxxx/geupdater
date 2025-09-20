@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -60,51 +60,87 @@ uses
   ZSysUtils, ZTokenizer;
 
 type
-
-  {** Implements an Expression-specific number state object. }
+  /// <summary>Implements an Expression-specific number state object.</summary>
   TZExpressionNumberState = class (TZNumberState)
   public
-    function NextToken(Stream: TStream; FirstChar: Char;
+    /// <summary>Return a number token from a string buffer.</summary>
+    /// <param>"SPos" the String position reference of the String buffer</param>
+    /// <param>"NTerm" the termination zero position reference of the String buffer</param>
+    /// <param>"Tokenizer" the Tokenizer interface which did splitt the String
+    ///  into Tokens.</param>
+    /// <returns>a number token from a character buffer</returns>
+    function NextToken(var SPos: PChar; const NTerm: PChar;
       Tokenizer: TZTokenizer): TZToken; override;
   end;
 
-  {** Implements an Expression-specific quote string state object. }
+  /// <summary>Implements an Expression-specific quote string state object.</summary>
   TZExpressionQuoteState = class (TZQuoteState)
   public
-    function NextToken(Stream: TStream; FirstChar: Char;
-      {%H-}Tokenizer: TZTokenizer): TZToken; override;
-
+    /// <summary>Return a quoted string token from a string buffer. This method
+    ///  will collect characters until it sees a match to the character that the
+    ///  tokenizer used to switch to this state.</summary>
+    /// <param>"SPos" the String position reference of the String buffer</param>
+    /// <param>"NTerm" the termination zero position reference of the String buffer</param>
+    /// <param>"Tokenizer" the Tokenizer interface which did splitt the String
+    ///  into Tokens.</param>
+    /// <returns>return a quoted string token from a string buffer</returns>
+    function NextToken(var SPos: PChar; const NTerm: PChar;
+      Tokenizer: TZTokenizer): TZToken; override;
+    /// <summary>Encodes a string value.</summary>
+    /// <param>"Value" a string value to be encoded.</param>
+    /// <param>"QuoteChar" a string quote character.</param>
+    /// <returns>an encoded string.</returns>
     function EncodeString(const Value: string; QuoteChar: Char): string; override;
-    function DecodeString(const Value: string; QuoteChar: Char): string; override;
+    /// <summary>Decodes a string value.</summary>
+    /// <param>"Value" a token value to be decoded.</param>
+    /// <param>"QuoteChar" a string quote character.</param>
+    /// <returns>an decoded string.</returns>
+    function DecodeToken(const Value: TZToken; QuoteChar: Char): string; override;
   end;
 
-  {**
-    This state will either delegate to a comment-handling
-    state, or return a token with just a slash in it.
-  }
+  /// <summary>Implements an Expression-specific comment state object. This
+  ///  state will either delegate to a comment-handling state, or return a token
+  ///  with just a slash in it.</summary>
   TZExpressionCommentState = class (TZCppCommentState)
   public
-    function NextToken(Stream: TStream; FirstChar: Char;
+    /// <summary>Gets an Expression specific comments like /* */.</summary>
+    /// <param>"SPos" the String position reference of the String buffer</param>
+    /// <param>"NTerm" the termination zero position reference of the String buffer</param>
+    /// <param>"Tokenizer" the Tokenizer interface which did splitt the String
+    ///  into Tokens.</param>
+    /// <returns>either just a slash token, or the results of delegating to a
+    ///  comment-handling state from a string buffer</returns>
+    function NextToken(var SPos: PChar; const NTerm: PChar;
       Tokenizer: TZTokenizer): TZToken; override;
   end;
 
-  {** Implements a symbol state object. }
+  /// <summary>Implements a symbol state object.</summary>
   TZExpressionSymbolState = class (TZSymbolState)
   public
+    /// <summary>Creates this Expression-specific symbol state object.</summary>
     constructor Create;
   end;
 
-  {** Implements a word state object. }
+  /// <summary>Implements a word state object.</summary>
   TZExpressionWordState = class (TZWordState)
   public
+    /// <summary>Constructs this Expression-specific word state object.</summary>
     constructor Create;
-    function NextToken(Stream: TStream; FirstChar: Char;
+    /// <summary>Gets a word tokens or special operators from a character buffer.</summary>
+    /// <param>"SPos" the String position reference of the String buffer</param>
+    /// <param>"NTerm" the termination zero position reference of the String buffer</param>
+    /// <param>"Tokenizer" the Tokenizer interface which did splitt the String
+    ///  into Tokens.</param>
+    /// <returns>a processed token</returns>.
+    function NextToken(var SPos: PChar; const NTerm: PChar;
       Tokenizer: TZTokenizer): TZToken; override;
   end;
 
-  {** Implements a default tokenizer object. }
+  /// <summary>Implements a default tokenizer object.</summary>
   TZExpressionTokenizer = class (TZTokenizer)
   protected
+    /// <summary>Constructs a default state table (as described in the class
+    ///  comment).</summary>
     procedure CreateTokenStates; override;
   end;
 
@@ -113,219 +149,134 @@ implementation
 uses ZCompatibility{$IFDEF FAST_MOVE},ZFastCode{$ENDIF};
 
 const
-  {** List of keywords. }
+  /// <summary>defines a List of keywords.</summary>
   Keywords: array [0..8] of string = (
-    'AND','OR','NOT','XOR','LIKE','IS','NULL','TRUE','FALSE'
-  );
+    'AND','OR','NOT','XOR','LIKE','IS','NULL','TRUE','FALSE');
 
 { TZExpressionNumberState }
 
-
-//gto: all operations on Streams should be done without presuming the size
-//     of the read var, like Stream.Read(LastChar, 1), to read 1 char
-//
-//     Instead, operations should use SizeOf(Type), like this:
-//     Stream.Read(LastChar, SizeOf(Char))
-//
-//     This is unicode safe and ansi (Delphi under 2009) compatible
-
-{**
-  Return a number token from a reader.
-  @return a number token from a reader
-}
-function TZExpressionNumberState.NextToken(Stream: TStream; FirstChar: Char;
-  Tokenizer: TZTokenizer): TZToken;
+function TZExpressionNumberState.NextToken(var SPos: PChar;
+  const NTerm: PChar; Tokenizer: TZTokenizer): TZToken;
 var
-  TempChar: Char;
   FloatPoint: Boolean;
-  LastChar: Char;
-
-  function ReadDecDigits: string;
-  begin
-    Result := '';
-    LastChar := #0;
-    while Stream.Read(LastChar, SizeOf(Char)) > 0 do
-    begin
-      if ((Ord(LastChar) >= Ord('0')) and (Ord(LastChar) <= Ord('9'))) then
-      begin
-        Result := Result + LastChar;
-        LastChar := #0;
-      end
-      else
-      begin
-        Stream.Seek(-SizeOf(Char), soFromCurrent);
-        Break;
-      end;
-    end;
-  end;
-
+  GotDecDigit: Boolean;
 begin
-  FloatPoint := FirstChar = '.';
-  Result.Value := FirstChar;
+  FloatPoint := SPos^ = '.';
+  GotDecDigit := False;
+  Result.P := SPos;
   Result.TokenType := ttUnknown;
-  LastChar := #0;
 
   { Reads the first part of the number before decimal point }
-  if not FloatPoint then
-  begin
-    Result.Value := Result.Value + ReadDecDigits;
-    FloatPoint := LastChar = '.';
+  if not FloatPoint then begin
+    GotDecDigit := ReadDecDigits(SPos, NTerm);
+    if GotDecDigit then
+      FloatPoint := (SPos)^ = '.';
     if FloatPoint then
-    begin
-      Stream.Read(TempChar{%H-}, SizeOf(Char));
-      Result.Value := Result.Value + TempChar;
-    end;
+      Inc(SPos);
   end;
 
   { Reads the second part of the number after decimal point }
-  if FloatPoint then
-    Result.Value := Result.Value + ReadDecDigits;
-
-  { Reads a power part of the number }
-  if (Ord(LastChar) in [Ord('e'), Ord('E')]) then
-  begin
-    Stream.Read(TempChar, SizeOf(Char));
-    Result.Value := Result.Value + TempChar;
-    FloatPoint := True;
-
-    Stream.Read(TempChar, SizeOf(Char));
-    if Ord(TempChar) in [Ord('0')..Ord('9'), Ord('-'), Ord('+')] then
-      Result.Value := Result.Value + TempChar + ReadDecDigits
-    else
-    begin
-      Result.Value := Copy(Result.Value, 1, Length(Result.Value) - 1);
-      Stream.Seek(-(2 * SizeOf(Char)), soFromCurrent);
-    end;
+  if FloatPoint then begin
+    Inc(SPos, ord(not GotDecDigit));
+    GotDecDigit := ReadDecDigits(Spos, NTerm);
   end;
 
+  { Reads a power part of the number }
+  if GotDecDigit and (Ord((SPos)^) or $20 = Ord('e')) then begin  //charinset('E','e')
+    Inc(SPos, Ord(SPos < NTerm));
+    FloatPoint := True;
+    if ((Ord(SPos^) >= Ord('0')) and (Ord(SPos^) <= Ord('9'))) or
+        (Ord(SPos^) = Ord('-')) or (Ord(SPos^) = Ord('+')) then begin
+      Inc(SPos, Ord((Ord(SPos^) = Ord('-')) or (Ord(SPos^) = Ord('+'))));
+      ReadDecDigits(SPos, NTerm)
+    end else Dec(SPos, 2);
+  end;
+
+  Dec(SPos); //push back wrong result
   { Prepare the result }
-  if Result.Value = '.' then
-  begin
+  if (SPos^ = '.') and (SPos = Result.P) then begin
     if Tokenizer.SymbolState <> nil then
-      Result := Tokenizer.SymbolState.NextToken(Stream, FirstChar, Tokenizer);
-  end
-  else
-  begin
-    if FloatPoint then
-      Result.TokenType := ttFloat
-      else
-         Result.TokenType := ttInteger;
+      Result := Tokenizer.SymbolState.NextToken(SPos, NTerm, Tokenizer);
+  end else begin
+    Result.L := SPos-Result.P+1;
+    if FloatPoint
+    then Result.TokenType := ttFloat
+    else Result.TokenType := ttInteger;
   end;
 end;
 
 { TZExpressionSQLQuoteState }
 
-{**
-  Return a quoted string token from a reader. This method
-  will collect characters until it sees a match to the
-  character that the tokenizer used to switch to this state.
-
-  @return a quoted string token from a reader
-}
-function TZExpressionQuoteState.NextToken(Stream: TStream;
-  FirstChar: Char; Tokenizer: TZTokenizer): TZToken;
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "Tokenizer" not used}{$ENDIF}
+function TZExpressionQuoteState.NextToken(var SPos: PChar;
+  const NTerm: PChar; Tokenizer: TZTokenizer): TZToken;
 var
-  ReadChar: Char;
   LastChar: Char;
 begin
-  if FirstChar = '"' then
-    Result.TokenType := ttWord
-   else
-      Result.TokenType := ttQuoted;
-  Result.Value := FirstChar;
+  if SPos^ = '"'
+  then Result.TokenType := ttWord
+  else Result.TokenType := ttQuoted;
+  Result.P := SPos;
   LastChar := #0;
 
-  while Stream.Read(ReadChar{%H-}, SizeOf(Char)) > 0 do
-  begin
-    if (LastChar = FirstChar) and (ReadChar <> FirstChar) then
-    begin
-      Stream.Seek(-SizeOf(Char), soFromCurrent);
+  while SPos < NTerm do begin
+    Inc(SPos);
+    if (LastChar = Result.P^) and (SPos^ <> Result.P^) then begin //read over boundaries?
+      Dec(SPos);
       Break;
     end;
-    Result.Value := Result.Value + ReadChar;
     if LastChar = '\' then
       LastChar := #0
-    else if (LastChar = FirstChar) and (ReadChar = FirstChar) then
+    else if (LastChar = Result.P^) and (SPos^ = Result.P^) then
       LastChar := #0
-      else
-         LastChar := ReadChar;
+    else
+      LastChar := SPos^;
   end;
+  Result.L := SPos-Result.P+1;
+end;
+{$IFDEF FPC} {$POP}{$ENDIF}
+
+function TZExpressionQuoteState.DecodeToken(const Value: TZToken;
+  QuoteChar: Char): string;
+begin
+  if (Value.L >= 2) and ((QuoteChar= '''') or (QuoteChar= '"')) and
+     (Value.P^ = QuoteChar) and ((Value.P+Value.L-1)^ = QuoteChar)
+  then DecodeCString(Value.L-2, Value.P+1, {$IF defined(FPC) and defined(WITH_RAWBYTESTRING)}RawByteString(Result){$ELSE}Result{$IFEND})
+  else SetString(Result, Value.P, Value.L);
 end;
 
-{**
-  Encodes a string value.
-  @param Value a string value to be encoded.
-  @param QuoteChar a string quote character.
-  @returns an encoded string.
-}
 function TZExpressionQuoteState.EncodeString(const Value: string;
   QuoteChar: Char): string;
 begin
-  if (Ord(QuoteChar) in [Ord(''''), Ord('"')]) then
-    Result := QuoteChar + EncodeCString(Value) + QuoteChar
-  else
-    Result := Value;
-end;
-
-{**
-  Decodes a string value.
-  @param Value a string value to be decoded.
-  @param QuoteChar a string quote character.
-  @returns an decoded string.
-}
-function TZExpressionQuoteState.DecodeString(const Value: string;
-  QuoteChar: Char): string;
-begin
-  if (Length(Value) >= 2) and (Ord(QuoteChar) in [Ord(''''), Ord('"')])
-     and (Value[1] = QuoteChar) and (Value[Length(Value)] = QuoteChar) then
-    Result := DecodeCString(Copy(Value, 2, Length(Value) - 2))
-   else
-      Result := Value;
+  if (Ord(QuoteChar) in [Ord(''''), Ord('"')])
+  then Result := QuoteChar + EncodeCString(Value) + QuoteChar
+  else Result := Value;
 end;
 
 { TZExpressionCommentState }
 
-{**
-  Gets an Expression specific comments like /* */.
-  @return either just a slash token, or the results of
-    delegating to a comment-handling state
-}
-function TZExpressionCommentState.NextToken(Stream: TStream;
-  FirstChar: Char; Tokenizer: TZTokenizer): TZToken;
-var
-  ReadChar: Char;
-  ReadNum: Integer;
+function TZExpressionCommentState.NextToken(var SPos: PChar;
+  const NTerm: PChar; Tokenizer: TZTokenizer): TZToken;
 begin
   Result.TokenType := ttUnknown;
-  InitBuf(Firstchar);
-  Result.Value := '';
+  Result.P := SPos;
 
-  if FirstChar = '/' then
-  begin
-    ReadNum := Stream.Read(ReadChar{%H-}, SizeOf(Char));
-    if (ReadNum > 0) and (ReadChar = '*') then begin
+  if SPos^ = '/' then begin
+    Inc(SPos);
+    if (SPos < NTerm) and (SPos^ = '*') then begin
       Result.TokenType := ttComment;
-      ToBuf(ReadChar, Result.Value);
-      GetMultiLineComment(Stream, Result.Value);
-    end
-    else
-    begin
-      if ReadNum > 0 then
-        Stream.Seek(-SizeOf(Char), soFromCurrent);
-    end;
+      GetMultiLineComment(SPos, NTerm);
+    end else if (SPos < NTerm) then
+      Dec(SPos);
   end;
 
-  if (Result.TokenType = ttUnknown) and (Tokenizer.SymbolState <> nil) then
-    Result := Tokenizer.SymbolState.NextToken(Stream, FirstChar, Tokenizer)
-  else
-    FlushBuf(Result.Value);
+  if (Result.TokenType = ttUnknown) and (Tokenizer.SymbolState <> nil)
+  then Result := Tokenizer.SymbolState.NextToken(SPos, NTerm, Tokenizer)
+  else Result.L := SPos-Result.P+1;
 end;
 
 { TZExpressionSymbolState }
 
-{**
-  Creates this Expression-specific symbol state object.
-}
 constructor TZExpressionSymbolState.Create;
 begin
   inherited Create;
@@ -337,9 +288,6 @@ end;
 
 { TZExpressionWordState }
 
-{**
-  Constructs this Expression-specific word state object.
-}
 constructor TZExpressionWordState.Create;
 begin
   SetWordChars(#0, #191, False);
@@ -350,34 +298,22 @@ begin
   SetWordChars('_', '_', True);
 end;
 
-{**
-  Gets a word tokens or special operators.
-  @return a processed token.
-}
-function TZExpressionWordState.NextToken(Stream: TStream; FirstChar: Char;
-  Tokenizer: TZTokenizer): TZToken;
+function TZExpressionWordState.NextToken(var SPos: PChar;
+  const NTerm: PChar; Tokenizer: TZTokenizer): TZToken;
 var
   I: Integer;
-  Temp: string;
 begin
-  Result := inherited NextToken(Stream, FirstChar, Tokenizer);
-  Temp := UpperCase(Result.Value);
-
+  Result := inherited NextToken(SPos, NTerm, Tokenizer);
   for I := Low(Keywords) to High(Keywords) do
-  begin
-    if Temp = Keywords[I] then
-    begin
-      Result.TokenType := ttKeyword;
-      Break;
-    end;
-  end;
+    if Result.L = Length(Keywords[I]) then
+      if SameText(Result.P, Pointer(Keywords[i]), Result.L) then begin
+        Result.TokenType := ttKeyword;
+        Break;
+      end;
 end;
 
 { TZExpressionTokenizer }
 
-{**
-  Constructs a default state table (as described in the class comment).
-}
 procedure TZExpressionTokenizer.CreateTokenStates;
 begin
   WhitespaceState := TZWhitespaceState.Create;

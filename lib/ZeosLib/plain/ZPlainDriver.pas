@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -55,26 +55,24 @@ interface
 
 {$I ZPlain.inc}
 
-uses ZClasses, ZPlainLoader, ZCompatibility, Types;
+uses ZClasses, ZPlainLoader, ZCompatibility, Types, ZEncoding;
 
 type
+  TZAbstractPlainDriver = class;
 
   {** Represents a generic interface to plain driver. }
   IZPlainDriver = interface (IZInterface)
     ['{2A0CC600-B3C4-43AF-92F5-C22A3BB1BB7D}']
     function GetProtocol: string;
     function GetDescription: string;
-    {EgonHugeist:
-      Why this here? -> No one else then Plaindriver knows which Characterset
-      is supported. Here i've made a intervention in dependency of used Compiler.}
-    function GetSupportedClientCodePages(const {$IFNDEF UNICODE}AutoEncode,{$ENDIF} IgnoreUnsupported: Boolean;
-      CtrlsCPType: TZControlsCodePage = cCP_UTF16): TStringDynArray;
+    function GetInstance: TZAbstractPlainDriver;
+    function GetClientCodePages: TStringDynArray;
     function ValidateCharEncoding(const CharacterSetName: String; const DoArrange: Boolean = False): PZCodePage; overload;
     function ValidateCharEncoding(const CharacterSetID: Integer; const DoArrange: Boolean = False): PZCodePage; overload;
     procedure Initialize(const Location: String = '');
     function Clone: IZPlainDriver;
     procedure AddCodePage(const Name: String; const ID:  Integer;
-      Encoding: TZCharEncoding = ceAnsi; const CP: Word = $ffff;
+      Encoding: TZCharEncoding = ceAnsi; const CP: Word = zCP_NONE;
       const ZAlias: String = ''; CharWidth: Integer = 1;
       const ConsistentCP: Boolean = True);
   end;
@@ -90,26 +88,26 @@ type
     function Clone: IZPlainDriver; reintroduce; virtual; abstract;
     procedure LoadCodePages; virtual; abstract;
     function GetUnicodeCodePageName: String; virtual;
-    function ValidateCharEncoding(const CharacterSetName: String; const DoArrange: Boolean = False): PZCodePage; overload;
-    function ValidateCharEncoding(const CharacterSetID: Integer; const DoArrange: Boolean = False): PZCodePage; overload;
   public
     constructor Create;
     constructor CreateWithLibrary(const LibName : String);
     destructor Destroy; override;
     function GetProtocol: string; virtual; abstract;
     function GetDescription: string; virtual; abstract;
-    function GetSupportedClientCodePages(const {$IFNDEF UNICODE}AutoEncode,{$ENDIF} IgnoreUnsupported: Boolean;
-      CtrlsCPType: TZControlsCodePage = cCP_UTF16): TStringDynArray;
+    function GetInstance: TZAbstractPlainDriver;
+    function GetClientCodePages: TStringDynArray;
     procedure Initialize(const Location: String = ''); virtual;
+    function ValidateCharEncoding(const CharacterSetName: String; const DoArrange: Boolean = False): PZCodePage; overload;
+    function ValidateCharEncoding(const CharacterSetID: Integer; const DoArrange: Boolean = False): PZCodePage; overload;
 
     property Loader: TZNativeLibraryLoader read FLoader;
     procedure AddCodePage(const Name: String; const ID:  Integer;
-      Encoding: TZCharEncoding = ceAnsi; const CP: Word = $ffff;
+      Encoding: TZCharEncoding = ceAnsi; const CP: Word = zCP_NONE;
       const ZAlias: String = ''; CharWidth: Integer = 1;
       const ConsistentCP: Boolean = True);
     procedure ResetCodePage(const OldID: Integer; const Name: String;
       const ID:  Integer; {may be an ordinal value of predefined Types...}
-      Encoding: TZCharEncoding = ceAnsi; const CP: Word = $ffff;
+      Encoding: TZCharEncoding = ceAnsi; const CP: Word = zCP_NONE;
       const ZAlias: String = ''; CharWidth: Integer = 1;
       const ConsistentCP: Boolean = True);
   end;
@@ -117,8 +115,11 @@ type
 
 implementation
 
-uses SysUtils, ZEncoding{$IFDEF WITH_UNITANSISTRINGS}, AnsiStrings{$ENDIF};
+uses SysUtils{$IFDEF WITH_UNITANSISTRINGS}, AnsiStrings{$ENDIF};
 
+const
+  ClientCodePageDummy: TZCodepage =
+    (Name: ''; ID: 0; CharWidth: 1; Encoding: ceAnsi; CP: zCP_NONE; ZAlias: ''; IsStringFieldCPConsistent: False);
 
 {TZAbstractPlainDriver}
 
@@ -126,6 +127,7 @@ function TZAbstractPlainDriver.GetUnicodeCodePageName: String;
 begin
   Result := '';
 end;
+
 
 {**
    Checks if the given ClientCharacterSet and returns the PZCodePage
@@ -141,26 +143,27 @@ function TZAbstractPlainDriver.ValidateCharEncoding(const CharacterSetName: Stri
     const ClientCharacterSet: String): PZCodePage;
   var
     I: Integer;
+    S: String;
   begin
     {now check for PlainDriver-Informations...}
-    {$IFDEF FPC} //if the user didn't set it
-    if ClientCharacterSet = '' then
-    begin
+    {$IF defined(LCL) or defined(UNICODE) or not defined(MSWINDOWS)} //if the user didn't set it
+    if ClientCharacterSet = '' then begin
+      S := UpperCase(GetUnicodeCodePageName);
       for i := Low(FCodePages) to high(FCodePages) do
-        if UpperCase(FCodePages[i].Name) = UpperCase(GetUnicodeCodePageName) then
+        if UpperCase(FCodePages[i].Name) = S then
         begin
           Result := @FCodePages[i];
           Exit;
         end;
-    end
-    else
-    {$ENDIF}
-    for i := Low(FCodePages) to high(FCodePages) do
-      if UpperCase(FCodePages[i].Name) = UpperCase(ClientCharacterSet) then
-      begin
-        Result := @FCodePages[i];
-        Exit;
-      end;
+    end else
+    {$IFEND} begin
+      S := UpperCase(ClientCharacterSet);
+      for i := Low(FCodePages) to high(FCodePages) do
+        if UpperCase(FCodePages[i].Name) = S then begin
+          Result := @FCodePages[i];
+          Exit;
+        end;
+    end;
     Result := @ClientCodePageDummy;
   end;
 begin
@@ -201,7 +204,7 @@ end;
 
 procedure TZAbstractPlainDriver.AddCodePage(const Name: String;
       const ID:  Integer; Encoding: TZCharEncoding = ceAnsi;
-      const CP: Word = $ffff; const ZAlias: String = '';
+      const CP: Word = zCP_NONE; const ZAlias: String = '';
       CharWidth: Integer = 1; const ConsistentCP: Boolean = True);
 begin
   SetLength(FCodePages, Length(FCodePages)+1);
@@ -213,13 +216,13 @@ begin
   FCodePages[High(FCodePages)].ZAlias := ZAlias;
   FCodePages[High(FCodePages)].IsStringFieldCPConsistent := ConsistentCP;
 
-  if CP = $ffff then
+  if CP = zCP_NONE then
     FCodePages[High(FCodePages)].ZAlias := GetUnicodeCodePageName;
 end;
 
 procedure TZAbstractPlainDriver.ResetCodePage(const OldID: Integer;
       const Name: String; const ID:  Integer; Encoding: TZCharEncoding = ceAnsi;
-      const CP: Word = $ffff;
+      const CP: Word = zCP_NONE;
       const ZAlias: String = ''; CharWidth: Integer = 1;
       const ConsistentCP: Boolean = True);
 var
@@ -236,82 +239,20 @@ begin
       FCodePages[I].CharWidth := CharWidth;
       FCodePages[I].IsStringFieldCPConsistent := ConsistentCP;
 
-      if CP = $ffff then
+      if CP = zCP_NONE then
         FCodePages[I].ZAlias := GetUnicodeCodePageName;
       Break;
     end;
 end;
 
-function TZAbstractPlainDriver.GetSupportedClientCodePages(
-  const {$IFNDEF UNICODE}AutoEncode,{$ENDIF} IgnoreUnsupported: Boolean;
-  CtrlsCPType: TZControlsCodePage = cCP_UTF16): TStringDynArray;
+function TZAbstractPlainDriver.GetClientCodePages: TStringDynArray;
 var
   I: Integer;
-
-  procedure AddCurrent;
-  begin
-    SetLength(Result, Length(Result)+1);
-    Result[High(Result)] := FCodePages[i].Name;
-  end;
-
 begin
-  SetLength(Result, 0);
+  {$IFDEF WITH_VAR_INIT_WARNING}Result := nil;{$ENDIF}
+  SetLength(Result, Length(FCodePages));
   for i := low(FCodePages) to high(FCodePages) do
-    if IgnoreUnsupported then
-      AddCurrent
-    else
-      case CtrlsCPType of
-        cGET_ACP:
-          {$IFDEF UNICODE}
-          AddCurrent; //result are ?valid? but does that makes sence for all if not CP_UTF8?
-          {$ELSE}
-          if ( FCodePages[i].CP = ZOSCodePage ) then
-            AddCurrent
-          else
-            if AutoEncode then
-              {$IF defined(MSWINDOWS) or defined(FPC_HAS_BUILTIN_WIDESTR_MANAGER) }
-              AddCurrent //result are ?valid? but does that makes sence for all if not CP_UTF8?
-              {$ELSE}
-                {$IFDEF WITH_LCONVENCODING} //Lazarus only
-                if ( IsLConvEncodingCodePage(FCodePages[i].CP) ) or
-                   ( FCodePages[i].Encoding = ceUTF8 ) then
-                  AddCurrent //allways valid because result is allways UTF8 which lazarus expects
-                {$ENDIF}
-              {$IFEND}
-            else Continue;
-          {$ENDIF}
-        {$IFNDEF UNICODE}
-        cCP_UTF8:
-          if ( FCodePages[i].Encoding = ceUTF8 ) then
-            AddCurrent
-          else
-            if AutoEncode then
-              {$IF defined(MSWINDOWS) or defined(FPC_HAS_BUILTIN_WIDESTR_MANAGER) }
-              AddCurrent //All charsets can be converted to UTF8 if a valid WideString-Manager does exists
-              {$ELSE}
-                {$IFDEF WITH_LCONVENCODING} //Lazarus only
-                if ( IsLConvEncodingCodePage(FCodePages[i].CP) ) then
-                  AddCurrent
-                {$ENDIF}
-              {$IFEND}
-            else Continue;
-        {$ENDIF}
-        else
-          {$IF defined(MSWINDOWS) or defined(FPC_HAS_BUILTIN_WIDESTR_MANAGER) or defined(UNICODE)}
-          AddCurrent; //all remaining charset can be converted to wide if a valid WideString-Manager does exists
-          {$ELSE}
-            {$IFDEF WITH_LCONVENCODING} //Lazarus only
-            if ( IsLConvEncodingCodePage(FCodePages[i].CP) ) or //Lazarus can convert to UTF8 then we convert to wide (double En/Decoding!)
-               ( FCodePages[i].Encoding = ceUTF8 ) or //decode the strings to wide
-               ( FCodePages[i].CP = ZOSCodePage ) then //to allow a valid cast
-              AddCurrent; //all these charset can be converted to wide
-            {$ELSE}
-            if ( FCodePages[i].CP = ZOSCodePage ) or //to allow a valid cast
-               ( FCodePages[i].Encoding = ceUTF8 ) then //decode the strings to wide
-              AddCurrent;
-            {$ENDIF}
-          {$IFEND}
-      end;
+    Result[i] := FCodePages[i].Name;
 end;
 
 constructor TZAbstractPlainDriver.Create;
@@ -327,6 +268,10 @@ begin
   inherited Destroy;
 end;
 
+function TZAbstractPlainDriver.GetInstance: TZAbstractPlainDriver;
+begin
+  Result := Self;
+end;
 
 procedure TZAbstractPlainDriver.LoadApi;
 begin

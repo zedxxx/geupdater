@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -61,25 +61,37 @@ interface
 
 {$IFNDEF ZEOS_DISABLE_ADO}
 uses
-{$IFDEF USE_SYNCOMMONS}
+  {$IFDEF MORMOT2}
+  mormot.db.core, mormot.core.datetime, mormot.core.text, mormot.core.base,
+  {$ELSE MORMOT2} {$IFDEF USE_SYNCOMMONS}
   SynCommons, SynTable,
-{$ENDIF USE_SYNCOMMONS}
-  {$IFDEF WITH_TOBJECTLIST_REQUIRES_SYSTEM_TYPES}System.Types, System.Contnrs{$ELSE}Types{$ENDIF},
-  Windows, Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils,
+  {$ENDIF USE_SYNCOMMONS} {$ENDIF MORMOT2}
+  {$IFDEF WITH_TOBJECTLIST_REQUIRES_SYSTEM_TYPES}System.Types, System.Contnrs{$ELSE}
+    {$IFNDEF NO_UNIT_CONTNRS} Contnrs,{$ENDIF} Types{$ENDIF},
+  Windows, Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils, FmtBCD,
   ZSysUtils, ZDbcIntfs, ZDbcGenericResolver,
-  ZDbcCachedResultSet, ZDbcCache, ZDbcResultSet, ZDbcResultsetMetadata, ZCompatibility, ZPlainAdo;
+  ZDbcCachedResultSet, ZDbcCache, ZDbcResultSet, ZDbcResultsetMetadata, ZCompatibility, ZPlainAdo,
+  ZExceptions;
 
 type
   {** Implements SQLite ResultSet Metadata. }
   TZADOResultSetMetadata = class(TZAbstractResultSetMetadata)
   protected
+    /// <summary>Clears specified column information.</summary>
+    /// <param>"ColumnInfo" a column information object.</param>
     procedure ClearColumn(ColumnInfo: TZColumnInfo); override;
   end;
 
+  TZADOColumInfo = class(TZColumnInfo)
+  public
+    ADOColumnType: TDataTypeEnum;
+  end;
+  { ADO Error Class}
+  EZADOConvertError = class(EZSQLException);
+
   {** Implements Ado ResultSet. }
-  TZAdoResultSet = class(TZAbstractResultSet)
+  TZAdoResultSet = class(TZAbstractReadOnlyResultSet, IZResultSet)
   private
-    AdoColTypeCache: TIntegerDynArray;
     AdoColumnCount: Integer;
     FFirstFetch: Boolean;
     FAdoRecordSet: ZPlainAdo.RecordSet;
@@ -88,7 +100,8 @@ type
     FValueAddr: Pointer;
     FValueType: Word;
     FColValue: OleVariant;
-    FTinyBuffer: array[Byte] of Byte;
+    FByteBuffer: PByteBuffer;
+    function CreateAdoConvertError(ColumnIndex: Integer; DataType: Word): EZADOConvertError;
   protected
     procedure Open; override;
   public
@@ -97,34 +110,58 @@ type
     procedure AfterClose; override;
     procedure ResetCursor; override;
     function Next: Boolean; override;
+    /// <summary>Moves the cursor to the given row number in
+    ///  this <c>ResultSet</c> object. If the row number is positive, the cursor
+    ///  moves to the given row number with respect to the beginning of the
+    ///  result set. The first row is row 1, the second is row 2, and so on.
+    ///  If the given row number is negative, the cursor moves to
+    ///  an absolute row position with respect to the end of the result set.
+    ///  For example, calling the method <c>absolute(-1)</c> positions the
+    ///  cursor on the last row; calling the method <c>absolute(-2)</c>
+    ///  moves the cursor to the next-to-last row, and so on. An attempt to
+    ///  position the cursor beyond the first/last row in the result set leaves
+    ///  the cursor before the first row or after the last row.
+    ///  <B>Note:</B> Calling <c>absolute(1)</c> is the same
+    ///  as calling <c>first()</c>. Calling <c>absolute(-1)</c>
+    ///  is the same as calling <c>last()</c>.</summary>
+    /// <param>"Row" the absolute position to be moved.</param>
+    /// <returns><c>true</c> if the cursor is on the result set;<c>false</c>
+    ///  otherwise</returns>
     function MoveAbsolute(Row: Integer): Boolean; override;
     function GetRow: NativeInt; override;
-    function IsNull(ColumnIndex: Integer): Boolean; override;
-    function GetString(ColumnIndex: Integer): String; override;
-    function GetAnsiString(ColumnIndex: Integer): AnsiString; override;
-    function GetUTF8String(ColumnIndex: Integer): UTF8String; override;
-    function GetRawByteString(ColumnIndex: Integer): RawByteString; override;
-    function GetPWideChar(ColumnIndex: Integer; out Len: NativeUInt): PWideChar; override;
-    function GetPAnsiChar(ColumnIndex: Integer; out Len: NativeUInt): PAnsiChar; override;
-    function GetUnicodeString(ColumnIndex: Integer): ZWideString; override;
-    function GetBoolean(ColumnIndex: Integer): Boolean; override;
-    function GetInt(ColumnIndex: Integer): Integer; override;
-    function GetUInt(ColumnIndex: Integer): Cardinal; override;
-    function GetLong(ColumnIndex: Integer): Int64; override;
-    function GetULong(ColumnIndex: Integer): UInt64; override;
-    function GetFloat(ColumnIndex: Integer): Single; override;
-    function GetDouble(ColumnIndex: Integer): Double; override;
-    function GetCurrency(ColumnIndex: Integer): Currency; override;
-    function GetBigDecimal(ColumnIndex: Integer): Extended; override;
-    function GetBytes(ColumnIndex: Integer): TBytes; override;
-    function GetDate(ColumnIndex: Integer): TDateTime; override;
-    function GetTime(ColumnIndex: Integer): TDateTime; override;
-    function GetTimestamp(ColumnIndex: Integer): TDateTime; override;
-    function GetBlob(ColumnIndex: Integer): IZBlob; override;
+    function IsNull(ColumnIndex: Integer): Boolean;
+    function GetAnsiString(ColumnIndex: Integer): AnsiString;
+    function GetUTF8String(ColumnIndex: Integer): UTF8String;
+    function GetRawByteString(ColumnIndex: Integer): RawByteString;
+    function GetPWideChar(ColumnIndex: Integer; out Len: NativeUInt): PWideChar; overload;
+    function GetPAnsiChar(ColumnIndex: Integer; out Len: NativeUInt): PAnsiChar; overload;
+    function GetUnicodeString(ColumnIndex: Integer): UnicodeString;
+    function GetBoolean(ColumnIndex: Integer): Boolean;
+    function GetInt(ColumnIndex: Integer): Integer;
+    function GetUInt(ColumnIndex: Integer): Cardinal;
+    function GetLong(ColumnIndex: Integer): Int64;
+    function GetULong(ColumnIndex: Integer): UInt64;
+    function GetFloat(ColumnIndex: Integer): Single;
+    function GetDouble(ColumnIndex: Integer): Double;
+    function GetCurrency(ColumnIndex: Integer): Currency;
+    procedure GetBigDecimal(ColumnIndex: Integer; var Result: TBCD);
+    procedure GetGUID(ColumnIndex: Integer; var Result: TGUID);
+    function GetBytes(ColumnIndex: Integer; out Len: NativeUInt): PByte; overload;
+    procedure GetDate(ColumnIndex: Integer; var Result: TZDate); overload;
+    procedure GetTime(ColumnIndex: Integer; var Result: TZTime); overload;
+    procedure GetTimestamp(ColumnIndex: Integer; Var Result: TZTimeStamp); overload;
+    function GetBlob(ColumnIndex: Integer; LobStreamMode: TZLobStreamMode = lsmRead): IZBlob;
+    {$IFDEF WITH_COLUMNS_TO_JSON}
+    /// <summary>Fill the JSONWriter with column data</summary>
+    /// <param>"JSONComposeOptions" the TZJSONComposeOptions used for composing
+    ///  the JSON contents</param>
+    procedure ColumnsToJSON(ResultsWriter: {$IF declared(TResultsWriter)}TResultsWriter{$ELSE}TJSONWriter{$IFEND};
+      JSONComposeOptions: TZJSONComposeOptions = [jcoEndJSONObject]);
+    {$ENDIF WITH_COLUMNS_TO_JSON}
   end;
 
   {** Implements a cached resolver with Ado specific functionality. }
-  TZAdoCachedResolver = class (TZGenericCachedResolver, IZCachedResolver)
+  TZAdoCachedResolver = class (TZGenerateSQLCachedResolver, IZCachedResolver)
   private
     FHandle: ZPlainAdo.Command;
     FAutoColumnIndex: Integer;
@@ -132,8 +169,21 @@ type
     constructor Create(const Handle: ZPlainAdo.Connection;
       const Statement: IZStatement; const Metadata: IZResultSetMetadata);
 
-    procedure PostUpdates(Sender: IZCachedResultSet; UpdateType: TZRowUpdateType;
-      OldRowAccessor, NewRowAccessor: TZRowAccessor); override;
+    procedure PostUpdates(const Sender: IZCachedResultSet; UpdateType: TZRowUpdateType;
+      const OldRowAccessor, NewRowAccessor: TZRowAccessor); override;
+  end;
+
+  TZADOCachedResultSet = Class(TZCachedResultSet)
+  protected
+    class function GetRowAccessorClass: TZRowAccessorClass; override;
+  end;
+
+  { TZADORowAccessor }
+
+  TZADORowAccessor = class(TZRowAccessor)
+  protected
+    class function MetadataToAccessorType(ColumnInfo: TZColumnInfo;
+      ConSettings: PZConSettings; Var ColumnCodePage: Word): TZSQLType; override;
   end;
 
 {$ENDIF ZEOS_DISABLE_ADO}
@@ -141,9 +191,140 @@ implementation
 {$IFNDEF ZEOS_DISABLE_ADO}
 
 uses
-  Variants, {$IFDEF FPC}ZOleDB{$ELSE}OleDB{$ENDIF}, ActiveX,
+  Variants, {$IFDEF FPC}ZPlainOleDBDriver{$ELSE}OleDB{$ENDIF}, ActiveX,
   {$IFDEF WITH_UNITANSISTRINGS}AnsiStrings, {$ENDIF} //need for inlined FloatToRaw
-  ZMessages, ZDbcAdoUtils, ZEncoding, ZFastCode, ZClasses, ZDbcUtils;
+  ZMessages, ZDbcAdoUtils, ZEncoding, ZFastCode, ZDbcUtils, ZDbcLogging, ZDbcAdo;
+
+{$IFDEF WITH_COLUMNS_TO_JSON}
+procedure TZAdoResultSet.ColumnsToJSON(ResultsWriter: {$IF declared(TResultsWriter)}TResultsWriter{$ELSE}TJSONWriter{$IFEND};
+  JSONComposeOptions: TZJSONComposeOptions);
+var Len, C, H, I: Integer;
+    P: PWideChar;
+    BCD: TBCD;
+begin
+  if ResultsWriter.Expand then
+    ResultsWriter.Add('{');
+  if Assigned(ResultsWriter.Fields) then
+    H := High(ResultsWriter.Fields) else
+    H := High(ResultsWriter.ColNames);
+  for I := 0 to H do begin
+    if Pointer(ResultsWriter.Fields) = nil then
+      C := I else
+      C := ResultsWriter.Fields[i];
+    if IsNull(C{$IFNDEF GENERIC_INDEX}+1{$ENDIF}) then begin
+      if ResultsWriter.Expand then begin
+        if not (jcsSkipNulls in JSONComposeOptions) then begin
+          ResultsWriter.AddString(ResultsWriter.ColNames[I]);
+          ResultsWriter.AddShort('null,')
+        end;
+      end else
+        ResultsWriter.AddShort('null,');
+    end else with FField20 do begin
+      if ResultsWriter.Expand then
+        ResultsWriter.AddString(ResultsWriter.ColNames[I]);
+      case FValueType of
+        VT_BOOL:        ResultsWriter.AddShort(JSONBool[PWordBool(FValueAddr)^]);
+        VT_UI1:         ResultsWriter.AddU(PByte(FValueAddr)^);
+        VT_UI2:         ResultsWriter.AddU(PWord(FValueAddr)^);
+        VT_UI4:         ResultsWriter.AddU(PCardinal(FValueAddr)^);
+        VT_UINT:        ResultsWriter.AddU(PLongWord(FValueAddr)^);
+        VT_I1:          ResultsWriter.Add(PShortInt(FValueAddr)^);
+        VT_I2:          ResultsWriter.Add(PSmallInt(FValueAddr)^);
+        VT_ERROR,
+        VT_I4:          ResultsWriter.Add(PInteger(FValueAddr)^);
+        VT_INT:         ResultsWriter.Add(PLongInt(FValueAddr)^);
+        VT_HRESULT:     ResultsWriter.Add(PHResult(FValueAddr)^);
+        VT_UI8:         ResultsWriter.AddQ(PUInt64(FValueAddr)^);
+        VT_I8:          ResultsWriter.Add(PInt64(FValueAddr)^);
+        VT_CY:          ResultsWriter.AddCurr64({$IFDEF MORMOT2}PInt64(FValueAddr){$ELSE}PCurrency(FValueAddr)^{$ENDIF});
+        VT_DECIMAL:     begin
+                          P := @FColValue;
+                          if PDecimal(P).scale > 0 then begin
+                            ScaledOrdinal2Bcd(UInt64(PDecimal(P).Lo64), PDecimal(P).scale, BCD, PDecimal(P).sign > 0);
+                            Len := ZSysUtils.BcdToRaw(BCd, PAnsiChar(FByteBuffer), '.');
+                            ResultsWriter.AddNoJSONEscape(Pointer(FByteBuffer), Len);
+                          end else if PDecimal(P).sign > 0 then
+                            ResultsWriter.Add(Int64(-UInt64(PDecimal(P).Lo64)))
+                          else
+                            ResultsWriter.AddQ(UInt64(PDecimal(P).Lo64));
+                        end;
+        VT_R4:          ResultsWriter.AddSingle(PSingle(FValueAddr)^);
+        VT_R8:          ResultsWriter.AddDouble(PDouble(FValueAddr)^);
+      else case Type_ of {ADO uses its own DataType-mapping different to System tagVariant type mapping}
+          adGUID:             begin
+                                ResultsWriter.Add('"');
+                                ResultsWriter.AddNoJSONEscapeW(Pointer(PWideChar(FValueAddr)+1), 36);
+                                ResultsWriter.Add('"');
+                              end;
+          adDBTime:           if (jcoMongoISODate in JSONComposeOptions) then begin
+                                ResultsWriter.AddShort('ISODate("0000-00-00');
+                                ResultsWriter.AddDateTime(PDateTime(FValueAddr)^, jcoMilliseconds in JSONComposeOptions);
+                                ResultsWriter.AddShort('Z")');
+                              end else begin
+                                if jcoDATETIME_MAGIC in JSONComposeOptions
+                                {$IFDEF MORMOT2}
+                                then ResultsWriter.AddShorter(JSON_SQLDATE_MAGIC_QUOTE_STR)
+                                {$ELSE}
+                                then ResultsWriter.AddNoJSONEscape(@JSON_SQLDATE_MAGIC_QUOTE_VAR,4)
+                                {$ENDIF}
+                                else ResultsWriter.Add('"');
+                                ResultsWriter.AddDateTime(PDateTime(FValueAddr)^, jcoMilliseconds in JSONComposeOptions);
+                                ResultsWriter.Add('"');
+                              end;
+          adDate,
+          adDBDate,
+          adDBTimeStamp:      if (jcoMongoISODate in JSONComposeOptions) then begin
+                                ResultsWriter.AddShort('ISODate("');
+                                ResultsWriter.AddDateTime(PDateTime(FValueAddr)^, jcoMilliseconds in JSONComposeOptions);
+                                ResultsWriter.AddShort('Z")');
+                              end else begin
+                                if jcoDATETIME_MAGIC in JSONComposeOptions
+                                {$IFDEF MORMOT2}
+                                then ResultsWriter.AddShorter(JSON_SQLDATE_MAGIC_QUOTE_STR)
+                                {$ELSE}
+                                then ResultsWriter.AddNoJSONEscape(@JSON_SQLDATE_MAGIC_QUOTE_VAR,4)
+                                {$ENDIF}
+                                else ResultsWriter.Add('"');
+                                ResultsWriter.AddDateTime(PDateTime(FValueAddr)^, jcoMilliseconds in JSONComposeOptions);
+                                ResultsWriter.Add('"');
+                              end;
+          adChar:             begin
+                                ResultsWriter.Add('"');
+                                ResultsWriter.AddJSONEscapeW(FValueAddr, ZDbcUtils.GetAbsorbedTrailingSpacesLen(PWideChar(FValueAddr), ActualSize));
+                                ResultsWriter.Add('"');
+                              end;
+          adWChar:            begin
+                                ResultsWriter.Add('"');
+                                ResultsWriter.AddJSONEscapeW(FValueAddr, ZDbcUtils.GetAbsorbedTrailingSpacesLen(PWideChar(FValueAddr), ActualSize shr 1));
+                                ResultsWriter.Add('"');
+                              end;
+          adVarChar,
+          adLongVarChar:      begin
+                                ResultsWriter.Add('"');
+                                ResultsWriter.AddJSONEscapeW(FValueAddr, ActualSize);
+                                ResultsWriter.Add('"');
+                              end;
+          adVarWChar,
+          adLongVarWChar:     begin
+                                ResultsWriter.Add('"');
+                                ResultsWriter.AddJSONEscapeW(FValueAddr, ActualSize shr 1);
+                                ResultsWriter.Add('"');
+                              end;
+          adBinary,
+          adVarBinary,
+          adLongVarBinary:    ResultsWriter.WrBase64(TVarData(Value).VArray.Data, ActualSize, True);
+        end;
+      end;
+      ResultsWriter.Add(',');
+    end;
+  end;
+  if jcoEndJSONObject in JSONComposeOptions then begin
+    ResultsWriter.CancelLastComma; // cancel last ','
+    if ResultsWriter.Expand then
+      ResultsWriter.Add('}');
+  end;
+end;
+{$ENDIF WITH_COLUMNS_TO_JSON}
 
 {**
   Creates this object and assignes the main properties.
@@ -157,7 +338,16 @@ begin
     TZADOResultSetMetadata.Create(Statement.GetConnection.GetMetadata, SQL, Self),
     Statement.GetConnection.GetConSettings);
   FAdoRecordSet := AdoRecordSet;
+  FByteBuffer := (Statement.GetConnection as IZAdoConnection).GetByteBufferAddress;
   Open;
+end;
+
+function TZAdoResultSet.CreateAdoConvertError(ColumnIndex: Integer;
+  DataType: Word): EZADOConvertError;
+begin
+  Result := EZADOConvertError.Create(Format(SErrorConvertionField,
+        [TZColumnInfo(ColumnsInfo[ColumnIndex{$IFNDEF GENERIC_INDEX}-1{$ENDIF}]).ColumnLabel,
+        IntToStr(DataType)]));
 end;
 
 {**
@@ -172,7 +362,7 @@ var
   ppStringsBuffer: PWideChar;
   I,j: Integer;
   FieldSize: Integer;
-  ColumnInfo: TZColumnInfo;
+  ColumnInfo: TZADOColumInfo;
   ColName: string;
   ColType: Integer;
   F: ZPlainAdo.Field20;
@@ -197,7 +387,6 @@ begin
   { Fills the column info }
   ColumnsInfo.Clear;
   AdoColumnCount := FAdoRecordSet.Fields.Count;
-  SetLength(AdoColTypeCache, AdoColumnCount);
 
   if Assigned(prgInfo) then
     if prgInfo.iOrdinal = 0 then
@@ -205,13 +394,13 @@ begin
 
   for I := 0 to AdoColumnCount - 1 do
   begin
-    ColumnInfo := TZColumnInfo.Create;
+    ColumnInfo := TZADOColumInfo.Create;
 
     F := FAdoRecordSet.Fields.Item[I];
     {$IFDEF UNICODE}
     ColName := F.Name;
     {$ELSE}
-    ColName := PUnicodeToString(Pointer(F.Name), Length(F.Name), ConSettings.CTRL_CP);
+    ColName := PUnicodeToRaw(Pointer(F.Name), Length(F.Name), zCP_UTF8);
     {$ENDIF}
     ColType := F.Type_;
     ColumnInfo.ColumnLabel := ColName;
@@ -230,14 +419,13 @@ begin
         ColumnInfo.AutoIncrement := Prop.Value
     end;
 
-    ColumnInfo.ColumnType := ConvertAdoToSqlType(ColType, ConSettings.CPType);
+    ColumnInfo.ColumnType := ConvertAdoToSqlType(ColType, F.Precision, F.NumericScale);
     FieldSize := F.DefinedSize;
     if FieldSize < 0 then
       FieldSize := 0;
     if F.Type_ = adGuid
-    then ColumnInfo.ColumnDisplaySize := 38
-    else ColumnInfo.ColumnDisplaySize := FieldSize;
-    if ColType = adCurrency then begin
+    then ColumnInfo.Precision := 38
+    else if ColType = adCurrency then begin
       ColumnInfo.Precision := 19;
       ColumnInfo.Scale := 4;
       ColumnInfo.Currency := True;
@@ -246,9 +434,10 @@ begin
       ColumnInfo.Scale := F.NumericScale;
     end else begin
       ColumnInfo.Precision := FieldSize;
+      if ColType in [adChar, adWChar, adBinary] then
+        ColumnInfo.Scale := ColumnInfo.Precision;
     end;
     ColumnInfo.Signed := ColType in [adTinyInt, adSmallInt, adInteger, adBigInt, adDouble, adSingle, adCurrency, adDecimal, adNumeric];
-
     ColumnInfo.Writable := (prgInfo.dwFlags and (DBCOLUMNFLAGS_WRITE or DBCOLUMNFLAGS_WRITEUNKNOWN) <> 0) and (F.Properties.Item['BASECOLUMNNAME'].Value <> null) and not ColumnInfo.AutoIncrement;
     ColumnInfo.ReadOnly := (prgInfo.dwFlags and (DBCOLUMNFLAGS_WRITE or DBCOLUMNFLAGS_WRITEUNKNOWN) = 0) or ColumnInfo.AutoIncrement;
     ColumnInfo.Searchable := (prgInfo.dwFlags and DBCOLUMNFLAGS_ISLONG) = 0;
@@ -256,17 +445,18 @@ begin
     case ColumnInfo.ColumnType of
       stString: ColumnInfo.ColumnType := stAsciiStream;
       stUnicodeString: ColumnInfo.ColumnType := stUnicodeStream;
+      {$IFDEF WITH_CASE_WARNING}else ;{$ENDIF}
     end;
 
+    ColumnInfo.ADOColumnType := ColType;
     ColumnsInfo.Add(ColumnInfo);
-
-    AdoColTypeCache[I] := ColType;
     Inc({%H-}NativeInt(prgInfo), SizeOf(TDBColumnInfo));  //M.A. Inc(Integer(prgInfo), SizeOf(TDBColumnInfo));
   end;
   if Assigned(ppStringsBuffer) then ZAdoMalloc.Free(ppStringsBuffer);
   if Assigned(OriginalprgInfo) then ZAdoMalloc.Free(OriginalprgInfo);
   FFirstFetch := True;
-  inherited;
+  inherited Open;
+  FCursorLocation := rctServer;
 end;
 
 {**
@@ -313,6 +503,7 @@ end;
 function TZAdoResultSet.Next: Boolean;
 begin
   Result := False;
+  FField20 := nil;
   FFields := nil;
   if (FAdoRecordSet = nil) or (FAdoRecordSet.BOF and FAdoRecordSet.EOF) then
     Exit;
@@ -326,46 +517,28 @@ begin
   RowNo := RowNo +1;
   if Result then
     LastRowNo := RowNo;
+  if not Result and not LastRowFetchLogged and DriverManager.HasLoggingListener then
+    DriverManager.LogMessage(lcFetchDone, IZLoggingObject(FWeakIZLoggingObjectPtr));
 end;
 
-{**
-  Moves the cursor to the given row number in
-  this <code>ResultSet</code> object.
-
-  <p>If the row number is positive, the cursor moves to
-  the given row number with respect to the
-  beginning of the result set.  The first row is row 1, the second
-  is row 2, and so on.
-
-  <p>If the given row number is negative, the cursor moves to
-  an absolute row position with respect to
-  the end of the result set.  For example, calling the method
-  <code>absolute(-1)</code> positions the
-  cursor on the last row; calling the method <code>absolute(-2)</code>
-  moves the cursor to the next-to-last row, and so on.
-
-  <p>An attempt to position the cursor beyond the first/last row in
-  the result set leaves the cursor before the first row or after
-  the last row.
-
-  <p><B>Note:</B> Calling <code>absolute(1)</code> is the same
-  as calling <code>first()</code>. Calling <code>absolute(-1)</code>
-  is the same as calling <code>last()</code>.
-
-  @return <code>true</code> if the cursor is on the result set;
-    <code>false</code> otherwise
-}
 function TZAdoResultSet.MoveAbsolute(Row: Integer): Boolean;
 begin
+  FField20 := nil;
   FFields := nil;
-  if FAdoRecordSet.EOF or FAdoRecordSet.BOF then
-     FAdoRecordSet.MoveFirst;
-  if Row > 0 then
-    FAdoRecordSet.Move(Row - 1, adBookmarkFirst)
-  else
-    FAdoRecordSet.Move(Abs(Row) - 1, adBookmarkLast);
-  Result := not (FAdoRecordSet.EOF or FAdoRecordSet.BOF);
-  if Result then FFields := FAdoRecordSet.Fields;
+  if FAdoRecordSet.CursorType = adUseClient then begin
+    if FAdoRecordSet.EOF or FAdoRecordSet.BOF then
+       FAdoRecordSet.MoveFirst;
+    if Row > 0 then
+      FAdoRecordSet.Move(Row - 1, adBookmarkFirst)
+    else
+      FAdoRecordSet.Move(Abs(Row) - 1, adBookmarkLast);
+    Result := not (FAdoRecordSet.EOF or FAdoRecordSet.BOF);
+    if Result
+    then FFields := FAdoRecordSet.Fields
+    else if not LastRowFetchLogged and DriverManager.HasLoggingListener and FAdoRecordSet.EOF then
+      DriverManager.LogMessage(lcFetchDone, IZLoggingObject(FWeakIZLoggingObjectPtr));
+  end else
+    Result := inherited MoveAbsolute(Row);
 end;
 
 {**
@@ -375,10 +548,11 @@ end;
 }
 function TZAdoResultSet.GetRow: NativeInt;
 begin
-  if FAdoRecordSet.EOF or FAdoRecordSet.BOF then
-    Result := -1
-  else
-    Result := FAdoRecordSet.AbsolutePosition;
+  if FAdoRecordSet.CursorType = adUseClient then
+    if FAdoRecordSet.EOF or FAdoRecordSet.BOF
+    then Result := -1
+    else Result := FAdoRecordSet.AbsolutePosition
+  else Result := RowNo;
 end;
 
 {**
@@ -397,6 +571,7 @@ begin
   if (FFields = nil) then begin
     Result := True;
     FValueAddr := nil;
+    FField20 := nil;
   end else begin
     FField20 := FFields.Get_Item(ColumnIndex);
     FColValue := FField20.Value;
@@ -410,48 +585,12 @@ begin
         FValueType := FValueType xor VT_BYREF;
         FValueAddr := tagVariant(FColValue).unkVal;
       end else if FValueType = VT_DECIMAL
-        then FValueAddr := @FColValue
+        then FValueAddr := (@FColValue)
         else if (FValueType = VT_BSTR)
           then FValueAddr := tagVariant(FColValue).bstrVal
           else FValueAddr := @tagVariant(FColValue).bVal;
     end;
   end;
-end;
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>String</code> in the Java programming language.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return the column value; if the value is SQL <code>NULL</code>, the
-    value returned is <code>null</code>
-}
-function TZAdoResultSet.GetString(ColumnIndex: Integer): String;
-var P: {$IFDEF UNICODE}PWidechar{$ELSE}PAnsiChar{$ENDIF};
-  L: NativeUInt;
-begin
-  {$IFDEF UNICODE}
-  P := GetPWideChar(ColumnIndex, L);
-  if (P <> nil) and (L > 0) then
-    if P = Pointer(FUniTemp)
-    then Result := FUniTemp
-    else System.SetString(Result, P, L)
-  else Result := '';
-  {$ELSE}
-  if ConSettings.AutoEncode then
-    if ConSettings.CPType = cCP_UTF8
-    then Result := GetUTF8String(ColumnIndex)
-    else Result := GetAnsiString(ColumnIndex)
-  else begin
-    P := GetPAnsiChar(ColumnIndex, L);
-    if (P <> nil) and (L > 0) then
-      if P = Pointer(FRawTemp)
-      then Result := FRawTemp
-      else System.SetString(Result, P, L)
-    else Result := '';
-  end;
-  {$ENDIF}
 end;
 
 {**
@@ -471,7 +610,7 @@ begin
   LastWasNull := IsNull(ColumnIndex); //sets fColValue variant
   if LastWasNull then
      Result := ''
-  else with FField20 do begin
+  else with FField20 do
     case Type_ of
       adChar, adWChar, adVarChar, adLongVarChar, adBSTR, adVarWChar,
       adLongVarWChar: begin
@@ -482,7 +621,6 @@ begin
                         PA := GetPAnsiChar(ColumnIndex, Len);
                         ZSetString(PA, Len, Result);
                       end;
-    end;
   end;
 end;
 
@@ -503,7 +641,7 @@ begin
   LastWasNull := IsNull(ColumnIndex); //sets fColValue variant
   if LastWasNull then
      Result := ''
-  else with FField20 do begin
+  else with FField20 do
     case Type_ of
       adChar, adWChar, adVarChar, adLongVarChar, adBSTR, adVarWChar,
       adLongVarWChar: begin
@@ -515,7 +653,6 @@ begin
                         ZSetString(PA, Len, Result);
                       end;
     end;
-  end;
 end;
 
 {**
@@ -555,7 +692,7 @@ end;
 }
 function TZAdoResultSet.GetPAnsiChar(ColumnIndex: Integer;
   out Len: NativeUInt): PAnsiChar;
-var E: Extended;
+var BCD: TBCD;
   PW: PWideChar;
 label Set_From_Buf;
 begin
@@ -564,7 +701,7 @@ begin
     Result := nil;
     Len := 0;
   end else with FField20 do begin
-    case tagVARIANT(FColValue).vt of
+    case FValueType of
       VT_BOOL:        if PWordBool(FValueAddr)^ then begin
                         Result := Pointer(BoolStrsRaw[True]);
                         Len := 4;
@@ -573,54 +710,53 @@ begin
                         Len := 5;
                       end;
       VT_UI1, VT_UI2, VT_UI4, VT_UINT: begin
-                        IntToRaw(GetUInt(ColumnIndex), @FTinyBuffer[0], @Result);
+                        IntToRaw(GetUInt(ColumnIndex), PAnsiChar(fByteBuffer), @Result);
                         goto Set_From_Buf;
                       end;
       VT_I1,  VT_I2,  VT_I4,  VT_INT, VT_HRESULT, VT_ERROR: begin
-                        IntToRaw(GetInt(ColumnIndex), @FTinyBuffer[0], @Result);
+                        IntToRaw(GetInt(ColumnIndex), PAnsiChar(fByteBuffer), @Result);
                         goto Set_From_Buf;
                       end;
       VT_UI8:         begin
-                        IntToRaw(PUInt64(FValueAddr)^, @FTinyBuffer[0], @Result);
+                        IntToRaw(PUInt64(FValueAddr)^, PAnsiChar(fByteBuffer), @Result);
                         goto Set_From_Buf;
                       end;
       VT_I8:          begin
-                        IntToRaw(PInt64(FValueAddr)^, @FTinyBuffer[0], @Result);
+                        IntToRaw(PInt64(FValueAddr)^, PAnsiChar(fByteBuffer), @Result);
                         goto Set_From_Buf;
                       end;
       VT_CY:          begin
-                        CurrToRaw(PCurrency(FValueAddr)^, @FTinyBuffer[0], @Result);
-Set_From_Buf:           Len := Result - PAnsiChar(@fTinyBuffer[0]);
-                        Result := @fTinyBuffer[0];
+                        CurrToRaw(PCurrency(FValueAddr)^, '.', PAnsiChar(fByteBuffer), @Result);
+Set_From_Buf:           Len := Result - PAnsiChar(fByteBuffer);
+                        Result := PAnsiChar(fByteBuffer);
                       end;
       VT_DECIMAL:     begin
-                        Result := @FTinyBuffer[0];
-                        E := UInt64(PDecimal(Result).Lo64) / ZFastCode.UInt64Tower[PDecimal(Result).scale];
-                        if PDecimal(Result).sign > 0 then
-                          E := -E;
-                        Len := FloatToSQLRaw(E, Result);
+                        Result := @FColValue;
+                        ScaledOrdinal2Bcd(UInt64(PDecimal(Result).Lo64), PDecimal(Result).scale, BCD{%H-}, PDecimal(Result).sign > 0);
+                        Result := PAnsiChar(fByteBuffer);
+                        Len := ZSysUtils.BcdToRaw(BCd, Result, '.');
                       end;
       VT_R4:          begin
-                        Result := @FTinyBuffer[0];
+                        Result := PAnsiChar(fByteBuffer);
                         Len := FloatToSQLRaw(PSingle(FValueAddr)^, Result);
                       end;
       VT_R8:          begin
-                        Result := @FTinyBuffer[0];
+                        Result := PAnsiChar(fByteBuffer);
                         Len := FloatToSQLRaw(PDouble(FValueAddr)^, Result);
                       end;
       VT_DATE:        case Type_ of
                         adDate, adDBDate: begin
-                            Result := @FTinyBuffer[0];
+                            Result := PAnsiChar(fByteBuffer);
                             Len := DateTimeToRawSQLDate(TDateTime(PDouble(FValueAddr)^),
                               Result, ConSettings.ReadFormatSettings, False);
                           end;
                         adDBTime: begin
-                            Result := @FTinyBuffer[0];
+                            Result := PAnsiChar(fByteBuffer);
                             Len := DateTimeToRawSQLTime(TDateTime(PDouble(FValueAddr)^),
                               Result, ConSettings.ReadFormatSettings, False);
                           end;
                         else begin
-                            Result := @FTinyBuffer[0];
+                            Result := PAnsiChar(fByteBuffer);
                             Len := DateTimeToRawSQLTimeStamp(TDateTime(PDouble(FValueAddr)^),
                               Result, ConSettings.ReadFormatSettings, False);
                           end;
@@ -634,7 +770,7 @@ Set_From_Buf:           Len := Result - PAnsiChar(@fTinyBuffer[0]);
                       end;
         else begin
           PW := GetPWideChar(ColumnIndex, Len);
-          FRawTemp := PUnicodeToRaw(PW, Len, ConSettings.CTRL_CP);
+          FRawTemp := PUnicodeToRaw(PW, Len, GetW2A2WConversionCodePage(ConSettings));
           Result := Pointer(FRawTemp);
           Len := Length(FRawTemp);
         end;
@@ -654,7 +790,7 @@ end;
     value returned is <code>null</code>
 }
 function TZAdoResultSet.GetPWideChar(ColumnIndex: Integer; out Len: NativeUInt): PWideChar;
-var E: Extended;
+var BCD: TBCD;
 label Set_From_Buf;
 begin
   LastWasNull := IsNull(ColumnIndex); //sets fColValue variant
@@ -671,53 +807,52 @@ begin
                         Len := 5;
                       end;
       VT_UI1, VT_UI2, VT_UI4, VT_UINT: begin
-                        IntToUnicode(GetUInt(ColumnIndex), @FTinyBuffer[0], @Result);
+                        IntToUnicode(GetUInt(ColumnIndex), PWideChar(fByteBuffer), @Result);
                         goto Set_From_Buf; end;
       VT_I1,  VT_I2,  VT_I4,  VT_INT, VT_HRESULT, VT_ERROR: begin
-                        IntToUnicode(GetInt(ColumnIndex), @FTinyBuffer[0], @Result);
+                        IntToUnicode(GetInt(ColumnIndex), PWideChar(fByteBuffer), @Result);
                         goto Set_From_Buf;
                       end;
       VT_UI8:         begin
-                        IntToUnicode(PUInt64(FValueAddr)^, @FTinyBuffer[0], @Result);
+                        IntToUnicode(PUInt64(FValueAddr)^, PWideChar(fByteBuffer), @Result);
                         goto Set_From_Buf;
                       end;
       VT_I8:          begin
-                        IntToUnicode(PInt64(FValueAddr)^, @FTinyBuffer[0], @Result);
+                        IntToUnicode(PInt64(FValueAddr)^, PWideChar(fByteBuffer), @Result);
                         goto Set_From_Buf;
                       end;
       VT_CY:          begin
-                        CurrToUnicode(PCurrency(FValueAddr)^, @FTinyBuffer[0], @Result);
-Set_From_Buf:           Len := Result - PWideChar(@fTinyBuffer[0]);
-                        Result := @fTinyBuffer[0];
+                        CurrToUnicode(PCurrency(FValueAddr)^, '.', PWideChar(fByteBuffer), @Result);
+Set_From_Buf:           Len := Result - PWideChar(fByteBuffer);
+                        Result := PWideChar(fByteBuffer);
                       end;
       VT_DECIMAL:     begin
-                        Result := @FTinyBuffer[0];
-                        E := UInt64(PDecimal(Result).Lo64) / ZFastCode.UInt64Tower[PDecimal(Result).scale];
-                        if PDecimal(Result).sign > 0 then
-                          E := -E;
-                        Len := FloatToSQLUnicode(E, Result);
+                        Result := @FColValue;
+                        ScaledOrdinal2Bcd(UInt64(PDecimal(Result).Lo64), PDecimal(Result).scale, BCD{%H-}, PDecimal(Result).sign > 0);
+                        Result := PWideChar(fByteBuffer);
+                        Len := ZSysUtils.BcdToUni(BCd, Result, '.');
                       end;
       VT_R4:          begin
-                        Result := @FTinyBuffer[0];
+                        Result := PWideChar(fByteBuffer);
                         Len := FloatToSQLUnicode(PSingle(FValueAddr)^, Result);
                       end;
       VT_R8:          begin
-                        Result := @FTinyBuffer[0];
+                        Result := PWideChar(fByteBuffer);
                         Len := FloatToSQLUnicode(PDouble(FValueAddr)^, Result);
                       end;
       VT_DATE:        case Type_ of
                         adDate, adDBDate: begin
-                            Result := @FTinyBuffer[0];
+                            Result := PWideChar(fByteBuffer);
                             Len := DateTimeToUnicodeSQLDate(TDateTime(PDouble(FValueAddr)^),
                               Result, ConSettings.ReadFormatSettings, False);
                           end;
                         adDBTime: begin
-                            Result := @FTinyBuffer[0];
+                            Result := PWideChar(fByteBuffer);
                             Len := DateTimeToUnicodeSQLTime(TDateTime(PDouble(FValueAddr)^),
                               Result, ConSettings.ReadFormatSettings, False);
                           end;
                         else begin
-                            Result := @FTinyBuffer[0];
+                            Result := PWideChar(fByteBuffer);
                             Len := DateTimeToUnicodeSQLTimeStamp(TDateTime(PDouble(FValueAddr)^),
                               Result, ConSettings.ReadFormatSettings, False);
                           end;
@@ -768,7 +903,7 @@ end;
   @return the column value; if the value is SQL <code>NULL</code>, the
     value returned is <code>null</code>
 }
-function TZAdoResultSet.GetUnicodeString(ColumnIndex: Integer): ZWideString;
+function TZAdoResultSet.GetUnicodeString(ColumnIndex: Integer): UnicodeString;
 var P: PWideChar;
   L: NativeUInt;
 begin
@@ -796,7 +931,7 @@ begin
   LastWasNull := IsNull(ColumnIndex); //sets fColValue variant
   if LastWasNull then begin
     Result := False;
-  end else case tagVARIANT(FColValue).vt of
+  end else case FValueType of
     VT_BOOL:        Result := PWordBool(FValueAddr)^;
     VT_UI1, VT_UI2, VT_UI4, VT_UINT: Result := GetUInt(ColumnIndex) <> 0;
     VT_I1, VT_I2, VT_I4, VT_INT:  Result := GetInt(ColumnIndex) <> 0;
@@ -808,9 +943,42 @@ begin
     VT_R4, VT_R8, VT_DATE: Result := Trunc(GetDouble(ColumnIndex)) <> 0;
     else begin
       P := GetPWideChar(ColumnIndex, Len);
-      Result := StrToBoolEx(P, True, False);
+      Result := StrToBoolEx(P, P+Len, True, False);
     end;
   end;
+end;
+
+{**
+  Gets the address of value of the designated column in the current row
+  of this <code>ResultSet</code> object as
+  a <code>byte</code> array in the Java programming language.
+  The bytes represent the raw values returned by the driver.
+
+  @param columnIndex the first column is 1, the second is 2, ...
+  @param Len return the length of the addressed buffer
+  @return the adressed column value; if the value is SQL <code>NULL</code>, the
+    value returned is <code>null</code>
+}
+function TZAdoResultSet.GetBytes(ColumnIndex: Integer;
+  out Len: NativeUInt): PByte;
+begin
+  LastWasNull := IsNull(ColumnIndex); //sets fColValue variant
+  if LastWasNull then begin
+    Result := nil;
+    Len := 0;
+  end else with FField20 do
+    case FValueType of
+      VT_ARRAY or VT_UI1: begin
+            Result := TVarData(FColValue).VArray.Data;
+            Len := ActualSize;
+          end;
+      else if Type_ = adGUID then begin
+          SetLength(FRawTemp, SizeOf(TGUID));
+          Result := Pointer(FRawTemp);
+          Len := SizeOf(TGUID);
+          ValidGUIDToBinary(PWideChar(FValueAddr), Pointer(Result));
+        end else raise Self.CreateAdoConvertError(ColumnIndex, Type_);
+    end;
 end;
 
 {**
@@ -829,7 +997,7 @@ begin
   LastWasNull := IsNull(ColumnIndex); //sets fColValue variant
   if LastWasNull then begin
     Result := 0;
-  end else case tagVARIANT(FColValue).vt of
+  end else case FValueType of
     VT_BOOL:        Result := Ord(PWord(FValueAddr)^ <> 0);
     VT_UI1:         Result := PByte(FValueAddr)^;
     VT_UI2:         Result := PWord(FValueAddr)^;
@@ -867,7 +1035,7 @@ begin
   if LastWasNull then begin
     Result := 0;
   end else with FField20 do begin
-    case tagVARIANT(FColValue).vt of
+    case FValueType of
       VT_BOOL, VT_UI1, VT_UI2, VT_UI4, VT_UINT: Result := GetUInt(ColumnIndex);
       VT_I1, VT_I2, VT_I4, VT_INT:  Result := GetInt(ColumnIndex);
       VT_HRESULT, VT_ERROR:  Result := PHResult(FValueAddr)^;
@@ -907,24 +1075,22 @@ begin
   LastWasNull := IsNull(ColumnIndex); //sets fColValue variant
   if LastWasNull then begin
     Result := 0;
-  end else with FField20 do begin
-    case tagVARIANT(FColValue).vt of
-      VT_BOOL:        Result := Ord(PWord(FValueAddr)^ <> 0);
-      VT_UI1:         Result := PByte(FValueAddr)^;
-      VT_UI2:         Result := PWord(FValueAddr)^;
-      VT_UI4:         Result := PInteger(FValueAddr)^;
-      VT_UINT:        Result := PCardinal(FValueAddr)^;
-      VT_I1:          Result := PShortInt(FValueAddr)^;
-      VT_I2:          Result := PSmallInt(FValueAddr)^;
-      VT_I4:          Result := PInteger(FValueAddr)^;
-      VT_INT:         Result := tagVARIANT(FColValue).intVal;
-      VT_HRESULT,
-      VT_ERROR:       Result := PHResult(FValueAddr)^;
-      VT_UI8, VT_I8, VT_CY, VT_DECIMAL, VT_R4, VT_R8, VT_DATE: Result := GetULong(ColumnIndex);
-      else begin
-        P := GetPWideChar(ColumnIndex, Len);
-        Result := UnicodeToUInt64Def(P, P+Len, 0);
-      end;
+  end else case FValueType of
+    VT_BOOL:        Result := Ord(PWord(FValueAddr)^ <> 0);
+    VT_UI1:         Result := PByte(FValueAddr)^;
+    VT_UI2:         Result := PWord(FValueAddr)^;
+    VT_UI4:         Result := PInteger(FValueAddr)^;
+    VT_UINT:        Result := PCardinal(FValueAddr)^;
+    VT_I1:          Result := PShortInt(FValueAddr)^;
+    VT_I2:          Result := PSmallInt(FValueAddr)^;
+    VT_I4:          Result := PInteger(FValueAddr)^;
+    VT_INT:         Result := tagVARIANT(FColValue).intVal;
+    VT_HRESULT,
+    VT_ERROR:       Result := PHResult(FValueAddr)^;
+    VT_UI8, VT_I8, VT_CY, VT_DECIMAL, VT_R4, VT_R8, VT_DATE: Result := GetULong(ColumnIndex);
+    else begin
+      P := GetPWideChar(ColumnIndex, Len);
+      Result := UnicodeToUInt64Def(P, P+Len, 0);
     end;
   end;
 end;
@@ -947,25 +1113,23 @@ begin
   LastWasNull := IsNull(ColumnIndex); //sets fColValue variant
   if LastWasNull then begin
     Result := 0;
-  end else with FField20 do begin
-    case tagVARIANT(FColValue).vt of
-      VT_BOOL, VT_UI1, VT_UI2, VT_UI4, VT_UINT: Result := GetUInt(ColumnIndex);
-      VT_I1, VT_I2, VT_I4, VT_INT:  Result := GetInt(ColumnIndex);
-      VT_HRESULT, VT_ERROR:  Result := PHResult(FValueAddr)^;
-      VT_UI8:         Result := PUInt64(FValueAddr)^;
-      VT_I8:          Result := PInt64(FValueAddr)^;
-      VT_CY:          Result := PInt64(FValueAddr)^ div 10000;
-      VT_DECIMAL: begin
-                    PD := @FColValue;
-                    Result := UInt64(PD.Lo64);
-                    if PD.scale > 0 then
-                      Result := Result div Uint64(Int64Tower[PD.scale]);
-                  end;
-      VT_R4, VT_R8, VT_DATE: Result := Trunc(GetDouble(ColumnIndex));
-      else begin
-        P := GetPWideChar(ColumnIndex, Len);
-        Result := UnicodeToUInt64Def(P, P+Len, 0);
-      end;
+  end else case FValueType of
+    VT_BOOL, VT_UI1, VT_UI2, VT_UI4, VT_UINT: Result := GetUInt(ColumnIndex);
+    VT_I1, VT_I2, VT_I4, VT_INT:  Result := GetInt(ColumnIndex);
+    VT_HRESULT, VT_ERROR:  Result := PHResult(FValueAddr)^;
+    VT_UI8:         Result := PUInt64(FValueAddr)^;
+    VT_I8:          Result := PInt64(FValueAddr)^;
+    VT_CY:          Result := PInt64(FValueAddr)^ div 10000;
+    VT_DECIMAL: begin
+                  PD := @FColValue;
+                  Result := UInt64(PD.Lo64);
+                  if PD.scale > 0 then
+                    Result := Result div Uint64(Int64Tower[PD.scale]);
+                end;
+    VT_R4, VT_R8, VT_DATE: Result := Trunc(GetDouble(ColumnIndex));
+    else begin
+      P := GetPWideChar(ColumnIndex, Len);
+      Result := UnicodeToUInt64Def(P, P+Len, 0);
     end;
   end;
 end;
@@ -988,6 +1152,26 @@ end;
 {**
   Gets the value of the designated column in the current row
   of this <code>ResultSet</code> object as
+  a <code>UUID</code> in the Java programming language.
+
+  @param columnIndex the first column is 1, the second is 2, ...
+  @return the column value; if the value is SQL <code>NULL</code>, the
+    value returned is <code>Zero-UUID</code>
+}
+procedure TZAdoResultSet.GetGUID(ColumnIndex: Integer; var Result: TGUID);
+begin
+  LastWasNull := IsNull(ColumnIndex); //sets fColValue variant
+  if LastWasNull then
+    FillChar(Result, SizeOf(TGUID), #0)
+  else with FField20 do
+    if Type_ = adGUID then
+      ZSysUtils.ValidGUIDToBinary(PWideChar(FValueAddr), @Result.D1)
+    else  raise CreateAdoConvertError(ColumnIndex, Type_);
+end;
+
+{**
+  Gets the value of the designated column in the current row
+  of this <code>ResultSet</code> object as
   a <code>double</code> in the Java programming language.
 
   @param columnIndex the first column is 1, the second is 2, ...
@@ -1002,7 +1186,7 @@ begin
   if LastWasNull then
     Result := 0
   else with FField20 do begin
-    case tagVARIANT(FColValue).vt of
+    case FValueType of
       VT_R8:          Result := PDouble(FValueAddr)^;
       VT_R4:          Result := PSingle(FValueAddr)^;
       VT_DECIMAL:     begin
@@ -1032,68 +1216,38 @@ end;
   @return the column value; if the value is SQL <code>NULL</code>, the
     value returned is <code>null</code>
 }
-function TZAdoResultSet.GetBigDecimal(ColumnIndex: Integer): Extended;
+procedure TZAdoResultSet.GetBigDecimal(ColumnIndex: Integer; var Result: TBCD);
 var
   Len: NativeUint;
+  P: PWideChar;
 begin
   LastWasNull := IsNull(ColumnIndex);
   if LastWasNull then
-    Result := 0
-  else with FField20, TZColumnInfo(ColumnsInfo[ColumnIndex{$IFNDEF GENERIC_INDEX}-1{$ENDIF}]) do begin
-    case FValueType of
-      VT_BOOL:        Result := Ord(PWord(FValueAddr)^ <> 0);
-      VT_UI1:         Result := PByte(FValueAddr)^;
-      VT_UI2:         Result := PWord(FValueAddr)^;
-      VT_UI4:         Result := PCardinal(FValueAddr)^;
-      VT_UINT:        Result := PLongWord(FValueAddr)^;
-      VT_UI8:         Result := PUInt64(FValueAddr)^;
-      VT_I1:          Result := PShortInt(FValueAddr)^;
-      VT_I2:          Result := PSmallInt(FValueAddr)^;
-      VT_HRESULT,
-      VT_ERROR,
-      VT_I4:          Result := PInteger(FValueAddr)^;
-      VT_I8:          Result := PInt64(FValueAddr)^;
-      VT_INT:         Result := PLongInt(FValueAddr)^;
-      VT_CY:          Result := PCurrency(FValueAddr)^;
-      VT_DECIMAL:     begin
-                        Result := UInt64(PDecimal(FValueAddr)^.Lo64) / UInt64Tower[PDecimal(FValueAddr)^.Scale];
-                        if PDecimal(FValueAddr)^.Sign > 0 then
-                          Result := -Result;
+    Result := NullBCD
+  else case FValueType of
+    VT_BOOL:        ScaledOrdinal2Bcd(Word(Ord(PWord(FValueAddr)^ <> 0)), 0, Result);
+    VT_UI1:         ScaledOrdinal2Bcd(Word(PByte(FValueAddr)^), 0, Result, False);
+    VT_UI2:         ScaledOrdinal2Bcd(PWord(FValueAddr)^, 0, Result, False);
+    VT_UI4:         ScaledOrdinal2Bcd(PCardinal(FValueAddr)^, 0, Result, False);
+    VT_UINT:        ScaledOrdinal2Bcd(PLongWord(FValueAddr)^, 0, Result, False);
+    VT_UI8:         ScaledOrdinal2Bcd(PUInt64(FValueAddr)^, 0, Result, False);
+    VT_I1:          ScaledOrdinal2Bcd(SmallInt(PShortInt(FValueAddr)^), 0, Result);
+    VT_I2:          ScaledOrdinal2Bcd(PSmallInt(FValueAddr)^, 0, Result);
+    VT_HRESULT,
+    VT_ERROR,
+    VT_I4:          ScaledOrdinal2Bcd(PInteger(FValueAddr)^, 0, Result);
+    VT_I8:          ScaledOrdinal2Bcd(PInt64(FValueAddr)^, 0, Result);
+    VT_INT:         ScaledOrdinal2Bcd(PLongInt(FValueAddr)^, 0, Result);
+    VT_CY:          ScaledOrdinal2Bcd(PInt64(FValueAddr)^, 4, Result);
+    VT_DECIMAL:     ScaledOrdinal2Bcd(UInt64(PDecimal(FValueAddr)^.Lo64), PDecimal(FValueAddr)^.Scale, Result, PDecimal(FValueAddr)^.Sign > 0);
+    VT_R4:          Double2BCD(PSingle(FValueAddr)^, Result);
+    VT_R8, VT_DATE: Double2BCD(PDouble(FValueAddr)^, Result);
+    else begin
+        P := GetPWideChar(ColumnIndex, Len);
+        if not ZSysUtils.TryUniToBcd(P, Len, Result, '.') then
+          Result := NullBCD;
       end;
-      VT_R4:          Result := PSingle(FValueAddr)^;
-      VT_R8, VT_DATE: Result := PDouble(FValueAddr)^;
-      else  UnicodeToFloatDef(GetPWideChar(ColumnIndex, Len), WideChar('.'), 0, Result)
-    end;
   end;
-end;
-
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>byte</code> array in the Java programming language.
-  The bytes represent the raw values returned by the driver.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return the column value; if the value is SQL <code>NULL</code>, the
-    value returned is <code>null</code>
-}
-function TZAdoResultSet.GetBytes(ColumnIndex: Integer): TBytes;
-begin
-  LastWasNull := IsNull(ColumnIndex); //sets fColValue variant
-  if LastWasNull then
-    Result := nil
-  else with FField20 do
-    case Type_ of
-      adGUID:  begin
-          SetLength(Result, 16);
-          ValidGUIDToBinary(PWideChar(FValueAddr), Pointer(Result));
-        end;
-      adBinary,
-      adVarBinary,
-      adLongVarBinary:
-          Result := BufferToBytes(TVarData(FColValue).VArray.Data, ActualSize);
-      else Result := BufferToBytes(FValueAddr, ActualSize);
-    end;
 end;
 
 function TZAdoResultSet.GetCurrency(ColumnIndex: Integer): Currency;
@@ -1106,7 +1260,7 @@ begin
   LastWasNull := IsNull(ColumnIndex);
   if LastWasNull then
     Result := 0
-  else case tagVARIANT(FColValue).vt of
+  else case FValueType of
     VT_UI1, VT_I1, VT_UI2, VT_I2, VT_UI4, VT_I4, VT_UI8, VT_I8, VT_INT,
     VT_UINT, VT_HRESULT, VT_ERROR, VT_BOOL: Result := GetLong(FirstDbcIndex);
     VT_CY: Result := PCurrency(FValueAddr)^;
@@ -1126,11 +1280,7 @@ begin
                   P := GetPWidechar(ColumnIndex, Len);
                   UnicodeToFloatDef(P, WideChar('.'), Len);
                 end;
-    else        try   //should not happen
-                  Result := FColValue;
-                except
-                  Result := 0;
-                end;
+    else raise CreateAdoConvertError(ColumnIndex, FField20.Type_);
   end;
 end;
 
@@ -1143,23 +1293,23 @@ end;
   @return the column value; if the value is SQL <code>NULL</code>, the
     value returned is <code>null</code>
 }
-function TZAdoResultSet.GetDate(ColumnIndex: Integer): TDateTime;
+procedure TZAdoResultSet.GetDate(ColumnIndex: Integer; var Result: TZDate);
 var P: PWideChar;
   Len: NativeUint;
-  Failed: Boolean;
+label Fill;
 begin
   LastWasNull := IsNull(ColumnIndex);
-  if LastWasNull then
-    Result := 0
-  else case tagVARIANT(FColValue).vt of
-    VT_DATE: Result := Int(PDouble(FValueAddr)^);
+  if LastWasNull then begin
+Fill: PInt64(@Result.Year)^ := 0;
+  end else case FValueType of
+    VT_DATE: DecodeDateTimeToDate(PDateTime(FValueAddr)^, Result);
     VT_BSTR:    begin
                   P := GetPWidechar(ColumnIndex, Len);
-                  Result := UnicodeSQLDateToDateTime(P, Len, ConSettings^.ReadFormatSettings, Failed);
-                  if Failed then
-                    Result := Int(UnicodeSQLTimeStampToDateTime(P, Len, ConSettings^.ReadFormatSettings, Failed));
+                  LastWasNull := not TryPCharToDate(P, Len, ConSettings^.ReadFormatSettings, Result);
+                  if LastWasNull then
+                    goto fill;
                 end;
-    else     Result := Int(GetDouble(ColumnIndex));
+    else DecodeDateTimeToDate(GetDouble(ColumnIndex), Result);
   end;
 end;
 
@@ -1172,23 +1322,24 @@ end;
   @return the column value; if the value is SQL <code>NULL</code>, the
     value returned is <code>null</code>
 }
-function TZAdoResultSet.GetTime(ColumnIndex: Integer): TDateTime;
+procedure TZAdoResultSet.GetTime(ColumnIndex: Integer; var Result: TZTime);
 var P: PWideChar;
   Len: NativeUint;
-  Failed: Boolean;
+Label Fill;
 begin
   LastWasNull := IsNull(ColumnIndex);
-  if LastWasNull then
-    Result := 0
-  else case tagVARIANT(FColValue).vt of
-    VT_DATE: Result := Frac(PDouble(FValueAddr)^);
+  if LastWasNull then begin
+Fill: PCardinal(@Result.Hour)^ := 0;
+    PInt64(@Result.Second)^ := 0;
+  end else case FValueType of
+    VT_DATE:  DecodeDateTimeToTime(PDateTime(FValueAddr)^, Result);
     VT_BSTR:    begin
                   P := GetPWidechar(ColumnIndex, Len);
-                  Result := UnicodeSQLTimeToDateTime(P, Len, ConSettings^.ReadFormatSettings, Failed);
-                  if Failed then
-                    Result := Frac(UnicodeSQLTimeStampToDateTime(P, Len, ConSettings^.ReadFormatSettings, Failed));
+                  LastWasNull := not TryPCharToTime(P, Len, ConSettings^.ReadFormatSettings, Result);
+                  if LastWasNull then
+                    goto fill;
                 end;
-    else     Result := Frac(GetDouble(ColumnIndex));
+    else     DecodeDateTimeToTime(GetDouble(ColumnIndex), Result);
   end;
 end;
 
@@ -1202,21 +1353,23 @@ end;
   value returned is <code>null</code>
   @exception SQLException if a database access error occurs
 }
-function TZAdoResultSet.GetTimestamp(ColumnIndex: Integer): TDateTime;
+procedure TZAdoResultSet.GetTimestamp(ColumnIndex: Integer; Var Result: TZTimeStamp);
 var P: PWideChar;
   Len: NativeUint;
-  Failed: Boolean;
+Label Fill;
 begin
   LastWasNull := IsNull(ColumnIndex);
-  if LastWasNull then
-    Result := 0
-  else case tagVARIANT(FColValue).vt of
-    VT_DATE: Result := PDouble(FValueAddr)^;
+  if LastWasNull then begin
+Fill: FillChar(Result, SizeOf(TZTimeStamp), #0);
+  end else case FValueType of
+    VT_DATE:    DecodeDateTimeToTimeStamp(PDateTime(FValueAddr)^, Result);
     VT_BSTR:    begin
                   P := GetPWidechar(ColumnIndex, Len);
-                  Result := UnicodeSQLTimeStampToDateTime(P, Len, ConSettings^.ReadFormatSettings, Failed);
+                  LastWasNull := not TryPCharToTimeStamp(P, Len, ConSettings^.ReadFormatSettings, Result);
+                  if LastWasNull then
+                    goto fill;
                 end;
-    else     Result := GetDouble(ColumnIndex);
+    else     DecodeDateTimeToTimeStamp(GetDouble(ColumnIndex), Result);
   end;
 end;
 
@@ -1229,10 +1382,14 @@ end;
   @return a <code>Blob</code> object representing the SQL <code>BLOB</code> value in
     the specified column
 }
-function TZAdoResultSet.GetBlob(ColumnIndex: Integer): IZBlob;
+function TZAdoResultSet.GetBlob(ColumnIndex: Integer;
+  LobStreamMode: TZLobStreamMode = lsmRead): IZBlob;
 var L: LengthInt;
 label CLOB;
 begin
+  Result := nil;
+  if LobStreamMode <> lsmRead then
+    raise CreateReadOnlyException;
   LastWasNull := IsNull(ColumnIndex); //sets fColValue variant
   if LastWasNull then
     Result := nil
@@ -1253,14 +1410,13 @@ begin
       adLongVarWChar,
       adVarWChar: begin
                   L := ActualSize shr 1;
-CLOB:             Result := TZAbstractClob.CreateWithData(PWidechar(FValueAddr), L, ConSettings);
+CLOB:             Result := TZLocalMemCLob.CreateWithData(PWidechar(FValueAddr), L, ConSettings, FOpenLobStreams);
                 end;
 
       adVarBinary,
       adLongVarBinary,
-      adBinary:   Result := TZAbstractBlob.CreateWithData(TVarData(FColValue).VArray.Data, ActualSize);
-      else
-        Result := nil;
+      adBinary:   Result := TZLocalMemBLob.CreateWithData(TVarData(FColValue).VArray.Data, ActualSize, FOpenLobStreams);
+      else raise CreateCanNotAccessBlobRecordException(ColumnIndex, TZColumnInfo(ColumnsInfo[ColumnIndex{$IFNDEF GENERIC_INDEX}-1{$ENDIF}]).ColumnType);
     end;
 end;
 
@@ -1303,20 +1459,36 @@ end;
   @param OldRowAccessor an accessor object to old column values.
   @param NewRowAccessor an accessor object to new column values.
 }
-procedure TZAdoCachedResolver.PostUpdates(Sender: IZCachedResultSet;
-  UpdateType: TZRowUpdateType; OldRowAccessor, NewRowAccessor: TZRowAccessor);
+procedure TZAdoCachedResolver.PostUpdates(const Sender: IZCachedResultSet;
+  UpdateType: TZRowUpdateType; const OldRowAccessor, NewRowAccessor: TZRowAccessor);
 var
   Recordset: ZPlainAdo.Recordset;
   RA: OleVariant;
+  {$IFDEF FPC}
+  D: Double;
+  {$ENDIF}
+  Identity: OleVariant;
 begin
   inherited PostUpdates(Sender, UpdateType, OldRowAccessor, NewRowAccessor);
 
   if (UpdateType = utInserted) and (FAutoColumnIndex > InvalidDbcIndex)
-    and OldRowAccessor.IsNull(FAutoColumnIndex) then
+    and OldRowAccessor.IsNull(FAutoColumnIndex) and (Connection.GetServerProvider =  spMsSQL) then
   begin
     Recordset := FHandle.Execute(RA, null, 0);
-    if Recordset.RecordCount > 0 then
-      NewRowAccessor.SetLong(FAutoColumnIndex, Recordset.Fields.Item[0].Value);
+    if Recordset.RecordCount > 0 then begin
+      Identity := Recordset.Fields.Item[0].Value;
+      {$IFDEF FPC}
+      if VarType(Identity) = $000E{varDecimal} then begin
+        VarR8FromDec(PDecimal(@Identity)^, D);
+        Identity := Trunc(D);
+      end;
+      {$ENDIF}
+
+      if VarType(Identity) = varNull then
+        raise EZSQLException.Create('Cannot determine value of autoincrement field.')
+      else
+        NewRowAccessor.SetLong(FAutoColumnIndex, Identity);
+    end;
   end;
 end;
 
@@ -1333,5 +1505,34 @@ begin
   ColumnInfo.Writable := False;
   ColumnInfo.DefinitelyWritable := False;}
 end;
+{ TZADOCachedResultSet }
+
+class function TZADOCachedResultSet.GetRowAccessorClass: TZRowAccessorClass;
+begin
+  Result := TZADORowAccessor;
+end;
+
+{ TZADORowAccessor }
+
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "ConSettings" not used} {$ENDIF}
+class function TZADORowAccessor.MetadataToAccessorType(
+  ColumnInfo: TZColumnInfo; ConSettings: PZConSettings;
+  Var ColumnCodePage: Word): TZSQLType;
+begin
+  {EH: usually this code is NOT nessecary if we would handle the types as the
+  providers are able to. But in current state we just copy all the incompatibilities
+  from the DataSets into dbc... grumble.}
+  Result := ColumnInfo.ColumnType;
+  if Result in [stAsciiStream, stUnicodeStream, stBinaryStream] then begin
+    Result := TZSQLType(Byte(Result)-3); // no streams available using ADO
+    ColumnInfo.Precision := 0;
+  end;
+  if Result in [stString, stUnicodeString] then begin
+    Result := stUnicodeString; // no raw chars in ADO
+    ColumnCodePage := zCP_UTF16;
+  end;
+end;
+{$IFDEF FPC} {$POP} {$ENDIF}
+
 {$ENDIF ZEOS_DISABLE_ADO}
 end.

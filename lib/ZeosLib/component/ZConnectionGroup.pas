@@ -38,7 +38,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -56,7 +56,7 @@ interface
 uses
   SysUtils, Classes, {$IFDEF MSEgui}mclasses,{$ENDIF}
   {Forms, Dialogs,}
-  ZDbcIntfs,ZCompatibility{$IFDEF TLIST_IS_DEPRECATED}, ZSysUtils{$ENDIF};
+  ZDbcIntfs,ZCompatibility{$IFDEF TLIST_IS_DEPRECATED}, ZSysUtils, ZClasses{$ENDIF};
 
 const
   mask = 'æææ#2ææ0#ææ39æ-V„–FFVæææ';  { define your own mask  }

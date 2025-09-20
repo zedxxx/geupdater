@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -62,161 +62,160 @@ uses
 
 type
   {** Implements a E function. }
-  TZEFunction = class (TZAbstractFunction)
+  TZEFunction = class (TZAbstractFunction, IZFunction)
   public
     function Execute(Stack: TZExecutionStack;
-      const VariantManager: IZVariantManager): TZVariant; override;
+      const VariantManager: IZVariantManager): TZVariant;
   end;
 
   {** Implements a PI function. }
-  TZPIFunction = class (TZAbstractFunction)
+  TZPIFunction = class (TZAbstractFunction, IZFunction)
   public
     function Execute(Stack: TZExecutionStack;
-      const VariantManager: IZVariantManager): TZVariant; override;
+      const VariantManager: IZVariantManager): TZVariant;
   end;
 
   {** Implements a RND function. }
-  TZRndFunction = class (TZAbstractFunction)
+  TZRndFunction = class (TZAbstractFunction, IZFunction)
   public
     function Execute(Stack: TZExecutionStack;
-      const VariantManager: IZVariantManager): TZVariant; override;
+      const VariantManager: IZVariantManager): TZVariant;
   end;
 
   {** Implements a ABS function. }
-  TZAbsFunction = class (TZAbstractFunction)
+  TZAbsFunction = class (TZAbstractFunction, IZFunction)
   public
     function Execute(Stack: TZExecutionStack;
-      const VariantManager: IZVariantManager): TZVariant; override;
+      const VariantManager: IZVariantManager): TZVariant;
   end;
 
 {** Trigonometric }
   {** Implements a COS function. }
-  TZCosFunction = class (TZAbstractFunction)
+  TZCosFunction = class (TZAbstractFunction, IZFunction)
   public
     function Execute(Stack: TZExecutionStack;
-      const VariantManager: IZVariantManager): TZVariant; override;
+      const VariantManager: IZVariantManager): TZVariant;
   end;
 
   {** Implements a COT function. }
-  TZCotFunction = class (TZAbstractFunction)
+  TZCotFunction = class (TZAbstractFunction, IZFunction)
   public
     function Execute(Stack: TZExecutionStack;
-      const VariantManager: IZVariantManager): TZVariant; override;
+      const VariantManager: IZVariantManager): TZVariant;
   end;
 
   {** Implements a SIN function. }
-  TZSinFunction = class (TZAbstractFunction)
+  TZSinFunction = class (TZAbstractFunction, IZFunction)
   public
     function Execute(Stack: TZExecutionStack;
-      const VariantManager: IZVariantManager): TZVariant; override;
+      const VariantManager: IZVariantManager): TZVariant;
   end;
 
   {** Implements a TAN function. }
-  TZTanFunction = class (TZAbstractFunction)
+  TZTanFunction = class (TZAbstractFunction, IZFunction)
   public
     function Execute(Stack: TZExecutionStack;
-      const VariantManager: IZVariantManager): TZVariant; override;
+      const VariantManager: IZVariantManager): TZVariant;
   end;
 
   {** Implements a ACOS function. }
-  TZAcosFunction = class (TZAbstractFunction)
+  TZAcosFunction = class (TZAbstractFunction, IZFunction)
   public
     function Execute(Stack: TZExecutionStack;
-      const VariantManager: IZVariantManager): TZVariant; override;
+      const VariantManager: IZVariantManager): TZVariant;
   end;
 
   {** Implements a ASIN function. }
-  TZAsinFunction = class (TZAbstractFunction)
+  TZAsinFunction = class (TZAbstractFunction, IZFunction)
   public
     function Execute(Stack: TZExecutionStack;
-      const VariantManager: IZVariantManager): TZVariant; override;
+      const VariantManager: IZVariantManager): TZVariant;
   end;
 
   {** Implements a ATAN function. }
-  TZAtanFunction = class (TZAbstractFunction)
+  TZAtanFunction = class (TZAbstractFunction, IZFunction)
   public
     function Execute(Stack: TZExecutionStack;
-      const VariantManager: IZVariantManager): TZVariant; override;
+      const VariantManager: IZVariantManager): TZVariant;
   end;
 
 {** Rounding }
   {** Implements a ROUND function. }
-  TZRoundFunction = class (TZAbstractFunction)
+  TZRoundFunction = class (TZAbstractFunction, IZFunction)
   public
     function Execute(Stack: TZExecutionStack;
-      const VariantManager: IZVariantManager): TZVariant; override;
+      const VariantManager: IZVariantManager): TZVariant;
   end;
 
   {** Implements a TRUNC function. }
-  TZTruncFunction = class (TZAbstractFunction)
+  TZTruncFunction = class (TZAbstractFunction, IZFunction)
   public
     function Execute(Stack: TZExecutionStack;
-      const VariantManager: IZVariantManager): TZVariant; override;
+      const VariantManager: IZVariantManager): TZVariant;
   end;
 
   {** Implements a INT function. }
-  TZIntFunction = class (TZAbstractFunction)
+  TZIntFunction = class (TZAbstractFunction, IZFunction)
   public
     function Execute(Stack: TZExecutionStack;
-      const VariantManager: IZVariantManager): TZVariant; override;
+      const VariantManager: IZVariantManager): TZVariant;
   end;
 
   {** Implements a FRAC function. }
-  TZFracFunction = class (TZAbstractFunction)
+  TZFracFunction = class (TZAbstractFunction, IZFunction)
   public
     function Execute(Stack: TZExecutionStack;
-      const VariantManager: IZVariantManager): TZVariant; override;
+      const VariantManager: IZVariantManager): TZVariant;
   end;
 
   {** Implements a CEIL function. }
-  TZCeilFunction = class (TZAbstractFunction)
+  TZCeilFunction = class (TZAbstractFunction, IZFunction)
   public
     function Execute(Stack: TZExecutionStack;
-      const VariantManager: IZVariantManager): TZVariant; override;
+      const VariantManager: IZVariantManager): TZVariant;
   end;
 
   {** Implements a FLOOR function. }
-  TZFloorFunction = class (TZAbstractFunction)
+  TZFloorFunction = class (TZAbstractFunction, IZFunction)
   public
     function Execute(Stack: TZExecutionStack;
-      const VariantManager: IZVariantManager): TZVariant; override;
+      const VariantManager: IZVariantManager): TZVariant;
   end;
 
 {** Logarithmic }
   {** Implements a EXP function. }
-  TZExpFunction = class (TZAbstractFunction)
+  TZExpFunction = class (TZAbstractFunction, IZFunction)
   public
     function Execute(Stack: TZExecutionStack;
-      const VariantManager: IZVariantManager): TZVariant; override;
+      const VariantManager: IZVariantManager): TZVariant;
   end;
 
   {** Implements a LOG function. }
-  TZLogFunction = class (TZAbstractFunction)
+  TZLogFunction = class (TZAbstractFunction, IZFunction)
   public
     function Execute(Stack: TZExecutionStack;
-      const VariantManager: IZVariantManager): TZVariant; override;
+      const VariantManager: IZVariantManager): TZVariant;
   end;
 
   {** Implements a LOG10 function. }
-  TZLog10Function = class (TZAbstractFunction)
+  TZLog10Function = class (TZAbstractFunction, IZFunction)
   public
     function Execute(Stack: TZExecutionStack;
-      const VariantManager: IZVariantManager): TZVariant; override;
+      const VariantManager: IZVariantManager): TZVariant;
   end;
 
   {** Implements a SQR function. }
-  TZSqrFunction = class (TZAbstractFunction)
+  TZSqrFunction = class (TZAbstractFunction, IZFunction)
   public
     function Execute(Stack: TZExecutionStack;
-      const VariantManager: IZVariantManager): TZVariant; override;
+      const VariantManager: IZVariantManager): TZVariant;
   end;
 
 procedure AddMathFunctions(Functions : TZFunctionsList);
 
 implementation
 
-uses
-  Math;
+uses Math, FmtBCD;
 
 { TZEFunction }
 
@@ -226,12 +225,14 @@ uses
   @param VariantManager a reference to variant processor object.
   @returns a function value.
 }
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "$1" not used} {$ENDIF} //VariantManager is not used
 function TZEFunction.Execute(Stack: TZExecutionStack;
   const VariantManager: IZVariantManager): TZVariant;
 begin
   CheckParamsCount(Stack, 0);
-  VariantManager.SetAsFloat(Result, Exp(1));
+  Result := EncodeDouble(Exp(1));
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 { TZPIFunction }
 
@@ -241,12 +242,14 @@ end;
   @param VariantManager a reference to variant processor object.
   @returns a function value.
 }
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "$1" not used} {$ENDIF} //VariantManager is not used
 function TZPIFunction.Execute(Stack: TZExecutionStack;
   const VariantManager: IZVariantManager): TZVariant;
 begin
   CheckParamsCount(Stack, 0);
-  VariantManager.SetAsFloat(Result, PI);
+  Result := EncodeDouble(PI);
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 { TZRndFunction }
 
@@ -256,12 +259,14 @@ end;
   @param VariantManager a reference to variant processor object.
   @returns a function value.
 }
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "$1" not used} {$ENDIF} //VariantManager is not used
 function TZRndFunction.Execute(Stack: TZExecutionStack;
   const VariantManager: IZVariantManager): TZVariant;
 begin
   CheckParamsCount(Stack, 0);
-  VariantManager.SetAsFloat(Result, Random);
+  Result := EncodeDouble(Random);
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 { TZAbsFunction }
 
@@ -271,6 +276,7 @@ end;
   @param VariantManager a reference to variant processor object.
   @returns a function value.
 }
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "$1" not used} {$ENDIF} //VariantManager is not used
 function TZAbsFunction.Execute(Stack: TZExecutionStack;
   const VariantManager: IZVariantManager): TZVariant;
 var
@@ -279,12 +285,20 @@ begin
   CheckParamsCount(Stack, 1);
   Value := Stack.GetParameter(1);
   if Value.VType = vtInteger then
-    VariantManager.SetAsInteger(Result, Abs(Value.VInteger))
-  else if Value.VType = vtFloat then
-    VariantManager.SetAsFloat(Result, Abs(Value.VFloat))
-  else
+    Result := EncodeInteger(Abs(Value.VInteger))
+  else if Value.VType = vtDouble then
+    Result := EncodeDouble(Abs(Value.VDouble))
+  else if Value.VType = vtCurrency then
+    Result := EncodeCurrency(Abs(Value.VCurrency))
+  else if (Value.VType = vtBigDecimal) then begin
+    InitializeVariant(Result, vtBigDecimal);
+    if IsBcdNegative(Value.VBigDecimal)
+    then Result.VBigDecimal := Value.VBigDecimal
+    else BcdMultiply(Value.VBigDecimal, StrToBCD('-1'), Result.VBigDecimal);
+  end else
     Result := Value;
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 { TZExpFunction }
 
@@ -298,8 +312,8 @@ function TZExpFunction.Execute(Stack: TZExecutionStack;
   const VariantManager: IZVariantManager): TZVariant;
 begin
   CheckParamsCount(Stack, 1);
-  VariantManager.SetAsFloat(Result, Exp(
-    VariantManager.GetAsFloat(Stack.GetParameter(1))));
+  Result := EncodeDouble(Exp(
+    VariantManager.GetAsDouble(Stack.GetParameter(1))));
 end;
 
 { TZLogFunction }
@@ -314,8 +328,7 @@ function TZLogFunction.Execute(Stack: TZExecutionStack;
   const VariantManager: IZVariantManager): TZVariant;
 begin
   CheckParamsCount(Stack, 1);
-  VariantManager.SetAsFloat(Result, Ln(
-    VariantManager.GetAsFloat(Stack.GetParameter(1))));
+  Result := EncodeDouble(Ln(VariantManager.GetAsDouble(Stack.GetParameter(1))));
 end;
 
 { TZLog10Function }
@@ -330,8 +343,7 @@ function TZLog10Function.Execute(Stack: TZExecutionStack;
   const VariantManager: IZVariantManager): TZVariant;
 begin
   CheckParamsCount(Stack, 1);
-  VariantManager.SetAsFloat(Result, Log10(
-    VariantManager.GetAsFloat(Stack.GetParameter(1))));
+  Result := EncodeDouble(Log10(VariantManager.GetAsDouble(Stack.GetParameter(1))));
 end;
 
 { TZCosFunction }
@@ -346,8 +358,7 @@ function TZCosFunction.Execute(Stack: TZExecutionStack;
   const VariantManager: IZVariantManager): TZVariant;
 begin
   CheckParamsCount(Stack, 1);
-  VariantManager.SetAsFloat(Result, Cos(
-    VariantManager.GetAsFloat(Stack.GetParameter(1))));
+  Result := EncodeDouble(Cos(VariantManager.GetAsDouble(Stack.GetParameter(1))));
 end;
 
 { TZCotFunction }
@@ -362,8 +373,7 @@ function TZCotFunction.Execute(Stack: TZExecutionStack;
   const VariantManager: IZVariantManager): TZVariant;
 begin
   CheckParamsCount(Stack, 1);
-  VariantManager.SetAsFloat(Result, Cotan(
-    VariantManager.GetAsFloat(Stack.GetParameter(1))));
+  Result := EncodeDouble(Cotan(VariantManager.GetAsDouble(Stack.GetParameter(1))));
 end;
 
 { TZSinFunction }
@@ -378,8 +388,7 @@ function TZSinFunction.Execute(Stack: TZExecutionStack;
   const VariantManager: IZVariantManager): TZVariant;
 begin
   CheckParamsCount(Stack, 1);
-  VariantManager.SetAsFloat(Result, Sin(
-    VariantManager.GetAsFloat(Stack.GetParameter(1))));
+  Result := EncodeDouble(Sin(VariantManager.GetAsDouble(Stack.GetParameter(1))));
 end;
 
 { TZTanFunction }
@@ -394,8 +403,7 @@ function TZTanFunction.Execute(Stack: TZExecutionStack;
   const VariantManager: IZVariantManager): TZVariant;
 begin
   CheckParamsCount(Stack, 1);
-  VariantManager.SetAsFloat(Result, Tan(
-    VariantManager.GetAsFloat(Stack.GetParameter(1))));
+  Result := EncodeDouble(Tan(VariantManager.GetAsDouble(Stack.GetParameter(1))));
 end;
 
 { TZAcosFunction }
@@ -410,8 +418,7 @@ function TZAcosFunction.Execute(Stack: TZExecutionStack;
   const VariantManager: IZVariantManager): TZVariant;
 begin
   CheckParamsCount(Stack, 1);
-  VariantManager.SetAsFloat(Result, ArcCos(
-    VariantManager.GetAsFloat(Stack.GetParameter(1))));
+  Result := EncodeDouble(ArcCos(VariantManager.GetAsDouble(Stack.GetParameter(1))));
 end;
 
 { TZAsinFunction }
@@ -426,8 +433,7 @@ function TZAsinFunction.Execute(Stack: TZExecutionStack;
   const VariantManager: IZVariantManager): TZVariant;
 begin
   CheckParamsCount(Stack, 1);
-  VariantManager.SetAsFloat(Result, ArcSin(
-    VariantManager.GetAsFloat(Stack.GetParameter(1))));
+  Result := EncodeDouble(ArcSin(VariantManager.GetAsDouble(Stack.GetParameter(1))));
 end;
 
 { TZAtanFunction }
@@ -442,8 +448,7 @@ function TZAtanFunction.Execute(Stack: TZExecutionStack;
   const VariantManager: IZVariantManager): TZVariant;
 begin
   CheckParamsCount(Stack, 1);
-  VariantManager.SetAsFloat(Result, ArcTan(
-    VariantManager.GetAsFloat(Stack.GetParameter(1))));
+  Result := EncodeDouble(ArcTan(VariantManager.GetAsDouble(Stack.GetParameter(1))));
 end;
 
 { TZCeilFunction }
@@ -458,8 +463,7 @@ function TZCeilFunction.Execute(Stack: TZExecutionStack;
   const VariantManager: IZVariantManager): TZVariant;
 begin
   CheckParamsCount(Stack, 1);
-  VariantManager.SetAsInteger(Result, Ceil(
-    VariantManager.GetAsFloat(Stack.GetParameter(1))));
+  Result := EncodeInteger(Ceil(VariantManager.GetAsDouble(Stack.GetParameter(1))));
 end;
 
 { TZFloorFunction }
@@ -474,8 +478,7 @@ function TZFloorFunction.Execute(Stack: TZExecutionStack;
   const VariantManager: IZVariantManager): TZVariant;
 begin
   CheckParamsCount(Stack, 1);
-  VariantManager.SetAsInteger(Result, Floor(
-    VariantManager.GetAsFloat(Stack.GetParameter(1))));
+  Result := EncodeInteger(Floor(VariantManager.GetAsDouble(Stack.GetParameter(1))));
 end;
 
 { TZRoundFunction }
@@ -490,7 +493,7 @@ function TZRoundFunction.Execute(Stack: TZExecutionStack;
   const VariantManager: IZVariantManager): TZVariant;
 begin
   CheckParamsCount(Stack, 1);
-  VariantManager.SetAsInteger(Result, Round(VariantManager.GetAsFloat(Stack.GetParameter(1))));
+  Result := EncodeInteger(Round(VariantManager.GetAsDouble(Stack.GetParameter(1))));
 end;
 
 { TZTruncFunction }
@@ -505,7 +508,7 @@ function TZTruncFunction.Execute(Stack: TZExecutionStack;
   const VariantManager: IZVariantManager): TZVariant;
 begin
   CheckParamsCount(Stack, 1);
-  VariantManager.SetAsInteger(Result, {$IFDEF USE_FAST_TRUNC}ZFastCode.{$ENDIF}Trunc(VariantManager.GetAsFloat(Stack.GetParameter(1))));
+  Result := EncodeInteger({$IFDEF USE_FAST_TRUNC}ZFastCode.{$ENDIF}Trunc(VariantManager.GetAsDouble(Stack.GetParameter(1))));
 end;
 
 { TZIntFunction }
@@ -520,7 +523,7 @@ function TZIntFunction.Execute(Stack: TZExecutionStack;
   const VariantManager: IZVariantManager): TZVariant;
 begin
   CheckParamsCount(Stack, 1);
-  VariantManager.SetAsFloat(Result, Int(VariantManager.GetAsFloat(Stack.GetParameter(1))));
+  Result := EncodeDouble(Int(VariantManager.GetAsDouble(Stack.GetParameter(1))));
 end;
 
 { TZFracFunction }
@@ -535,7 +538,7 @@ function TZFracFunction.Execute(Stack: TZExecutionStack;
   const VariantManager: IZVariantManager): TZVariant;
 begin
   CheckParamsCount(Stack, 1);
-  VariantManager.SetAsFloat(Result, Frac(VariantManager.GetAsFloat(Stack.GetParameter(1))));
+  Result := EncodeDouble(Frac(VariantManager.GetAsDouble(Stack.GetParameter(1))));
 end;
 
 { TZSqrFunction }
@@ -550,8 +553,7 @@ function TZSqrFunction.Execute(Stack: TZExecutionStack;
   const VariantManager: IZVariantManager): TZVariant;
 begin
   CheckParamsCount(Stack, 1);
-  VariantManager.SetAsFloat(Result, Sqrt(
-    VariantManager.GetAsFloat(Stack.GetParameter(1))));
+  Result := EncodeDouble(Sqrt(VariantManager.GetAsDouble(Stack.GetParameter(1))));
 end;
 
 procedure AddMathFunctions(Functions : TZFunctionsList);

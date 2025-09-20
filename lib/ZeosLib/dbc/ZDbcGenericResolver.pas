@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -56,382 +56,438 @@ interface
 {$I ZDbc.inc}
 
 uses
-  Types, Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils,
-  {$IFNDEF NO_UNIT_CONTNRS}Contnrs,{$ENDIF} StrUtils,
-  ZVariant, ZDbcIntfs, ZDbcCache, ZDbcCachedResultSet, ZCompatibility,
-  ZSelectSchema, {$IF defined(OLDFPC) or defined(NO_UNIT_CONTNRS)}ZClasses,{$IFEND} ZCollections;
+  Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils, FmtBCD,
+  ZDbcIntfs, ZDbcCache, ZDbcCachedResultSet, ZCompatibility,
+  ZSelectSchema, ZClasses, ZSysUtils;
 
 type
-
-  {** Implements a resolver parameter object. }
-  TZResolverParameter = class (TObject)
-  private
-    FColumnIndex: Integer;
-    FColumnName: string;
-    FColumnType: TZSQLType;
-    FNewValue: Boolean;
-    FDefaultValue: string;
-  public
-    constructor Create(ColumnIndex: Integer; const ColumnName: string;
-      ColumnType: TZSQLType; NewValue: Boolean; const DefaultValue: string);
-
-    property ColumnIndex: Integer read FColumnIndex write FColumnIndex;
-    property ColumnName: string read FColumnName write FColumnName;
-    property ColumnType: TZSQLType read FColumnType write FColumnType;
-    property NewValue: Boolean read FNewValue write FNewValue;
-    property DefaultValue: string read FDefaultValue write FDefaultValue;
+  /// <summary>Implements an abstract resolver object</summary>
+  TZAbstractCachedResolver = class (TInterfacedObject)
+  protected
+    Connection: IZConnection;
+    Metadata: IZResultSetMetadata;
+    RefreshResultSet: IZResultSet;
   end;
 
-  {**
-    Implements a generic cached resolver object which generates
-    DML SQL statements and posts resultset updates to database.
-  }
+  /// <author>EgonHugeist<author>
+  /// <summary>Defines a reference of a TZKeyAndPreparedStatmentPair record.</summary>
+  PZKeyAndPreparedStatmentPair = ^TZKeyAndPreparedStatmentPair;
+  /// <author>EgonHugeist<author>
+  /// <summary>Defines a TZKeyAndPreparedStatmentPair record which holds the key
+  ///  and statement interface</summary>
+  TZKeyAndPreparedStatmentPair = record
+    Key: NativeUInt;
+    Statement: IZPreparedStatement;
+  end;
 
-  { TZGenericCachedResolver }
+  /// <author>EgonHugeist<author>
+  /// <summary>Implements a list of TZKeyAndPreparedStatmentPairs.</summary>
+  TZKeyAndPreparedStatementPairList = class(TZCustomElementList)
+  protected
+    /// <summary>Notify about an action which will or was performed.
+    ///  if ElementNeedsFinalize is False the method will never be called.
+    ///  Otherwise you may finalize managed types beeing part of each element,
+    ///  such as Strings, Objects etc.</summary>
+    /// <param>"Ptr" the address of the element an action happens for.</param>
+    /// <param>"Index" the index of the element.</param>
+    procedure Notify(Ptr: Pointer; Action: TListNotification); override;
+  public
+    /// <summary>Adds an SQL and it's statment into the list</summary>
+    /// <param>"Hash" the SQL hash used as a Key to be added.</param>
+    /// <param>"Statement" the IZPreparedStatement object to be added.</param>
+    procedure Add(Hash: NativeUInt; const Statement: IZPreparedStatement);
+    /// <summary>Attampt to find an entry using the given SQL as key</summary>
+    /// <param>"Hash" the SQL hash used as a Key to be added.</param>
+    /// <returns>The address of the pair or nil if nothing was found.</returns>
+    function Get(Hash: NativeUInt): PZKeyAndPreparedStatmentPair;
+    /// <summary>Attampt to remove a pair from the list by key</summary>
+    /// <param>"Hash" the SQL hash used as a Key to be added.</param>
+    procedure Remove(Hash: NativeUInt);
+  public
+    /// <summary>Creates this object and assignes the main properties.</summary>
+    constructor Create;
+  end;
 
-  TZGenericCachedResolver = class (TInterfacedObject, IZCachedResolver)
+  { TZGenerateSQLCachedResolver }
+
+  /// <summary>Implements a generic cached resolver object which generates
+  ///  DML SQL statements and posts resultset updates to database.</summary>
+  TZGenerateSQLCachedResolver = class (TZAbstractCachedResolver, IZCachedResolver,
+    IZGenerateSQLCachedResolver)
   private
-    FConnection: IZConnection;
-    FStatement : IZStatement;
-    FMetadata: IZResultSetMetadata;
+    FStatement: IZStatement;
+    FTransaction: IZTransaction;
     FDatabaseMetadata: IZDatabaseMetadata;
-    FIdentifierConvertor: IZIdentifierConvertor;
+    FIdentifierConverter: IZIdentifierConverter;
 
-    FInsertColumns: TObjectList;
-    FUpdateColumns: TObjectList;
-    FWhereColumns: TObjectList;
-
-    FInsertParams: TObjectList;
-    FUpdateParams: TObjectList;
-    FDeleteParams: TObjectList;
+    FUpdateColumns: TZIndexPairList;
+    FWhereColumns: TZIndexPairList;
+    FCurrentWhereColumns: TZIndexPairList;
 
     FCalcDefaults: Boolean;
     FWhereAll: Boolean;
     FUpdateAll: Boolean;
-
-    FStatements : TZHashMap;
+    FParameters: TStrings;
   protected
-    InsertStatement   : IZPreparedStatement;
-    UpdateStatement   : IZPreparedStatement;
-    DeleteStatement   : IZPreparedStatement;
-
-    procedure CopyResolveParameters(FromList, ToList: TObjectList);
-    function ComposeFullTableName(const Catalog, Schema, Table: string): string;
-    function DefineTableName: string;
-
-    function CreateResolverStatement(const SQL : String):IZPreparedStatement;
-
-    procedure DefineCalcColumns(Columns: TObjectList;
-      RowAccessor: TZRowAccessor);
-    procedure DefineInsertColumns(Columns: TObjectList);
-    procedure DefineUpdateColumns(Columns: TObjectList;
-      OldRowAccessor, NewRowAccessor: TZRowAccessor);
-    procedure DefineWhereKeyColumns(Columns: TObjectList);
-    procedure DefineWhereAllColumns(Columns: TObjectList; IgnoreKeyColumn: Boolean = False);
+    FUpdateStatements: TZKeyAndPreparedStatementPairList;
+    FDeleteStatements: TZKeyAndPreparedStatementPairList;
+    FInsertColumns: TZIndexPairList;
+    FInsertStatements: TZKeyAndPreparedStatementPairList;
+    InsertStatement: IZPreparedStatement;
+    /// <summary>Composes a fully quilified table name.</summary>
+    /// <param>"Catalog" a table catalog name.</param>
+    /// <param>"Schema" a table schema name.</param>
+    /// <param>"Table" a table name.</param>
+    /// <returns>a fully qualified table name.</returns>
+    function ComposeFullTableName(const Catalog, Schema, Table: SQLString;
+      {$IFDEF AUTOREFCOUNT}const {$ENDIF}SQLWriter: TZSQLStringWriter): SQLString;
+    /// <summary>Defines a table name from the select statement.</summary>
+    /// <returns>the table name.</returns>
+    function DefineTableName: SQLString;
+    /// <summary>Creates a statment for this resolver and assignes the properties.</summary>
+    /// <param>"SQL" the SQL to be executed.</param>
+    /// <returns>a parameter supported statement object.</returns>
+    function CreateResolverStatement(const SQL : String): IZPreparedStatement;
+    /// <summary>Assigns the resolver statement parameters from a source statement</summary>
+    /// <param>"Statement" the source statement we copy the properties from.</param>
+    procedure SetResolverStatementParamters(const Statement: IZStatement;
+      {$IFDEF AUTOREFCOUNT}const {$ENDIF}Params: TStrings); virtual;
+    /// <summary>Fills a collection of data columns for INSERT statements.</summary>
+    /// <param>"NewRowAccessor" an accessor object to new column values.</param>
+    procedure FillInsertColumnsPairList(NewRowAccessor: TZRowAccessor);
+    /// <summary>Gets a collection of data columns for UPDATE statements.</summary>
+    /// <param>"OldRowAccessor" an accessor object to old column values.</param>
+    /// <param>"NewRowAccessor" an accessor object to new column values.</param>
+    procedure FillUpdateColumns(const OldRowAccessor,NewRowAccessor: TZRowAccessor);
+    /// <summary>Fills the collection of the where key columns for DELETE or
+    ///  UPDATE DML statements.</summary>
+    /// <param>"IncrementDestIndexBy" to increment the WhereColumnsLookup.</param>
+    procedure FillWhereKeyColumns(IncrementDestIndexBy: Integer);
+    /// <summary>Fills the collection of the where all columns for DELETE or
+    ///  UPDATE DML statements.</summary>
+    /// <param>"IncrementDestIndexBy" to increment the WhereColumnsLookup.</param>
+    /// <param>"IgnoreKeyColumn" to determine if key columns are ignored</param>
+    procedure FillWhereAllColumns(IncrementDestIndexBy: Integer;
+      IgnoreKeyColumn: Boolean = False);
+    /// <summary>Checks is the specified column can be used in where clause.</summary>
+    /// <param>"ColumnIndex" an index of the column.</param>
+    /// <returns><c>true</c> if column can be included into where clause.</returns>
     function CheckKeyColumn(ColumnIndex: Integer): Boolean; virtual;
-
-    procedure FillStatement(const Statement: IZPreparedStatement;
-      Params: TObjectList; OldRowAccessor, NewRowAccessor: TZRowAccessor);
-
-    property Connection: IZConnection read FConnection write FConnection;
-    property Metadata: IZResultSetMetadata read FMetadata write FMetadata;
+    /// <summary>Get a parameter value by it's name</summary>
+    /// <returns>The found value or an empty string.</returns>
+    function GetResolverParameterValue(const ParameterName: String): String;
+  protected
+    /// <summary>Represents the DatabaseMetadata object</summary>
     property DatabaseMetadata: IZDatabaseMetadata read FDatabaseMetadata
       write FDatabaseMetadata;
-    property IdentifierConvertor: IZIdentifierConvertor
-      read FIdentifierConvertor write FIdentifierConvertor;
-
-    property InsertColumns: TObjectList read FInsertColumns;
-    property UpdateColumns: TObjectList read FUpdateColumns;
-    property WhereColumns: TObjectList read FWhereColumns;
-
+    /// <summary>Represents the IdentifierConverter object</summary>
+    property IdentifierConverter: IZIdentifierConverter
+      read FIdentifierConverter write FIdentifierConverter;
+    /// <summary>Represents the underlaying statement object</summary>
+    property Statement: IZStatement read FStatement;
+    /// <summary>Represents a list of current UPDATE columns used for the
+    ///  statement bindings</summary>
+    property UpdateColumnsLookup: TZIndexPairList read FUpdateColumns;
+    /// <summary>Represents a cached list of all determined WhereColumns</summary>
+    property WhereColumns: TZIndexPairList read FWhereColumns;
+    /// <summary>Represents a list of current WHERE columns used for the
+    ///  statement bindings</summary>
+    property WhereColumnsLookup: TZIndexPairList read FCurrentWhereColumns;
+    /// <summary>Represents if column defaults should be calculated</summary>
     property CalcDefaults: Boolean read FCalcDefaults write FCalcDefaults;
+    /// <summary>Represents if all columns should be used in the where clause.</summary>
     property WhereAll: Boolean read FWhereAll write FWhereAll;
+    /// <summary>Represents if all columns should be updated.</summary>
     property UpdateAll: Boolean read FUpdateAll write FUpdateAll;
-
   public
+    /// <summary>Creates a cached resolver and assignes the main properties.</summary>
+    /// <param>"Statement" the related Statement object.</param>
+    /// <param>"Metadata" the related ResultSet metadata object.</param>
     constructor Create(const Statement: IZStatement; const Metadata: IZResultSetMetadata);
+    /// <summary>Destroys this object and cleanups the memory.</summary>
     destructor Destroy; override;
-
-    function FormWhereClause(Columns: TObjectList;
-      OldRowAccessor: TZRowAccessor): string; virtual;
-    function FormInsertStatement(Columns: TObjectList;
-      {%H-}NewRowAccessor: TZRowAccessor): string; virtual;
-    function FormUpdateStatement(Columns: TObjectList;
-      OldRowAccessor, NewRowAccessor: TZRowAccessor): string; virtual;
-    function FormDeleteStatement(Columns: TObjectList;
-      OldRowAccessor: TZRowAccessor): string;
-    function FormCalculateStatement(Columns: TObjectList): string; virtual;
-
-    procedure CalculateDefaults(Sender: IZCachedResultSet;
-      RowAccessor: TZRowAccessor);
-    procedure PostUpdates(Sender: IZCachedResultSet;
-      UpdateType: TZRowUpdateType;
-      OldRowAccessor, NewRowAccessor: TZRowAccessor); virtual;
-    {BEGIN of PATCH [1185969]: Do tasks after posting updates. ie: Updating AutoInc fields in MySQL }
-    procedure UpdateAutoIncrementFields(Sender: IZCachedResultSet;
-      UpdateType: TZRowUpdateType;
-      OldRowAccessor, NewRowAccessor: TZRowAccessor; Resolver: IZCachedResolver); virtual;
-    {END of PATCH [1185969]: Do tasks after posting updates. ie: Updating AutoInc fields in MySQL }
-    procedure RefreshCurrentRow(Sender: IZCachedResultSet; RowAccessor: TZRowAccessor); //FOS+ 07112006
-
+    /// <summary>Forms a where clause for UPDATE or DELETE DML statements.</summary>
+    /// <param>"SQLWriter" a TZSQLStringWriter object used for buffered writes</param>
+    /// <param>"OldRowAccessor" an accessor object to old column values.</param>
+    /// <param>"Result" a reference to the Result String the SQLWriter uses
+    ///  for the buffered writes.</param>
+    procedure FormWhereClause(const SQLWriter: TZSQLStringWriter;
+      const OldRowAccessor: TZRowAccessor; var Result: SQLString); virtual;
+    /// <summary>Forms an INSERT statement.</summary>
+    /// <param>"NewRowAccessor" an accessor object to new column values.</param>
+    /// <returns>the composed insert SQL.</returns>
+    function FormInsertStatement(NewRowAccessor: TZRowAccessor): SQLString; virtual;
+    /// <summary>Forms an UPDATE statements.</summary>
+    /// <param>"OldRowAccessor" an accessor object to old column values.</param>
+    /// <param>"NewRowAccessor" an accessor object to new column values.</param>
+    /// <returns>the composed UPDATE SQL.</returns>
+    function FormUpdateStatement(
+      const OldRowAccessor, NewRowAccessor: TZRowAccessor): SQLString;
+    /// <summary>Forms a DELETE statement.</summary>
+    /// <param>"OldRowAccessor" an accessor object to old column values.</param>
+    /// <returns>the composed DELETE SQL.</returns>
+    function FormDeleteStatement(const OldRowAccessor: TZRowAccessor): SQLString;
+    /// <author>Michael Seeger</author>
+    /// <summary>Forms a SELECT statements to calculate default values.</summary>
+    /// <param>"RowAccessor" an accessor object to column values.</param>
+    /// <param>"ColumnsLookup" an TZIndexPairList which holds the NULL columns.</param>
+    /// <returns>the composed SELECT SQL.</returns>
+    function FormCalculateStatement(const RowAccessor: TZRowAccessor;
+      const ColumnsLookup: TZIndexPairList): SQLString; virtual;
+  public //implement IZCachedResolver
+    /// <author>Egonhugeist</author>
+    /// <summary>Gets the correct transaction to use for new objects from this Resolver.
+    ///  That is either an explicitly assigned transaction or the currently active transaction
+    ///  from the connection.</summary>
+    /// <returns>A valid transaction.</returns>
+    function GetTransaction: IZTransaction;
+    /// <author>Egonhugeist</author>
+    /// <summary>Sets the appropriate transaction to this resolver object.</summary>
+    /// <param>"Value" the transaction to be used.</param>
+    procedure SetTransaction(const Value: IZTransaction); virtual;
+    /// <author>Egonhugeist</author>
+    /// <summary>Check if the underlaying transaction is in AutoCommit mode.</summary>
+    /// <returns><c>True</c> if the transaction is in AutoCommit mode;
+    ///  <c>False</c> otherwise.</returns>
+    function HasAutoCommitTransaction: Boolean;
+    /// <author>Michael Seeger</author>
+    /// <summary>Calculate default values for the fields.</summary>
+    /// <param>"Sender" a cached result set object.</param>
+    /// <param>"RowAccessor" an accessor object to column values.</param>
+    procedure CalculateDefaults(const Sender: IZCachedResultSet; const RowAccessor: TZRowAccessor);
+    /// <summary>Posts updates to database.</summary>
+    /// <param>"Sender" a cached result set inteface.</param>
+    /// <param>"UpdateType" a type of updates.</param>
+    /// <param>"OldRowAccessor" an accessor object to old column values.</param>
+    /// <param>"NewRowAccessor" an accessor object to new column values.</param>
+    procedure PostUpdates(const Sender: IZCachedResultSet;
+      UpdateType: TZRowUpdateType; const OldRowAccessor, NewRowAccessor: TZRowAccessor); virtual;
+    /// <summary>Posts updates the autoincrement fields.</summary>
+    /// <param>"Sender" a cached result set inteface.</param>
+    /// <param>"UpdateType" a type of updates.</param>
+    /// <param>"OldRowAccessor" an accessor object to old column values.</param>
+    /// <param>"NewRowAccessor" an accessor object to new column values.</param>
+    /// <param>"Resolver" the resolver object used to load the column data.</param>
+    procedure UpdateAutoIncrementFields(const Sender: IZCachedResultSet;
+      UpdateType: TZRowUpdateType; const OldRowAccessor, NewRowAccessor: TZRowAccessor;
+      const Resolver: IZCachedResolver); virtual;
+    /// <summary>Refreshes the current row.</summary>
+    /// <param>"Sender" a cached result set inteface.</param>
+    /// <param>"RowAccessor" an accessor object to current column values.</param>
+    procedure RefreshCurrentRow(const Sender: IZCachedResultSet; RowAccessor: TZRowAccessor); //FOS+ 07112006
+    /// <summary>Set the readonly state of a field. The value will be ignored
+    ///  if the field is not writable.</summary>
+    /// <param>"ColumnIndex" the columnnumber of the field.</param>
+    /// <param>"Value" if <c>true</c> then the field will be ignored on
+    ///  generating the dml's.</param>
+    procedure SetReadOnly(ColumnIndex: Integer; Value: Boolean);
+    /// <summary>Set the searchable state of a field. The value will be ignored
+    ///  if the field is not searchable at all e.g. LOB's.</summary>
+    /// <param>"ColumnIndex" the columnnumber of the field.</param>
+    /// <param>"Value" if <c>true</c> then the field will be ignored on
+    ///  generating the where clause of the dml's.</param>
+    procedure SetSearchable(ColumnIndex: Integer; Value: Boolean);
+    /// <summary>Set the Calculate null columns defaults.</summary>
+    /// <param>"Value" <c>true</c> means calc defaults.</param>
+    procedure SetCalcDefaults(Value: Boolean);
+    /// <summary>Set the WhereAll state for generating the where clause of the
+    ///  dml's. The value will be ignored if no indexfields are defined and
+    ///  if no primary key is available. If both conditions are true the
+    ///  whereAll mode is always true.</summary>
+    /// <param>"Value" <c>true</c> means use all searchable columns. Otherwise
+    ///  the primary key will or given index fields are used.</param>
+    procedure SetWhereAll(Value: Boolean);
+    /// <summary>Set the updateAll state for generating the dml's. <c>true</c>
+    ///  means use all updatable columns. Otherwise only changed fields are used
+    ///  for updates.</summary>
+    /// <param>"Value" the UpdateAll mode should be used.</param>
+    procedure SetUpdateAll(Value: Boolean);
+    /// <summary>Set's a list of property parameters the to Resolver object.</summary>
+    /// <param>"Value" the List of parameter.</param>
+    procedure SetResolverParameters(Value: TStrings);
+    /// <summary>Set a new connection.</summary>
+    /// <param>"Value" the IZTransaction object.</param>
+    procedure SetConnection(const Value: IZConnection);
+    /// <summary>Set a new resultset metadata object</summary>
+    /// <param>"Value" the new resultset metadata object to be set.</param>
+    procedure SetMetadata(const Value: IZResultSetMetadata);
+    /// <author>EgonHugeist</author>
+    /// <summary>Flush all cached statements</summary>
+    procedure FlushStatementCache;
   end;
+  /// <summary>definines an alias for compatibility</summary>
+  TZGenericCachedResolver = TZGenerateSQLCachedResolver;
 
 implementation
 
-uses ZMessages, ZSysUtils, ZDbcMetadata, ZDbcUtils
-  {$IF not defined(OLDFPC) and not defined(NO_UNIT_CONTNRS)},ZClasses{$IFEND}
+uses ZMessages, ZDbcMetadata, ZDbcUtils, ZDbcProperties, ZExceptions
   {$IFDEF FAST_MOVE}, ZFastCode{$ENDIF};
 
-{ TZResolverParameter }
+{ TZGenerateSQLCachedResolver }
 
-{**
-  Constructs this resolver parameter and assignes the main properties.
-  @param ColumnIndex a result set column index.
-  @param ColumnName a result set column name.
-  @param NewValue <code>True</code> for new value and <code>False</code>
-    for an old one.
-  @param DefaultValue a default column value to evalute on server.
-}
-constructor TZResolverParameter.Create(ColumnIndex: Integer;
-  const ColumnName: string; ColumnType: TZSQLType; NewValue: Boolean; const DefaultValue: string);
-begin
-  FColumnType := ColumnType;
-  FColumnIndex := ColumnIndex;
-  FColumnName := ColumnName;
-  FNewValue := NewValue;
-  FDefaultValue := DefaultValue;
-end;
-
-{ TZGenericCachedResolver }
-
-{**
-  Creates a cached resolver and assignes the main properties.
-  @param ResultSet a related ResultSet object.
-}
-constructor TZGenericCachedResolver.Create(const Statement: IZStatement;
+constructor TZGenerateSQLCachedResolver.Create(const Statement: IZStatement;
   const Metadata: IZResultSetMetadata);
 begin
   FStatement := Statement;
-  FConnection := Statement.GetConnection;
-  FMetadata := Metadata;
+  Connection := Statement.GetConnection;
+  Self.Metadata := Metadata;
   FDatabaseMetadata := Statement.GetConnection.GetMetadata;
-  FIdentifierConvertor := FDatabaseMetadata.GetIdentifierConvertor;
+  FIdentifierConverter := FDatabaseMetadata.GetIdentifierConverter;
 
-  FInsertColumns := TObjectList.Create(True);
-  FWhereColumns := TObjectList.Create(True);
-  FUpdateColumns := TObjectList.Create(True);
+  FInsertColumns := TZIndexPairList.Create;
 
-  FInsertParams := TObjectList.Create(True);
-  FUpdateParams := TObjectList.Create(True);
-  FDeleteParams := TObjectList.Create(True);
+  FUpdateColumns := TZIndexPairList.Create;
+  FWhereColumns := TZIndexPairList.Create;
+  FCurrentWhereColumns := TZIndexPairList.Create;
 
-  FCalcDefaults := StrToBoolEx(DefineStatementParameter(Statement,
-    'defaults', 'true'));
-  FUpdateAll := UpperCase(DefineStatementParameter(Statement,
-    'update', 'changed')) = 'ALL';
-  FWhereAll := UpperCase(DefineStatementParameter(Statement,
-    'where', 'keyonly')) = 'ALL';
+  FCalcDefaults := True;
+  FUpdateStatements := TZKeyAndPreparedStatementPairList.Create;
+  FDeleteStatements := TZKeyAndPreparedStatementPairList.Create;
+  FInsertStatements := TZKeyAndPreparedStatementPairList.Create;
 
-  InsertStatement := nil;
-  FStatements := TZHashMap.Create;
-  DeleteStatement := nil;
-
+  FParameters := TStringList.Create;
+  FParameters.Assign(Statement.GetParameters);
 end;
 
-{**
-  Destroys this object and cleanups the memory.
-}
-destructor TZGenericCachedResolver.Destroy;
-procedure FlustStmt(var Stmt: IZPreparedStatement);
+destructor TZGenerateSQLCachedResolver.Destroy;
 begin
-  if Stmt <> nil then begin
-    Stmt.Close;
-    Stmt := nil
-  end;
-end;
-
-begin
-  FMetadata := nil;
+  Metadata := nil;
   FDatabaseMetadata := nil;
-
   FreeAndNil(FInsertColumns);
   FreeAndNil(FUpdateColumns);
   FreeAndNil(FWhereColumns);
+  FreeAndNil(FCurrentWhereColumns);
 
-  FreeAndNil(FInsertParams);
-  FreeAndNil(FUpdateParams);
-  FreeAndNil(FDeleteParams);
-
-  FreeAndNil(FStatements);
-  FlustStmt(InsertStatement);
-  FlustStmt(UpdateStatement);
-  FlustStmt(DeleteStatement);
+  FreeAndNil(FUpdateStatements);
+  FreeAndNil(FDeleteStatements);
+  FreeAndNil(FInsertStatements);
+  FreeAndNil(FParameters);
   inherited Destroy;
 end;
 
-{**
-  Copies resolver parameters from source list to destination list.
-  @param FromList the source object list.
-  @param ToList the destination object list.
-}
-procedure TZGenericCachedResolver.CopyResolveParameters(
-  FromList: TObjectList; ToList: TObjectList);
-var
-  I: Integer;
-  Current: TZResolverParameter;
+function TZGenerateSQLCachedResolver.ComposeFullTableName(const Catalog, Schema,
+  Table: SQLString; {$IFDEF AUTOREFCOUNT}const {$ENDIF}SQLWriter: TZSQLStringWriter): SQLString;
+var tmp: SQLString;
 begin
-  for I := 0 to FromList.Count - 1 do
-  begin
-    Current := TZResolverParameter(FromList[I]);
-    if Current.ColumnName <> '' then
-      ToList.Add(TZResolverParameter.Create(Current.ColumnIndex,
-        Current.ColumnName, Current.ColumnType, Current.NewValue, ''));
+  Result := '';
+  if Table <> '' then begin
+    if (Catalog <> '') and FDatabaseMetadata.GetDatabaseInfo.SupportsCatalogsInDataManipulation then begin
+      Tmp := IdentifierConverter.Quote(Catalog, iqCatalog);
+      SQLWriter.AddText(Tmp, Result);
+      SQLWriter.AddChar('.', Result);
+    end;
+    if (Schema <> '') and FDatabaseMetadata.GetDatabaseInfo.SupportsSchemasInDataManipulation then begin
+      Tmp := IdentifierConverter.Quote(Schema, iqSchema);
+      SQLWriter.AddText(Tmp, Result);
+      SQLWriter.AddChar('.', Result);
+    end;
+    Tmp := IdentifierConverter.Quote(Table, iqTable);
+    SQLWriter.AddText(Tmp, Result);
+    SQLWriter.Finalize(Result);
   end;
 end;
 
-{**
-  Composes a fully quilified table name.
-  @param Catalog a table catalog name.
-  @param Schema a table schema name.
-  @param Table a table name.
-  @return a fully qualified table name.
-}
-function TZGenericCachedResolver.ComposeFullTableName(const Catalog, Schema,
-  Table: string): string;
-begin
-  if Table <> '' then begin
-    Result := IdentifierConvertor.Quote(Table);
-    if (Schema <> '') and FDatabaseMetadata.GetDatabaseInfo.SupportsSchemasInDataManipulation then
-      Result := IdentifierConvertor.Quote(Schema) + '.' + Result;
-    if (Catalog <> '') and FDatabaseMetadata.GetDatabaseInfo.SupportsCatalogsInDataManipulation then
-      Result := IdentifierConvertor.Quote(Catalog) + '.' + Result;
-  end else
-    Result := '';
-end;
-
-{**
-  Defines a table name from the select statement.
-}
-function TZGenericCachedResolver.DefineTableName: string;
+function TZGenerateSQLCachedResolver.DefineTableName: SQLString;
 var
   I: Integer;
   Temp: string;
+  SQLWriter: TZSQLStringWriter;
 begin
   Result := '';
-  for I := FirstDbcIndex to Metadata.GetColumnCount{$IFDEF GENERIC_INDEX}-1{$ENDIF} do
-  begin
-    Temp := ComposeFullTableName(Metadata.GetCatalogName(I),
-      Metadata.GetSchemaName(I), Metadata.GetTableName(I));
-    if (Result = '') and (Temp <> '') then
-      Result := Temp
-    else if (Result <> '') and (Temp <> '') and (Temp <> Result) then
-      raise EZSQLException.Create(SCanNotUpdateComplexQuery);
+  SQLWriter := TZSQLStringWriter.Create(512);
+  try
+    for I := FirstDbcIndex to Metadata.GetColumnCount{$IFDEF GENERIC_INDEX}-1{$ENDIF} do begin
+      if not Metadata.IsReadOnly(I) and Metadata.IsWritable(I) then
+        Temp := ComposeFullTableName(Metadata.GetCatalogName(I),
+          Metadata.GetSchemaName(I), Metadata.GetTableName(I), SQLWriter);
+      if (Result = '') and (Temp <> '') then
+        Result := Temp
+      else if (Result <> '') and (Temp <> '') and (Temp <> Result) then
+        raise EZSQLException.Create(SCanNotUpdateComplexQuery);
+    end;
+    if Result = '' then
+      raise EZSQLException.Create(SCanNotUpdateThisQueryType);
+  finally
+    FreeAndNil(SQLWriter);
   end;
-  if Result = '' then
-    raise EZSQLException.Create(SCanNotUpdateThisQueryType);
 end;
 
-function TZGenericCachedResolver.CreateResolverStatement(const SQL: String): IZPreparedStatement;
+function TZGenerateSQLCachedResolver.CreateResolverStatement(const SQL: String): IZPreparedStatement;
 var
   Temp : TStrings;
 begin
-  if StrToBoolEx(FStatement.GetParameters.Values['preferprepared']) then
-    begin
-      Temp := TStringList.Create;
-      Temp.Values['preferprepared'] := 'true';
-      if not ( Connection.GetParameters.Values['chunk_size'] = '' ) then //ordered by precedence
-        Temp.Values['chunk_size'] := Connection.GetParameters.Values['chunk_size']
-      else
-        Temp.Values['chunk_size'] := FStatement.GetParameters.Values['chunk_size'];
-      Result := Connection.PrepareStatementWithParams(SQL, Temp);
-      Temp.Free;
-    end
-  else
-    Result := Connection.PrepareStatement(SQL);
-
+  Temp := TStringList.Create;
+  Result := nil;
+  try
+    SetResolverStatementParamters(FStatement, Temp);
+    if FTransaction <> nil
+    then Result := FTransaction.GetConnection.PrepareStatementWithParams(SQL, Temp)
+    else Result := Connection.PrepareStatementWithParams(SQL, Temp);
+  finally
+    Temp.Free;
+  end;
 end;
 
-{**
-  Gets a collection of data columns for INSERT statements.
-  @param Columns a collection of columns.
-}
-procedure TZGenericCachedResolver.DefineInsertColumns(Columns: TObjectList);
-var
-  I: Integer;
+procedure TZGenerateSQLCachedResolver.FillUpdateColumns(
+  const OldRowAccessor, NewRowAccessor: TZRowAccessor);
+var I, j: Integer;
+  IP: PZIndexPair;
 begin
-  { Precache insert parameters. }
-  if InsertColumns.Count = 0 then
-    for I := FirstDbcIndex to Metadata.GetColumnCount{$IFDEF GENERIC_INDEX}-1{$ENDIF} do
-      if (Metadata.GetTableName(I) <> '') and (Metadata.GetColumnName(I) <> '')
-        and Metadata.IsWritable(I) then
-      begin
-        InsertColumns.Add(TZResolverParameter.Create(I,
-          Metadata.GetColumnName(I), Metadata.GetColumnType(I), True, ''));
-      end;
-  { Use cached insert parameters }
-  CopyResolveParameters(InsertColumns, Columns);
-end;
-
-{**
-  Gets a collection of data columns for UPDATE statements.
-  @param Columns a collection of columns.
-  @param OldRowAccessor an accessor object to old column values.
-  @param NewRowAccessor an accessor object to new column values.
-}
-procedure TZGenericCachedResolver.DefineUpdateColumns(
-  Columns: TObjectList; OldRowAccessor, NewRowAccessor: TZRowAccessor);
-var I: Integer;
-begin
+  FUpdateColumns.Clear;
   { Use precached parameters. }
-  if UpdateAll and (UpdateColumns.Count > 0) then begin
-    CopyResolveParameters(UpdateColumns, Columns);
-    Exit;
+  if FInsertColumns.Count = 0 then
+    FillInsertColumnsPairList(NewRowAccessor);
+  { Defines parameters for UpdateAll mode. }
+  if UpdateAll then
+    FUpdateColumns.Assign(FInsertColumns)
+  else begin
+    FUpdateColumns.Capacity := FInsertColumns.Count;
+    J := FirstDbcIndex;
+    for I := 0 to FUpdateColumns.Capacity-1 do begin
+      IP := PZIndexPair(FInsertColumns[i]);
+      if (OldRowAccessor.CompareBuffer(OldRowAccessor.RowBuffer,
+         NewRowAccessor.RowBuffer, IP.ColumnIndex, NewRowAccessor.GetCompareFunc(IP.ColumnIndex, ckEquals))  <> 0) then begin
+        FUpdateColumns.Add(J, IP.ColumnIndex);
+        Inc(J);
+      end;
+    end;
+  end;
+end;
+
+procedure TZGenerateSQLCachedResolver.FillWhereKeyColumns(IncrementDestIndexBy: Integer);
+
+  function AddColumn(const Table, ColumnName: string; WhereColumns: TZIndexPairList): Boolean;
+  var
+    I: Integer;
+  begin
+    for I := FirstDbcIndex to Metadata.GetColumnCount{$IFDEF GENERIC_INDEX}-1{$ENDIF} do
+      if (ColumnName = Metadata.GetColumnName(I)) and (Table = Metadata.GetTableName(I)) then begin
+        WhereColumns.Add(WhereColumns.Count{$IFNDEF GENERIC_INDEX}+1{$ENDIF},i);
+        Result := True;
+        Exit;
+      end;
+    WhereColumns.Clear;
+    Result := False;
   end;
 
-  { Defines parameters for UpdateAll mode. }
-  if UpdateAll then begin
-    for I := FirstDbcIndex to Metadata.GetColumnCount{$IFDEF GENERIC_INDEX}-1{$ENDIF} do
-      if (Metadata.GetTableName(I) <> '') and
-         (Metadata.GetColumnName(I) <> '') and Metadata.IsWritable(I) then
-        UpdateColumns.Add(TZResolverParameter.Create(I,
-          Metadata.GetColumnName(I), Metadata.GetColumnType(I), True, ''));
-    CopyResolveParameters(UpdateColumns, Columns);
-  end else { Defines parameters for UpdateChanged mode. }
-    for I := FirstDbcIndex to Metadata.GetColumnCount{$IFDEF GENERIC_INDEX}-1{$ENDIF} do
-      if (Metadata.GetTableName(I) <> '') and
-         (Metadata.GetColumnName(I) <> '') and Metadata.IsWritable(I) and
-         (OldRowAccessor.CompareBuffer(OldRowAccessor.RowBuffer,
-          NewRowAccessor.RowBuffer, I, NewRowAccessor.GetCompareFunc(I, ckEquals))  <> 0) then
-        Columns.Add(TZResolverParameter.Create(I,
-          Metadata.GetColumnName(I), Metadata.GetColumnType(I), True, ''));
-end;
-
-{**
-  Gets a collection of where key columns for DELETE or UPDATE DML statements.
-  @param Columns a collection of key columns.
-}
-procedure TZGenericCachedResolver.DefineWhereKeyColumns(Columns: TObjectList);
 var
   I: Integer;
-  Found: Boolean;
-  ColumnName: string;
+  KeyFields: string;
   Catalog, Schema, Table: string;
   PrimaryKeys: IZResultSet;
+  Fields: TStrings;
+  IndexPair: PZIndexPair;
+label CopyParams;
 begin
   { Use precached values. }
-  if WhereColumns.Count > 0 then
-  begin
-    CopyResolveParameters(WhereColumns, Columns);
-    Exit;
-  end;
-
+  WhereColumnsLookup.Clear;
+  if (FWhereColumns.Count > 0) then
+    goto CopyParams;
+  Table := '';
   { Defines catalog, schema and a table. }
-  Table := DefineTableName;
-  for I := FirstDbcIndex to Metadata.GetColumnCount{$IFDEF GENERIC_INDEX}-1{$ENDIF} do
-  begin
+  for I := FirstDbcIndex to Metadata.GetColumnCount{$IFDEF GENERIC_INDEX}-1{$ENDIF} do begin
     Table := Metadata.GetTableName(I);
-    if Table <> '' then
-    begin
+    if Table <> '' then begin
       Schema := Metadata.GetSchemaName(I);
       Catalog := Metadata.GetCatalogName(I);
       Break;
@@ -439,82 +495,87 @@ begin
   end;
 
   { Tryes to define primary keys. }
-  if not WhereAll then
-  begin
-    {For exact results: quote all identifiers SEE: http://sourceforge.net/p/zeoslib/tickets/81/
-    If table names have mixed case ConstructNameCondition will return wrong results
-    and we fall back to WhereAll}
-    PrimaryKeys := DatabaseMetadata.GetPrimaryKeys(IdentifierConvertor.Quote(Catalog),
-      IdentifierConvertor.Quote(Schema), IdentifierConvertor.Quote(Table));
-    while PrimaryKeys.Next do
-    begin
-      ColumnName := PrimaryKeys.GetString(ColumnNameIndex);
-      Found := False;
-      for I := FirstDbcIndex to Metadata.GetColumnCount{$IFDEF GENERIC_INDEX}-1{$ENDIF} do
-      begin
-        if (ColumnName = Metadata.GetColumnName(I))
-          and (Table = Metadata.GetTableName(I)) then
-        begin
-          Found := True;
+  if not WhereAll then begin
+    KeyFields := GetResolverParameterValue(DSProps_KeyFields);
+    { Let user define key fields }
+    if KeyFields <> '' then begin
+      Fields := ExtractFields(KeyFields, [',', ';']);
+      try
+        for I := 0 to Fields.Count - 1 do
+          if not AddColumn(Table, Fields[I], FWhereColumns) then
+            Break;
+      finally
+        Fields.Free;
+      end;
+    end else begin { Ask DB for key fields }
+      {For exact results: quote all identifiers SEE: http://sourceforge.net/p/zeoslib/tickets/81/
+      If table names have mixed case ConstructNameCondition will return wrong results
+      and we fall back to WhereAll}
+      PrimaryKeys := DatabaseMetadata.GetPrimaryKeys(IdentifierConverter.Quote(Catalog, iqCatalog),
+        IdentifierConverter.Quote(Schema, iqSchema), IdentifierConverter.Quote(Table, iqTable));
+      while PrimaryKeys.Next do
+        if not AddColumn(Table, PrimaryKeys.GetString(ColumnNameIndex), FWhereColumns) then
           Break;
-        end;
-      end;
-      if not Found then
-      begin
-        WhereColumns.Clear;
-        Break;
-      end;
-      WhereColumns.Add(TZResolverParameter.Create(I, ColumnName,
-        stUnknown, False, ''));
     end;
   end;
 
-  if WhereColumns.Count > 0 then
-    CopyResolveParameters(WhereColumns, Columns)
-  else
-    DefineWhereAllColumns(Columns);
+  if FWhereColumns.Count = 0 then begin
+    WhereAll := True;
+    FillWhereAllColumns(IncrementDestIndexBy);
+  end else begin
+CopyParams:
+    WhereColumnsLookup.Capacity := FWhereColumns.Count;
+    for I := 0 to FWhereColumns.Count -1 do begin
+      IndexPair := FWhereColumns[i];
+      WhereColumnsLookup.Add(IndexPair.SrcOrDestIndex+IncrementDestIndexBy, IndexPair.ColumnIndex)
+    end;
+  end;
 end;
 
-{**
-  Gets a collection of where all columns for DELETE or UPDATE DML statements.
-  @param Columns a collection of key columns.
-}
-procedure TZGenericCachedResolver.DefineWhereAllColumns(Columns: TObjectList;
-  IgnoreKeyColumn: Boolean = False);
+procedure TZGenerateSQLCachedResolver.FlushStatementCache;
+begin
+  if InsertStatement <> nil then begin
+    InsertStatement.Close;
+    InsertStatement := nil;
+  end;
+  if RefreshResultSet <> nil then begin
+    RefreshResultSet.Close;
+    RefreshResultSet := nil;
+  end;
+  if FUpdateStatements <> nil then
+    FUpdateStatements.SetCount(0);
+  if FDeleteStatements <> nil then
+    FDeleteStatements.SetCount(0);
+  if FInsertStatements <> nil then
+    FInsertStatements.SetCount(0);
+end;
+
+procedure TZGenerateSQLCachedResolver.FillWhereAllColumns(
+  IncrementDestIndexBy: Integer; IgnoreKeyColumn: Boolean = False);
 var
   I: Integer;
+  IndexPair: PZIndexPair;
 begin
   { Use precached values. }
-  if WhereColumns.Count > 0 then
-  begin
-    CopyResolveParameters(WhereColumns, Columns);
-    Exit;
+  if WhereColumns.Count = 0 then
+    { Takes a key all non-blob fields. }
+    for I := FirstDbcIndex to Metadata.GetColumnCount{$IFDEF GENERIC_INDEX}-1{$ENDIF} do
+      if CheckKeyColumn(I)
+      then WhereColumns.Add(FWhereColumns.Count{$IFNDEF GENERIC_INDEX}+1{$ENDIF}, I)
+      else if IgnoreKeyColumn then
+        WhereColumns.Add(FWhereColumns.Count{$IFNDEF GENERIC_INDEX}+1{$ENDIF}, I);
+  if ( WhereColumns.Count = 0 ) and ( not IgnoreKeyColumn )
+  then FillWhereAllColumns(IncrementDestIndexBy, True)
+  else begin
+    WhereColumnsLookup.Capacity := FWhereColumns.Count;
+    for I := 0 to FWhereColumns.Count -1 do begin
+      IndexPair := FWhereColumns[i];
+      WhereColumnsLookup.Add(IndexPair.SrcOrDestIndex+IncrementDestIndexBy, IndexPair.ColumnIndex)
+    end;
   end;
-
-  { Takes a a key all non-blob fields. }
-  for I := FirstDbcIndex to Metadata.GetColumnCount{$IFDEF GENERIC_INDEX}-1{$ENDIF} do
-  begin
-    if CheckKeyColumn(I) then
-      WhereColumns.Add(TZResolverParameter.Create(I,
-        Metadata.GetColumnName(I), Metadata.GetColumnType(I), False, ''))
-    else
-      if IgnoreKeyColumn then
-        WhereColumns.Add(TZResolverParameter.Create(I,
-          Metadata.GetColumnName(I), Metadata.GetColumnType(I), False, ''));
-  end;
-  if ( WhereColumns.Count = 0 ) and ( not IgnoreKeyColumn ) then
-    DefineWhereAllColumns(Columns, True)
-  else
-    { Copy defined parameters to target columns }
-    CopyResolveParameters(WhereColumns, Columns);
 end;
 
-{**
-  Checks is the specified column can be used in where clause.
-  @param ColumnIndex an index of the column.
-  @returns <code>true</code> if column can be included into where clause.
-}
-function TZGenericCachedResolver.CheckKeyColumn(ColumnIndex: Integer): Boolean;
+function TZGenerateSQLCachedResolver.CheckKeyColumn(ColumnIndex: Integer): Boolean;
 begin
   Result := (Metadata.GetTableName(ColumnIndex) <> '')
     and (Metadata.GetColumnName(ColumnIndex) <> '')
@@ -523,283 +584,230 @@ begin
     in [stUnknown, stAsciiStream, stBinaryStream, stUnicodeStream]);
 end;
 
-{**
-  Gets a collection of data columns to initialize before INSERT statements.
-  @param Columns a collection of columns.
-  @param RowAccessor an accessor object to column values.
-}
-procedure TZGenericCachedResolver.DefineCalcColumns(Columns: TObjectList;
-  RowAccessor: TZRowAccessor);
+procedure TZGenerateSQLCachedResolver.FormWhereClause(
+  const SQLWriter: TZSQLStringWriter; const OldRowAccessor: TZRowAccessor;
+  var Result: SQLString);
 var
-  I: Integer;
+  I, N, IDX: Integer;
+  Condition: SQLString;
 begin
-  for I := FirstDbcIndex to Metadata.GetColumnCount{$IFDEF GENERIC_INDEX}-1{$ENDIF} do
-  begin
-    if RowAccessor.IsNull(I) and (Metadata.GetTableName(I) <> '')
-      and ((Metadata.GetDefaultValue(I) <> '') or (RowAccessor.GetColumnDefaultExpression(I) <> '')) then
-    begin
-      // DefaultExpression takes takes precedence on database default value
-      if RowAccessor.GetColumnDefaultExpression(I) <> '' then
-        Columns.Add(TZResolverParameter.Create(I,
-          Metadata.GetColumnName(I), Metadata.GetColumnType(I),
-          True, RowAccessor.GetColumnDefaultExpression(I)))
-      else
-        Columns.Add(TZResolverParameter.Create(I,
-          Metadata.GetColumnName(I), Metadata.GetColumnType(I),
-          True, Metadata.GetDefaultValue(I)));
-    end;
-  end;
-end;
-
-{**
-  Fills the specified statement with stored or given parameters.
-  @param ResultSet a source result set object.
-  @param Statement a DBC statement object.
-  @param Config an UpdateStatement configuration.
-  @param OldRowAccessor an accessor object to old column values.
-  @param NewRowAccessor an accessor object to new column values.
-}
-procedure TZGenericCachedResolver.FillStatement(const Statement: IZPreparedStatement;
-  Params: TObjectList; OldRowAccessor, NewRowAccessor: TZRowAccessor);
-var
-  I: Integer;
-  ColumnIndex: Integer;
-  Current: TZResolverParameter;
-  RowAccessor: TZRowAccessor;
-  WasNull: Boolean;
-  TempBytes: TBytes;
-begin
-  WasNull := False;
-  for I := 0 to Params.Count - 1 do
-  begin
-    Current := TZResolverParameter(Params[I]);
-    if Current.NewValue then
-      RowAccessor := NewRowAccessor
-    else
-      RowAccessor := OldRowAccessor;
-    ColumnIndex := Current.ColumnIndex;
-
-    if FCalcDefaults then
-      Statement.SetDefaultValue(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, Metadata.GetDefaultValue(ColumnIndex));
-    if RowAccessor.IsNull(ColumnIndex) then
-      Statement.SetNull(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, Metadata.GetColumnType(ColumnIndex))
-    else case Metadata.GetColumnType(ColumnIndex) of
-      stBoolean:
-        Statement.SetBoolean(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF},
-          RowAccessor.GetBoolean(ColumnIndex, WasNull));
-      stByte:
-        Statement.SetByte(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, RowAccessor.GetByte(ColumnIndex, WasNull));
-      stShort:
-        Statement.SetShort(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, RowAccessor.GetShort(ColumnIndex, WasNull));
-      stWord:
-        Statement.SetWord(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, RowAccessor.GetWord(ColumnIndex, WasNull));
-      stSmall:
-        Statement.SetSmall(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, RowAccessor.GetSmall(ColumnIndex, WasNull));
-      stLongWord:
-        Statement.SetUInt(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, RowAccessor.GetUInt(ColumnIndex, WasNull));
-      stInteger:
-        Statement.SetInt(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, RowAccessor.GetInt(ColumnIndex, WasNull));
-      stULong:
-        Statement.SetULong(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, RowAccessor.GetULong(ColumnIndex, WasNull));
-      stLong:
-        Statement.SetLong(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, RowAccessor.GetLong(ColumnIndex, WasNull));
-      stFloat:
-        Statement.SetFloat(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, RowAccessor.GetFloat(ColumnIndex, WasNull));
-      stCurrency:
-        Statement.SetCurrency(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, RowAccessor.GetCurrency(ColumnIndex, WasNull));
-      stDouble:
-        Statement.SetDouble(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, RowAccessor.GetDouble(ColumnIndex, WasNull));
-      stBigDecimal:
-        Statement.SetBigDecimal(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF},
-          RowAccessor.GetBigDecimal(ColumnIndex, WasNull));
-      stString, stUnicodeString:
-        Statement.SetCharRec(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF},
-          RowAccessor.GetCharRec(ColumnIndex, WasNull));
-      stBytes:
-        Statement.SetBytes(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, RowAccessor.GetBytes(ColumnIndex, WasNull));
-      stGUID: begin
-          TempBytes := RowAccessor.GetBytes(ColumnIndex, WasNull);
-          if Length(TempBytes) <> 16
-          then raise EZSQLException.Create('The rowaccessor did not return 16 bytes while trying to set a GUID.');
-          Statement.SetGuid(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, PGUID(@TempBytes[0])^);
-        end;
-      stDate:
-        Statement.SetDate(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, RowAccessor.GetDate(ColumnIndex, WasNull));
-      stTime:
-        Statement.SetTime(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, RowAccessor.GetTime(ColumnIndex, WasNull));
-      stTimestamp:
-        Statement.SetTimestamp(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF},
-          RowAccessor.GetTimestamp(ColumnIndex, WasNull));
-      stAsciiStream:
-         Statement.SetBlob(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, stAsciiStream,
-           RowAccessor.GetBlob(ColumnIndex, WasNull));
-      stUnicodeStream:
-         Statement.SetBlob(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, stUnicodeStream,
-           RowAccessor.GetBlob(ColumnIndex, WasNull));
-      stBinaryStream:
-         Statement.SetBlob(I {$IFNDEF GENERIC_INDEX}+1{$ENDIF}, stBinaryStream,
-           RowAccessor.GetBlob(ColumnIndex, WasNull));
-    end;
-  end;
-end;
-
-{**
-  Forms a where clause for UPDATE or DELETE DML statements.
-  @param Columns a collection of key columns.
-  @param OldRowAccessor an accessor object to old column values.
-}
-function TZGenericCachedResolver.FormWhereClause(Columns: TObjectList;
-  OldRowAccessor: TZRowAccessor): string;
-var
-  I, N: Integer;
-  Current: TZResolverParameter;
-  Condition: string;
-begin
-  Result := '';
-  N := Columns.Count - WhereColumns.Count;
-
-  for I := 0 to WhereColumns.Count - 1 do
-  begin
-    Current := TZResolverParameter(WhereColumns[I]);
-
-    Condition := IdentifierConvertor.Quote(Current.ColumnName);
-    if OldRowAccessor.IsNull(Current.ColumnIndex) then
-    begin
-      Condition := Condition + ' IS NULL';
-      Columns.Delete(N);
-    end
-    else
-    begin
-      Condition := Condition + '=?';
+  N := 0;
+  if FWhereColumns.Count > 0 then
+    SQLWriter.AddText(' WHERE ', Result);
+  for I := 0 to FWhereColumns.Count - 1 do begin
+    if I > 0 then
+      SQLWriter.AddText(' AND ', Result);
+    IDX := PZIndexPair(FWhereColumns[i]).ColumnIndex;
+    Condition := MetaData.GetColumnName(Idx);
+    Condition := IdentifierConverter.Quote(Condition, iqColumn);
+    SQLWriter.AddText(Condition, Result);
+    if OldRowAccessor.IsNull(IDX) then begin
+      SQLWriter.AddText(' IS NULL', Result);
+      FCurrentWhereColumns.Delete(N);
+      for IDX := N to FCurrentWhereColumns.Count -1 do
+        Dec(PZIndexPair(FCurrentWhereColumns[IDX]).SrcOrDestIndex);
+    end else begin
+      SQLWriter.AddText('=?', Result);
       Inc(N);
     end;
-    AppendSepString(Result, Condition, ' AND ');
   end;
-
-  if Result <> '' then
-    Result := ' WHERE ' + Result;
 end;
 
-{**
-  Forms a where clause for INSERT statements.
-  @param Columns a collection of key columns.
-  @param NewRowAccessor an accessor object to new column values.
-}
-function TZGenericCachedResolver.FormInsertStatement(Columns: TObjectList;
-  NewRowAccessor: TZRowAccessor): string;
+function TZGenerateSQLCachedResolver.GetResolverParameterValue(
+  const ParameterName: String): String;
+begin
+  {if Statement <> nil
+  then Result := Statement.GetParameters.Values[ParameterName]
+  else } Result := FParameters.Values[ParameterName];
+end;
+
+function TZGenerateSQLCachedResolver.HasAutoCommitTransaction: Boolean;
+begin
+  if FTransaction <> nil
+  then Result := FTransaction.GetAutoCommit
+  else Result := Connection.GetAutoCommit;
+end;
+
+function TZGenerateSQLCachedResolver.FormInsertStatement(
+  NewRowAccessor: TZRowAccessor): SQLString;
 var
-  I: Integer;
-  Current: TZResolverParameter;
-  TableName: string;
-  Temp1: string;
+  I, ColumnIndex: Integer;
+  Tmp: SQLString;
+  // NB: INSERT..RETURNING is only aclual for several drivers so we must ensure
+  // this unit is compilable with all these drivers disabled.
+  {$IF DECLARED(DSProps_InsertReturningFields)}
+  Fields: TStrings;
+  {$IFEND}
+  SQLWriter: TZSQLStringWriter;
 begin
-  TableName := DefineTableName;
-  DefineInsertColumns(Columns);
-  if Columns.Count = 0 then begin
-    Result := '';
-    Exit;
-  end;
+  I := MetaData.GetColumnCount;
+  SQLWriter := TZSQLStringWriter.Create(512+(I shl 5));
+  Result := 'INSERT INTO ';
+  try
+    Tmp := DefineTableName;
+    SQLWriter.AddText(Tmp, Result);
+    SQLWriter.AddChar(' ', Result);
+    SQLWriter.AddChar('(', Result);
+    if FInsertColumns.Count = 0 then
+      FillInsertColumnsPairList(NewRowAccessor);
+    if (FInsertColumns.Count = 0) and not
+       {test for generated always cols }
+       ((Metadata.GetColumnCount > 0) and Metadata.IsAutoIncrement(FirstDbcIndex)) then begin
+      Result := '';
+      Exit;
+    end;
+    for I := 0 to FInsertColumns.Count-1 do begin
+      ColumnIndex := PZIndexPair(FInsertColumns[i])^.ColumnIndex;
+      Tmp := Metadata.GetColumnName(ColumnIndex);
+      Tmp := IdentifierConverter.Quote(Tmp, iqColumn);
+      SQLWriter.AddText(Tmp, Result);
+      SQLWriter.AddChar(',', Result);
+    end;
+    SQLWriter.ReplaceOrAddLastChar(',', ')', Result);
+    SQLWriter.AddText(' VALUES (', Result);
+    for I := 0 to FInsertColumns.Count - 1 do begin
+      SQLWriter.AddChar('?', Result);
+      SQLWriter.AddChar(',', Result);
+    end;
+    SQLWriter.ReplaceOrAddLastChar(',', ')', Result);
 
-  Temp1 := '';
-  for I := 0 to Columns.Count - 1 do begin
-    Current := TZResolverParameter(Columns[I]);
-    AppendSepString(Temp1, IdentifierConvertor.Quote(Current.ColumnName), ',');
+    {$IF DECLARED(DSProps_InsertReturningFields)}
+    Tmp := GetResolverParameterValue(DSProps_InsertReturningFields);
+    if Tmp <> '' then begin
+      SQLWriter.AddText(' RETURNING ', Result);
+      Fields := ExtractFields(Tmp, [',', ';']);
+      for I := 0 to Fields.Count - 1 do begin
+        if I > 0 then
+          SQLWriter.AddChar(',', Result);
+        Tmp := IdentifierConverter.Quote(Fields[I], iqColumn);
+        SQLWriter.AddText(Tmp, Result);
+      end;
+      Fields.Free;
+    end;
+    {$IFEND}
+    SQLWriter.Finalize(Result);
+  finally
+    FreeAndNil(SQLWriter);
   end;
-
-  Result := 'INSERT INTO '+TableName+' ('+Temp1+') VALUES ('+
-    DupeString('?,', Columns.Count - 1) + '?' +')';
 end;
 
-{**
-  Forms a where clause for UPDATE statements.
-  @param Columns a collection of key columns.
-  @param OldRowAccessor an accessor object to old column values.
-  @param NewRowAccessor an accessor object to new column values.
-}
-function TZGenericCachedResolver.FormUpdateStatement(Columns: TObjectList;
-  OldRowAccessor, NewRowAccessor: TZRowAccessor): string;
+function TZGenerateSQLCachedResolver.FormUpdateStatement(
+  const OldRowAccessor, NewRowAccessor: TZRowAccessor): SQLString;
 var
-  I: Integer;
-  Current: TZResolverParameter;
-  TableName: string;
-  Temp: string;
+  I, ColumnIndex: Integer;
+  Temp: SQLString;
+  SQLWriter: TZSQLStringWriter;
+
 begin
-  TableName := DefineTableName;
-  DefineUpdateColumns(Columns, OldRowAccessor, NewRowAccessor);
-  if Columns.Count = 0 then
-  begin
-    Result := '';
-    Exit;
-  end;
+  SQLWriter := TZSQLStringWriter.Create(512+(MetaData.GetColumnCount shl 5));
+  Result := 'UPDATE ';
+  try
+    Temp := DefineTableName;
+    FillUpdateColumns(OldRowAccessor, NewRowAccessor);
+    if FUpdateColumns.Count = 0 then begin
+      Result := '';
+      Exit;
+    end;
+    SQLWriter.AddText(Temp, Result);
+    SQLWriter.AddText(' SET ', Result);
+    for I := 0 to FUpdateColumns.Count - 1 do begin
+      ColumnIndex := PZIndexPair(FUpdateColumns[i]).ColumnIndex;
+      if I > 0 then
+        SQLWriter.AddChar(',', Result);
+      Temp := MetaData.GetColumnName(ColumnIndex);
+      Temp := IdentifierConverter.Quote(Temp, iqColumn);
+      SQLWriter.AddText(Temp, Result);
+      SQLWriter.AddText('=?', Result);
+    end;
 
-  Temp := '';
-  for I := 0 to Columns.Count - 1 do
-  begin
-    Current := TZResolverParameter(Columns[I]);
-    AppendSepString(Temp, IdentifierConvertor.Quote(Current.ColumnName) + '=?', ',');
+    FillWhereKeyColumns(FUpdateColumns.Count);
+    FormWhereClause(SQLWriter, OldRowAccessor, Result);
+    SQLWriter.Finalize(Result);
+  finally
+    FreeAndNil(SQLWriter);
   end;
-
-  Result := 'UPDATE '+TableName+' SET '+Temp;
-  DefineWhereKeyColumns(Columns);
-  Result := Result + FormWhereClause(Columns, OldRowAccessor);
 end;
 
-{**
-  Forms a where clause for DELETE statements.
-  @param Columns a collection of key columns.
-  @param OldRowAccessor an accessor object to old column values.
-}
-function TZGenericCachedResolver.FormDeleteStatement(Columns: TObjectList;
-  OldRowAccessor: TZRowAccessor): string;
-begin
-  Result := 'DELETE FROM '+ DefineTableName;
-  DefineWhereKeyColumns(Columns);
-  Result := Result + FormWhereClause(Columns, OldRowAccessor);
-end;
-
-{**
-  Forms a where clause for SELECT statements to calculate default values.
-  @param Columns a collection of key columns.
-  @param OldRowAccessor an accessor object to old column values.
-}
-function TZGenericCachedResolver.FormCalculateStatement(
-  Columns: TObjectList): string;
+function TZGenerateSQLCachedResolver.FormDeleteStatement(
+  const OldRowAccessor: TZRowAccessor): SQLString;
 var
-  I: Integer;
-  Current: TZResolverParameter;
+  SQLWriter: TZSQLStringWriter;
+  Tmp: SQLString;
 begin
-  Result := '';
-  if Columns.Count = 0 then
-     Exit;
-
-  for I := 0 to Columns.Count - 1 do
-  begin
-    Current := TZResolverParameter(Columns[I]);
-    if Current.DefaultValue <> '' then
-      AppendSepString(Result, Current.DefaultValue, ',')
-    else
-      AppendSepString(Result, 'NULL', ',');
+  SQLWriter := TZSQLStringWriter.Create(512+(MetaData.GetColumnCount shl 5));
+  Result := 'DELETE FROM ';
+  try
+    Tmp := DefineTableName;
+    SQLWriter.AddText(Tmp, Result);
+    FillWhereKeyColumns(0);
+    FormWhereClause(SQLWriter, OldRowAccessor, Result);
+    SQLWriter.Finalize(Result);
+  finally
+    FreeAndNil(SQLWriter);
+    Tmp := '';
   end;
-  Result := 'SELECT ' + Result;
 end;
 
-{**
-  Posts updates to database.
-  @param Sender a cached result set object.
-  @param UpdateType a type of updates.
-  @param OldRowAccessor an accessor object to old column values.
-  @param NewRowAccessor an accessor object to new column values.
-}
-procedure TZGenericCachedResolver.PostUpdates(Sender: IZCachedResultSet;
-  UpdateType: TZRowUpdateType; OldRowAccessor, NewRowAccessor: TZRowAccessor);
+procedure TZGenerateSQLCachedResolver.FillInsertColumnsPairList(NewRowAccessor: TZRowAccessor);
+var I, J: Integer;
+  Tmp: String;
+begin
+  FInsertColumns.Clear;
+  FInsertColumns.Capacity := MetaData.GetColumnCount;
+  J := FirstDbcIndex;
+  for I := FirstDbcIndex to FInsertColumns.Capacity{$IFDEF GENERIC_INDEX}-1{$ENDIF} do begin
+    Tmp := Metadata.GetTableName(I);
+    if (Tmp = '') or Metadata.IsReadOnly(I) or  not Metadata.IsWritable(I) or
+       (Metadata.IsAutoIncrement(I) and NewRowAccessor.IsNull(I)) then continue;
+    Tmp := Metadata.GetColumnName(I);
+    if Tmp <> '' then begin
+      FInsertColumns.Add(J, I);
+      Inc(J);
+    end;
+  end;
+end;
+
+function TZGenerateSQLCachedResolver.FormCalculateStatement(
+  const RowAccessor: TZRowAccessor; const ColumnsLookup: TZIndexPairList): SQLString;
+var
+  I, ColumnIndex: Integer;
+  SQLWriter: TZSQLStringWriter;
+  S: String;
+begin
+  Result := 'SELECT ';
+  SQLWriter := TZSQLStringWriter.Create(512+(ColumnsLookup.Count shl 5));
+  try
+    for I := 0 to ColumnsLookup.Count - 1 do begin
+      ColumnIndex := PZIndexPair(ColumnsLookup[i]).ColumnIndex;
+      S := RowAccessor.GetColumnDefaultExpression(ColumnIndex);
+      if S = '' then S := Metadata.GetDefaultValue(ColumnIndex);
+      if S = '' then S := 'NULL';
+      SQLWriter.AddText(S, Result);
+      SQLWriter.AddChar(',', Result);
+    end;
+    SQLWriter.CancelLastComma(Result);
+    SQLWriter.Finalize(Result);
+  finally
+    FreeAndNil(SQLWriter);
+  end;
+end;
+
+procedure TZGenerateSQLCachedResolver.PostUpdates(const Sender: IZCachedResultSet;
+  UpdateType: TZRowUpdateType; const OldRowAccessor, NewRowAccessor: TZRowAccessor);
 var
   Statement            : IZPreparedStatement;
   SQL                  : string;
-  SQLParams            : TObjectList;
   lUpdateCount         : Integer;
   lValidateUpdateCount : Boolean;
-  TempKey              : IZAnyValue;
+  TempKey              : NativeUInt;
   SenderStatement      : IZStatement;
+  Val                  : PZKeyAndPreparedStatmentPair;
+  {$IFDEF WITH_VALIDATE_UPDATE_COUNT}
+  function CreateInvalidUpdateCountException: EZSQLException; //suppress _U/LStrArrClear
+  begin
+    Result := EZSQLException.Create(Format(SInvalidUpdateCount, [lUpdateCount]));
+  end;
+  {$ENDIF WITH_VALIDATE_UPDATE_COUNT}
 begin
   if (UpdateType = utDeleted) and (OldRowAccessor.RowBuffer.UpdateType = utInserted) then
     Exit;
@@ -807,62 +815,80 @@ begin
   case UpdateType of
     utInserted:
       begin
-        if InsertStatement = nil then begin
-          SQL := FormInsertStatement(FInsertParams, NewRowAccessor);
-          InsertStatement := CreateResolverStatement(SQL);
-          Statement := InsertStatement;
+        if (InsertStatement = nil) or InsertStatement.IsClosed or (FInsertColumns.Count = 0) then begin
+          InsertStatement := nil;
+          SQL := FormInsertStatement(NewRowAccessor);
+          TempKey := Hash(SQL);
+          Val := FInsertStatements.Get(TempKey);
+          If (Val = nil) or Val.Statement.IsClosed then begin
+            if (Val <> nil) then
+              FInsertStatements.Remove(TempKey);
+            InsertStatement := CreateResolverStatement(SQL);
+            FInsertStatements.Add(TempKey, InsertStatement);
+          end else begin
+            InsertStatement := Val.Statement;
+          end;
         end;
         Statement := InsertStatement;
-        SQLParams := FInsertParams;
+        NewRowAccessor.FillStatement(Statement, FInsertColumns, Metadata);
       end;
     utDeleted:
       begin
-        if not FWhereAll then begin
-          If DeleteStatement = nil then begin
-            SQL := FormDeleteStatement(FDeleteParams, OldRowAccessor);
-            DeleteStatement := CreateResolverStatement(SQL);
-          end;
-          Statement := DeleteStatement;
-          SQLParams := FDeleteParams;
-        end else begin
-          FDeleteParams.Clear;  //EH: where columns propably are cached after 1. call
-          SQL := FormDeleteStatement(FDeleteParams, OldRowAccessor);
-          if SQL = '' then Exit;
-          TempKey := TZAnyValue.CreateWithInteger(Hash(SQL));
-          Statement := FStatements.Get(TempKey) as IZPreparedStatement;
-          If Statement = nil then begin
+        if not FWhereAll or (FWhereColumns.Count = 0) then begin
+          If (FDeleteStatements.Count = 0) or PZKeyAndPreparedStatmentPair(FDeleteStatements[0]).Statement.IsClosed then begin
+            FDeleteStatements.Count := 0;
+            SQL := FormDeleteStatement(OldRowAccessor);
+            TempKey := Hash(SQL);
             Statement := CreateResolverStatement(SQL);
-            FStatements.Put(TempKey, Statement);
+            FDeleteStatements.Add(TempKey, Statement);
+          end else begin
+            //refill the FillWhereKeyColumns, the offsets might be changed by a
+            //previous row update see: https://sourceforge.net/p/zeoslib/tickets/461/
+            if PZIndexPair(WhereColumnsLookup[0]).SrcOrDestIndex <> FirstDbcIndex then
+              FillWhereKeyColumns(0);
+            Statement := PZKeyAndPreparedStatmentPair(FDeleteStatements[0]).Statement;
           end;
-          SQLParams := FDeleteParams;
+        end else begin
+          SQL := FormDeleteStatement(OldRowAccessor);
+          if SQL = '' then Exit;
+          TempKey := Hash(SQL);
+          Val := FInsertStatements.Get(TempKey);
+          If (Val = nil) or (Val.Statement.IsClosed) then begin
+            if Statement <> nil then
+              FUpdateStatements.Remove(TempKey);
+            Statement := CreateResolverStatement(SQL);
+            FDeleteStatements.Add(TempKey, Statement);
+          end else
+            Statement := Val.Statement;
         end;
+        OldRowAccessor.FillStatement(Statement, FCurrentWhereColumns, Metadata);
       end;
     utModified:
       begin
-        FUpdateParams.Clear;  //EH: where columns propably are cached after 1. call
         //now what's faster?: caching stmts too by using a hashmap or recreate always
         //first of all: we need the new command-stmt
-        SQL := FormUpdateStatement(FUpdateParams, OldRowAccessor, NewRowAccessor);
+        SQL := FormUpdateStatement(OldRowAccessor, NewRowAccessor);
         If SQL = '' then exit;// no fields have been changed
-        TempKey := TZAnyValue.CreateWithInteger(Hash(SQL));
-        UpdateStatement := FStatements.Get(TempKey) as IZPreparedStatement;
-        If UpdateStatement = nil then begin
-          UpdateStatement := CreateResolverStatement(SQL);
-          FStatements.Put(TempKey, UpdateStatement);
-        end;
-        Statement := UpdateStatement;
-        SQLParams := FUpdateParams;
+        TempKey := Hash(SQL);
+        Val := FUpdateStatements.Get(TempKey);
+        If (Val = nil) or (Val.Statement.IsClosed) then begin
+          Statement := CreateResolverStatement(SQL);
+          if Statement <> nil then
+            FUpdateStatements.Remove(TempKey);
+          FUpdateStatements.Add(TempKey, Statement);
+        end else
+          Statement := Val.Statement;
+        OldRowAccessor.FillStatement(Statement, FCurrentWhereColumns, Metadata);
+        NewRowAccessor.FillStatement(Statement, FUpdateColumns, Metadata);
       end;
     else
       Exit;
   end;
 
-  FillStatement(Statement, SQLParams, OldRowAccessor, NewRowAccessor);
-
   // if Property ValidateUpdateCount isn't set : assume it's true
   SenderStatement := Sender.GetStatement;
   if Assigned(SenderStatement) then begin
-    SQL := SenderStatement.GetParameters.Values['ValidateUpdateCount'];
+    SQL := SenderStatement.GetParameters.Values[DSProps_ValidateUpdateCount];
     lValidateUpdateCount := (SQL = '') or StrToBoolEx(SQL);
   end else begin
     lValidateUpdateCount := true;
@@ -871,123 +897,272 @@ begin
   lUpdateCount := Statement.ExecuteUpdatePrepared;
   {$IFDEF WITH_VALIDATE_UPDATE_COUNT}
   if  (lValidateUpdateCount) and (lUpdateCount <> 1   ) then
-    raise EZSQLException.Create(Format(SInvalidUpdateCount, [lUpdateCount]));
+    raise CreateInvalidUpdateCountException;
   {$ENDIF}
 end;
 
-{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "$1" not used} {$ENDIF} // abstract method - parameters not used intentionally
-procedure TZGenericCachedResolver.RefreshCurrentRow(Sender: IZCachedResultSet; RowAccessor: TZRowAccessor);
-begin
- raise EZSQLException.Create(SRefreshRowOnlySupportedWithUpdateObject);
-end;
-
-{**
-  Calculate default values for the fields.
-  @param Sender a cached result set object.
-  @param RowAccessor an accessor object to column values.
-}
-procedure TZGenericCachedResolver.CalculateDefaults(
-  Sender: IZCachedResultSet; RowAccessor: TZRowAccessor);
-var
-  I: Integer;
-  SQL: string;
-  SQLParams: TObjectList;
-  Statement: IZStatement;
-  ResultSet: IZResultSet;
-  Metadata: IZResultSetMetadata;
-  Current: TZResolverParameter;
-  Len: NativeUInt;
-begin
-  if not FCalcDefaults then
-     Exit;
-
-  SQLParams := TObjectList.Create(True);
-  try
-    DefineCalcColumns(SQLParams, RowAccessor);
-    SQL := FormCalculateStatement(SQLParams);
-    if SQL = '' then
-       Exit;
-
-    { Executes statement and fills default fields. }
-    Statement := Connection.CreateStatement;
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "$1" not used} {$ENDIF} //rolling eyes
+procedure TZGenerateSQLCachedResolver.RefreshCurrentRow(const Sender: IZCachedResultSet; RowAccessor: TZRowAccessor);
+var Stmt: IZPreparedStatement;
+  procedure InitStmt(out Stmt: IZPreparedStatement);
+  var
+    I, ColumnIndex: Integer;
+    SQL, Tmp: SQLString;
+    SQLWriter: TZSQLStringWriter;
+  begin
+    Stmt := nil;
+    SQLWriter := TZSQLStringWriter.Create(512+(MetaData.GetColumnCount shl 5));
+    SQL := 'SELECT ';
     try
-      ResultSet := Statement.ExecuteQuery(SQL);
-      if ResultSet.Next then
-      begin
-        Metadata := ResultSet.GetMetadata;
-        for I := FirstDbcIndex to Metadata.GetColumnCount{$IFDEF GENERIC_INDEX}-1{$ENDIF} do
-        begin
-          Current := TZResolverParameter(SQLParams[I{$IFNDEF GENERIC_INDEX}-1{$ENDIF}]);
-          try
-            case Current.ColumnType of
-              stBoolean:
-                RowAccessor.SetBoolean(Current.ColumnIndex,
-                  ResultSet.GetBoolean(I));
-              stByte:
-                RowAccessor.SetByte(Current.ColumnIndex, ResultSet.GetByte(I));
-              stShort:
-                RowAccessor.SetShort(Current.ColumnIndex, ResultSet.GetShort(I));
-              stWord:
-                RowAccessor.SetWord(Current.ColumnIndex, ResultSet.GetWord(I));
-              stSmall:
-                RowAccessor.SetShort(Current.ColumnIndex, ResultSet.GetSmall(I));
-              stInteger:
-                RowAccessor.SetInt(Current.ColumnIndex, ResultSet.GetInt(I));
-              stLongWord:
-                RowAccessor.SetUInt(Current.ColumnIndex, ResultSet.GetUInt(I));
-              stLong:
-                RowAccessor.SetLong(Current.ColumnIndex, ResultSet.GetLong(I));
-              stULong:
-                RowAccessor.SetULong(Current.ColumnIndex, ResultSet.GetULong(I));
-              stFloat:
-                RowAccessor.SetFloat(Current.ColumnIndex, ResultSet.GetFloat(I));
-              stCurrency:
-                RowAccessor.SetCurrency(Current.ColumnIndex, ResultSet.GetCurrency(I));
-              stDouble:
-                RowAccessor.SetDouble(Current.ColumnIndex, ResultSet.GetDouble(I));
-              stBigDecimal:
-                RowAccessor.SetBigDecimal(Current.ColumnIndex, ResultSet.GetBigDecimal(I));
-              stString, stAsciiStream, stUnicodeString, stUnicodeStream:
-                if RowAccessor.IsRaw then
-                  RowAccessor.SetPAnsiChar(Current.ColumnIndex, ResultSet.GetPAnsiChar(I, Len), @Len)
-                else
-                  RowAccessor.SetPWideChar(Current.ColumnIndex, ResultSet.GetPWideChar(I, Len), @Len);
-              stBytes, stGUID:
-                RowAccessor.SetBytes(Current.ColumnIndex, ResultSet.GetBytes(I));
-              stDate:
-                RowAccessor.SetDate(Current.ColumnIndex, ResultSet.GetDate(I));
-              stTime:
-                RowAccessor.SetTime(Current.ColumnIndex, ResultSet.GetTime(I));
-              stTimestamp:
-                RowAccessor.SetTimestamp(Current.ColumnIndex, ResultSet.GetTimestamp(I));
-            end;
-
-            if ResultSet.WasNull then
-              RowAccessor.SetNull(Current.ColumnIndex);
-          except
-            { Supress any errors in default fields. }
-          end;
-        end;
+      if FInsertColumns.Count = 0 then
+        FillInsertColumnsPairList(RowAccessor);
+      if FInsertColumns.Count = 0 then
+        Exit;
+      for I := 0 to FInsertColumns.Count-1 do begin
+        ColumnIndex := PZIndexPair(FInsertColumns[i])^.ColumnIndex;
+        Tmp := Metadata.GetColumnName(ColumnIndex);
+        Tmp := IdentifierConverter.Quote(Tmp, iqColumn);
+        SQLWriter.AddText(Tmp, SQL);
+        SQLWriter.AddChar(',', SQL);
       end;
-      ResultSet.Close;
+      SQLWriter.ReplaceOrAddLastChar(',', ' ', SQL);
+      SQLWriter.AddText('FROM ', SQL);
+      Tmp := DefineTableName;
+      SQLWriter.AddText(Tmp, SQL);
+
+      FillWhereKeyColumns(0);
+      FormWhereClause(SQLWriter, RowAccessor, SQL);
+      SQLWriter.Finalize(SQL);
+      Stmt := CreateResolverStatement(SQL);
     finally
-      Statement.Close;
+      FreeAndNil(SQLWriter);
     end;
-  finally
-    FreeAndNil(SQLParams);
+  end;
+begin
+  if (RefreshResultSet = nil) or (RefreshResultSet.GetStatement = nil) or RefreshResultSet.GetStatement.IsClosed or WhereAll
+  then InitStmt(Stmt)
+  else RefreshResultSet.GetStatement.QueryInterface(IZPreparedStatement, Stmt);
+  if Stmt = nil then
+    raise EZSQLException.Create(SUpdateSQLNoResult)
+  else begin
+    if WhereAll then
+      RowAccessor.FillStatement(Stmt, FCurrentWhereColumns, Metadata)
+    else
+      RowAccessor.FillStatement(Stmt, FWhereColumns, Metadata);
+    RefreshResultSet := Stmt.ExecuteQueryPrepared;
+    if (RefreshResultSet = nil) or not RefreshResultSet.Next then
+      raise EZSQLException.Create(SUpdateSQLNoResult);
+    RowAccessor.FillFromFromResultSet(RefreshResultSet, FInsertColumns);
+    RefreshResultSet.ResetCursor; //unlock handles
+  end;  
+end;
+{$IFDEF FPC} {$POP} {$ENDIF}
+
+procedure TZGenerateSQLCachedResolver.SetTransaction(
+  const Value: IZTransaction);
+begin
+  if FTransaction <> Value then begin
+    FlushStatementCache;
+    FTransaction := Value;
   end;
 end;
 
-{BEGIN of PATCH [1185969]: Do tasks after posting updates. ie: Updating AutoInc fields in MySQL }
-procedure TZGenericCachedResolver.UpdateAutoIncrementFields(
-  Sender: IZCachedResultSet; UpdateType: TZRowUpdateType; OldRowAccessor,
-  NewRowAccessor: TZRowAccessor; Resolver: IZCachedResolver);
+function TZGenerateSQLCachedResolver.GetTransaction: IZTransaction;
+  function GetConnectionTransaction: IZTransaction;
+  var Connection: IZConnection;
+  begin
+    Connection := FDatabaseMetadata.GetConnection;
+    Result := Connection.GetConnectionTransaction
+  end;
+begin
+  Result := FTransaction;
+  if Result = nil then
+    Result := GetConnectionTransaction;
+end;
+
+procedure TZGenerateSQLCachedResolver.SetCalcDefaults(Value: Boolean);
+begin
+  FCalcDefaults := Value;
+end;
+
+procedure TZGenerateSQLCachedResolver.SetConnection(const Value: IZConnection);
+begin
+  if Connection <> Value then begin
+    FlushStatementCache;
+    Connection := Value;
+    if FStatement <> nil then begin
+      FStatement.Close;
+      FStatement := nil;
+    end;
+    if Value <> nil then begin
+      FDatabaseMetadata := Connection.GetMetadata;
+      FIdentifierConverter := FDatabaseMetadata.GetIdentifierConverter;
+    end else begin
+      FDatabaseMetadata := nil;
+      FIdentifierConverter := nil;
+      SetTransaction(nil);
+    end;
+  end;
+end;
+
+procedure TZGenerateSQLCachedResolver.SetMetadata(
+  const Value: IZResultSetMetadata);
+begin
+  if Metadata <> Value then
+    Metadata := Value;
+end;
+
+procedure TZGenerateSQLCachedResolver.SetUpdateAll(Value: Boolean);
+begin
+  FUpdateAll := Value;
+end;
+
+procedure TZGenerateSQLCachedResolver.SetWhereAll(Value: Boolean);
+begin
+  FWhereAll := Value;
+end;
+
+procedure TZGenerateSQLCachedResolver.SetReadOnly(ColumnIndex: Integer;
+  Value: Boolean);
+begin
+  if (Metadata <> nil) and (Metadata.IsReadOnly(ColumnIndex) <> Value) then begin
+    Metadata.SetReadOnly(ColumnIndex, Value);
+    if Metadata.IsReadOnly(ColumnIndex) = Value then begin
+      FInsertColumns.Clear;
+      FUpdateColumns.Clear;
+    end;
+  end;
+end;
+
+procedure TZGenerateSQLCachedResolver.SetResolverParameters(Value: TStrings);
+begin
+  FParameters.Assign(Value);
+end;
+
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "Statemnt" not used} {$ENDIF}
+procedure TZGenerateSQLCachedResolver.SetResolverStatementParamters(
+  const Statement: IZStatement; {$IFDEF AUTOREFCOUNT}const {$ENDIF} Params: TStrings);
+begin
+  {if Statement <> nil
+  then Params.Assign(Statement.GetParameters)
+  else }Params.Assign(FParameters)
+end;
+{$IFDEF FPC} {$POP} {$ENDIF}
+
+procedure TZGenerateSQLCachedResolver.SetSearchable(ColumnIndex: Integer;
+  Value: Boolean);
+begin
+  if (Metadata <> nil) and (Metadata.IsSearchable(ColumnIndex) <> Value) then begin
+    Metadata.SetSearchable(ColumnIndex, Value);
+    if Metadata.IsSearchable(ColumnIndex) = Value then
+      FWhereColumns.Clear;
+  end;
+end;
+
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "Sender" not used} {$ENDIF}
+procedure TZGenerateSQLCachedResolver.CalculateDefaults(
+  const Sender: IZCachedResultSet; const RowAccessor: TZRowAccessor);
+var
+  SQL: string;
+  DefaultColumnsLookup: TZIndexPairList;
+  Statement: IZStatement;
+  ResultSet: IZResultSet;
+  I, J: Integer;
+begin
+  if not FCalcDefaults then
+     Exit;
+  DefaultColumnsLookup := TZIndexPairList.Create;
+  try
+    J := FirstDbcIndex;
+    DefaultColumnsLookup.Capacity := Metadata.GetColumnCount;
+    for I := FirstDbcIndex to Metadata.GetColumnCount{$IFDEF GENERIC_INDEX}-1{$ENDIF} do
+      if RowAccessor.IsNull(I) and (Metadata.GetTableName(I) <> '')
+        and (Metadata.HasDefaultValue(I) or RowAccessor.HasColumnDefaultExpression(I)) then begin
+          DefaultColumnsLookup.Add(J, I);
+          Inc(J);
+        end;
+    if J = FirstDbcIndex then
+       Exit;
+    SQL := FormCalculateStatement(RowAccessor, DefaultColumnsLookup);
+    if SQL = '' then
+       Exit;
+    { Executes statement and fills default fields. }
+    Statement := Connection.CreateStatement;
+    ResultSet := Statement.ExecuteQuery(SQL);
+    if ResultSet.Next then
+      try
+        RowAccessor.FillFromFromResultSet(ResultSet, DefaultColumnsLookup);
+      except
+        { Supress any errors in default fields. }
+      end;
+    ResultSet.Close;
+    Statement.Close;
+  finally
+    FreeAndnil(DefaultColumnsLookup);
+  end;
+end;
+{$IFDEF FPC} {$POP} {$ENDIF}
+
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "$1" not used} {$ENDIF} // abstract base class - parameters not used intentionally
+ procedure TZGenerateSQLCachedResolver.UpdateAutoIncrementFields(
+  const Sender: IZCachedResultSet; UpdateType: TZRowUpdateType;
+  const OldRowAccessor, NewRowAccessor: TZRowAccessor; const Resolver: IZCachedResolver);
 begin
  //Should be implemented at Specific database Level Cached resolver
 end;
 {$IFDEF FPC} {$POP} {$ENDIF}
 
-{END of PATCH [1185969]: Do tasks after posting updates. ie: Updating AutoInc fields in MySQL }
+{ TZKeyAndPreparedStatementPairList }
+
+procedure TZKeyAndPreparedStatementPairList.Add(Hash: NativeUInt;
+  const Statement: IZPreparedStatement);
+var Index: NativeInt;
+  KeyAndPreparedStatmentPair: PZKeyAndPreparedStatmentPair;
+begin
+  KeyAndPreparedStatmentPair := inherited Add(Index);
+  KeyAndPreparedStatmentPair.Key := Hash;
+  KeyAndPreparedStatmentPair.Statement := Statement;
+end;
+
+constructor TZKeyAndPreparedStatementPairList.Create;
+begin
+  inherited Create(SizeOf(TZKeyAndPreparedStatmentPair), True);
+end;
+
+function TZKeyAndPreparedStatementPairList.Get(
+  Hash: NativeUInt): PZKeyAndPreparedStatmentPair;
+var I: NativeInt;
+begin
+  for I := 0 to Count -1 do begin
+    Result := inherited Get(I);
+    if (Result.Key = Hash) then
+      Exit;
+  end;
+  Result := nil;
+
+end;
+
+procedure TZKeyAndPreparedStatementPairList.Notify(Ptr: Pointer;
+  Action: TListNotification);
+begin
+  if (Action = lnDeleted) and (PZKeyAndPreparedStatmentPair(Ptr).Statement <> nil) then begin
+    PZKeyAndPreparedStatmentPair(Ptr).Statement.Close;
+    PZKeyAndPreparedStatmentPair(Ptr).Statement := nil;
+  end;
+end;
+
+procedure TZKeyAndPreparedStatementPairList.Remove(Hash: NativeUInt);
+var I: NativeInt;
+    Pair: PZKeyAndPreparedStatmentPair;
+begin
+  for I := 0 to Count -1 do begin
+    Pair := inherited Get(I);
+    if (Pair.Key = Hash) then begin
+      Delete(I);
+      Break;
+    end;
+  end;
+end;
 
 end.
 

@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -55,137 +55,54 @@ interface
 
 {$I ZParseSql.inc}
 
-{$IFNDEF ZEOS_DISABLE_DBLIB}
+{$IF defined(ZEOS_DISABLE_DBLIB) and defined(ZEOS_DISABLE_ASA) and
+     defined(ZEOS_DISABLE_SQLANY) and defined(ZEOS_DISABLE_ADO) and
+     defined(ZEOS_DISABLE_OLEDB) and defined(ZEOS_DISABLE_ODBC) and defined(ZEOS_DISABLE_PROXY)}
+  {$DEFINE EMPTY_ZSybaseToken}
+{$IFEND}
 
-uses
-  Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils,
-  ZTokenizer, ZGenericSqlToken;
+{$IFNDEF DEFINE EMPTY_ZSybaseToken}
+
+uses ZTokenizer, ZGenericSqlToken;
 
 type
-
-  {** Implements a Sybase-specific number state object. }
+  /// <summary>Implements a Sybase-specific number state object.</summary>
   TZSybaseNumberState = TZGenericSQLHexNumberState;
 
-  {** Implements a Sybase-specific quote string state object. }
-  TZSybaseQuoteState = class (TZQuoteState)
-  public
-    function NextToken(Stream: TStream; FirstChar: Char;
-      {%H-}Tokenizer: TZTokenizer): TZToken; override;
+  /// <summary>Implements a Sybase-specific quote string state object.</summary>
+  TZSybaseQuoteState = TZGenericSQLBracketQuoteState;
 
-    function EncodeString(const Value: string; QuoteChar: Char): string; override;
-    function DecodeString(const Value: string; QuoteChar: Char): string; override;
-  end;
-
-  {** Implements a comment state object. }
+  /// <summary>Implements a Sybase-specific a comment state object.</summary>
   TZSybaseCommentState = TZGenericSQLCommentState;
 
-  {** Implements a symbol state object. }
+  /// <summary>Implements a Sybase-specific a symbol state object.</summary>
   TZSybaseSymbolState = class (TZSymbolState)
   public
+    /// <summary>Creates this Sybase-specific symbol state object.</summary>
     constructor Create;
   end;
 
-  {** Implements a word state object. }
+  /// <summary>Implements a Sybase-specific a word state object.</summary>
   TZSybaseWordState = class (TZGenericSQLWordState)
   public
+    /// <summary>Constructs this Sybase-specific word state object.</summary>
     constructor Create;
   end;
 
-  {** Implements a default tokenizer object. }
+  /// <summary>Implements a Sybase-specific a tokenize object.</summary>
   TZSybaseTokenizer = class (TZTokenizer)
   protected
+    /// <summary>Constructs a default state table (as described in the class
+    ///  comment).</summary>
     procedure CreateTokenStates; override;
   end;
 
-{$ENDIF ZEOS_DISABLE_DBLIB}
+{$ENDIF EMPTY_ZSybaseToken}
 implementation
-{$IFNDEF ZEOS_DISABLE_DBLIB}
-
-uses ZCompatibility
-{$IFDEF FAST_MOVE},ZFastCode{$ENDIF};
-
-{ TZSybaseQuoteState }
-
-{**
-  Return a quoted string token from a reader. This method
-  will collect characters until it sees a match to the
-  character that the tokenizer used to switch to this state.
-
-  @return a quoted string token from a reader
-}
-function TZSybaseQuoteState.NextToken(Stream: TStream; FirstChar: Char;
-  Tokenizer: TZTokenizer): TZToken;
-var
-  ReadChar: Char;
-  LastChar: Char;
-begin
-  Result.Value := '';
-  InitBuf(FirstChar);
-  LastChar := #0;
-  while Stream.Read(ReadChar{%H-}, SizeOf(Char)) > 0 do
-  begin
-    if ((LastChar = FirstChar) and (ReadChar <> FirstChar)
-      and (FirstChar <> '[')) or ((FirstChar = '[') and (LastChar = ']')) then
-    begin
-      Stream.Seek(-SizeOf(Char), soFromCurrent);
-      Break;
-    end;
-    ToBuf(ReadChar, Result.Value);
-    if (LastChar = FirstChar) and (ReadChar = FirstChar) then
-      LastChar := #0
-    else LastChar := ReadChar;
-  end;
-  FlushBuf(Result.Value);
-
-  if CharInSet(FirstChar, ['"', '[']) then
-    Result.TokenType := ttWord
-  else Result.TokenType := ttQuoted;
-end;
-
-{**
-  Encodes a string value.
-  @param Value a string value to be encoded.
-  @param QuoteChar a string quote character.
-  @returns an encoded string.
-}
-function TZSybaseQuoteState.EncodeString(const Value: string; QuoteChar: Char): string;
-begin
-  if QuoteChar = '[' then
-    Result := '[' + Value + ']'
-  else if CharInSet(QuoteChar, [#39, '"']) then
-    Result := QuoteChar + Value + QuoteChar
-  else Result := Value;
-end;
-
-{**
-  Decodes a string value.
-  @param Value a string value to be decoded.
-  @param QuoteChar a string quote character.
-  @returns an decoded string.
-}
-function TZSybaseQuoteState.DecodeString(const Value: string; QuoteChar: Char): string;
-begin
-  Result := Value;
-  if Length(Value) >= 2 then
-  begin
-    if CharInSet(QuoteChar, [#39, '"']) and (Value[1] = QuoteChar)
-      and (Value[Length(Value)] = QuoteChar) then
-    begin
-      if Length(Value) > 2 then
-        Result := AnsiDequotedStr(Value, QuoteChar)
-      else Result := '';
-    end
-    else if (QuoteChar = '[') and (Value[1] = QuoteChar)
-      and (Value[Length(Value)] = ']') then
-      Result := Copy(Value, 2, Length(Value) - 2)
-  end;
-end;
+{$IFNDEF EMPTY_ZSybaseToken}
 
 { TZSybaseSymbolState }
 
-{**
-  Creates this Sybase-specific symbol state object.
-}
 constructor TZSybaseSymbolState.Create;
 begin
   inherited Create;
@@ -199,9 +116,6 @@ end;
 
 { TZSybaseWordState }
 
-{**
-  Constructs this Sybase-specific word state object.
-}
 constructor TZSybaseWordState.Create;
 begin
   SetWordChars(#0, #191, False);
@@ -217,9 +131,6 @@ end;
 
 { TZSybaseTokenizer }
 
-{**
-  Constructs a default state table (as described in the class comment).
-}
 procedure TZSybaseTokenizer.CreateTokenStates;
 begin
   WhitespaceState := TZWhitespaceState.Create;
@@ -253,5 +164,5 @@ begin
   SetCharacterState('-', '-', CommentState);
 end;
 
-{$ENDIF ZEOS_DISABLE_DBLIB}
+{$ENDIF EMPTY_ZSybaseToken}
 end.

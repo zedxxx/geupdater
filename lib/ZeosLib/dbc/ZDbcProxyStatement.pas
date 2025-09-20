@@ -55,11 +55,11 @@ interface
 
 {$I ZDbc.inc}
 
-{$IFNDEF ZEOS_DISABLE_PROXY} //if set we have an empty unit
+{$IFDEF ENABLE_PROXY} //if set we have an empty unit
 uses
   Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils,
   {$IF defined(UNICODE) and not defined(WITH_UNICODEFROMLOCALECHARS)}Windows,{$IFEND}
-  ZDbcIntfs, ZDbcStatement, ZDbcLogging,
+  ZDbcIntfs, ZDbcBeginnerStatement, ZDbcLogging,
   ZCompatibility, ZVariant, ZDbcGenericResolver, ZDbcCachedResultSet,
   ZDbcUtils;
 
@@ -71,7 +71,7 @@ type
     ['{16818F5D-9A5B-4402-A71A-40839E414D2D}']
   end;
 
-  TZDbcProxyPreparedStatement = class({$IFNDEF ZEOS73UP}TZAbstractPreparedStatement{$ELSE}TZAbstractPreparedStatement2{$ENDIF},
+  TZDbcProxyPreparedStatement = class({$IFNDEF ZEOS73UP}TZAbstractPreparedStatement{$ELSE}TZAbstractBeginnerPreparedStatement{$ENDIF},
     IZProxyPreparedStatement)
   private
   protected
@@ -126,25 +126,17 @@ type
     function ExecutePrepared: Boolean; override;
   end;
 
-{$ENDIF ZEOS_DISABLE_PROXY} //if set we have an empty unit
+{$ENDIF ENABLE_PROXY} //if set we have an empty unit
 implementation
-{$IFNDEF ZEOS_DISABLE_PROXY} //if set we have an empty unit
+{$IFDEF ENABLE_PROXY} //if set we have an empty unit
 
 uses
   {$IFDEF WITH_UNITANSISTRINGS}AnsiStrings, {$ENDIF}
   ZSysUtils, ZFastCode, ZMessages, ZDbcProxy, ZDbcProxyResultSet, ZDbcProxyUtils,
   ZEncoding, ZTokenizer, ZClasses,
-  {$IFDEF ZEOS73UP}FMTBCD, {$ENDIF}
-  // Resolvers that did not move between Zeos versions:
-  ZDbcASA,ZDbcDbLibResultSet, ZDbcOracle,
-  {$IFNDEF ZEOS73UP}
-  // Zeos 7.2 resolvers
-  ZDbcInterbase6, ZdbcPostgreSqlStatement,
-  {$ELSE}
-  // Zeos 7.3 resolvers
-  ZDbcInterbase6Resultset, ZDbcPostgresqlResultSet,
-  {$ENDIF}
-  TypInfo, Variants, NetEncoding
+  // For the resolvers:
+  ZDbcInterbase6, ZDbcASA,ZDbcDbLibResultSet, ZDbcOracle, ZdbcPostgreSqlStatement,
+  TypInfo, Variants, ZBase64, ZExceptions{$IFDEF ZEOS73UP}, FmtBcd{$ENDIF}
   {$IF defined(NO_INLINE_SIZE_CHECK) and not defined(UNICODE) and defined(MSWINDOWS)},Windows{$IFEND}
   {$IFDEF NO_INLINE_SIZE_CHECK}, Math{$ENDIF};
 
@@ -169,6 +161,9 @@ begin
   NativeResultSet.SetConcurrency(rcReadOnly);
   LastUpdateCount := NativeResultSet.GetUpdateCount;
 
+  if (GetResultSetType = rtForwardOnly) or (GetResultSetConcurrency = rcUpdatable) then
+    NativeResultSet.SetType(rtForwardOnly);
+
   if GetResultSetConcurrency = rcUpdatable then
   begin
     case GetConnection.GetServerProvider of
@@ -176,9 +171,13 @@ begin
       // from their databases: ADO, MySQL, SQLite
       spASA: CachedResolver := TZASACachedResolver.Create(self as IZStatement, NativeResultSet.GetMetaData) as IZCachedResolver;
       spMSSQL, spASE: CachedResolver := TZDBLibCachedResolver.Create(self as IZStatement, NativeResultSet.GetMetaData) as IZCachedResolver;
+      {$IFNDEF ZEOS73UP}
       spIB_FB: CachedResolver := TZInterbase6CachedResolver.Create(self as IZStatement, NativeResultSet.GetMetaData) as IZCachedResolver;
+      {$ENDIF}
       spOracle: CachedResolver := TZOracleCachedResolver.Create(self as IZStatement, NativeResultSet.GetMetaData) as IZCachedResolver;
+      {$IFNDEF ZEOS73UP}
       spPostgreSQL: CachedResolver := TZPostgreSQLCachedResolver.Create(self as IZStatement, NativeResultSet.GetMetaData) as IZCachedResolver;
+      {$ENDIF}
       else CachedResolver := TZGenericCachedResolver.Create(self as IZStatement, NativeResultSet.GetMetaData) as IZCachedResolver;
     end;
 
@@ -204,15 +203,15 @@ begin
   Result := FloatToStr(Value, ProxyFormatSettings);
 end;
 
-{$IFDEF ZEOS73UP}
-function BcdParamToStr(const Value: TBCD): String;
-begin
-  Result := BCDToStr(Value, ProxyFormatSettings);
-end;
-{$ELSE}
+{$IFNDEF ZEOS73UP}
 function ExtendedParamToStr(const Value: Extended): String;
 begin
   Result := FloatToStr(Value, ProxyFormatSettings);
+end;
+{$ELSE}
+function BcdParamToString(const Value: TBCD): String;
+begin
+  Result := BcdToSQLUni(Value);
 end;
 {$ENDIF}
 
@@ -243,7 +242,9 @@ var
   Line: String;
   x: Integer;
   TempBlob: IZBlob;
-  TempBCD: TBCd;
+  {$IFDEF ZEOS73UP}
+  LocalBCD: TBCD;
+  {$ENDIF}
 begin
   if InParamCount = 0 then
     exit;
@@ -262,21 +263,19 @@ begin
             Line := ClientVarManager.GetAsString(InParamValues[x]);
           stULong, stLong:
             Line := ClientVarManager.GetAsString(InParamValues[x]);
+          {$IFNDEF ZEOS73UP}
           stFloat, stDouble, stCurrency:
-            {$IFDEF ZEOS73UP}
-            Line := DoubleParamToStr(ClientVarManager.GetAsDouble(InParamValues[x]));
-            {$ELSE}
             Line := DoubleParamToStr(ClientVarManager.GetAsFloat(InParamValues[x]));
-            {$ENDIF}
           stBigDecimal:
-            {$IFDEF ZEOS73UP}
-            begin
-              ClientVarManager.GetAsBigDecimal(InParamValues[x], TempBCD);
-              Line := BcdParamToStr(TempBCD);
-            end;
-            {$ELSE}
             Line := ExtendedParamToStr(ClientVarManager.GetAsFloat(InParamValues[x]));
-            {$ENDIF}
+          {$ELSE}
+          stFloat, stDouble, stCurrency:
+            Line := DoubleParamToStr(ClientVarManager.GetAsDouble(InParamValues[x]));
+          stBigDecimal: begin
+              ClientVarManager.GetAsBigDecimal(InParamValues[x], LocalBCD);
+              Line := BcdParamToString(LocalBCD);
+            end;
+          {$ENDIF}
           stString, stUnicodeString:
             Line := StrParamToStr(ClientVarManager.GetAsString(InParamValues[x]));
           stDate:
@@ -293,11 +292,14 @@ begin
             end;
           stBinaryStream:
             if (InParamValues[x].VType = vtInterface) and Supports(InParamValues[x].VInterface, IZBlob, TempBlob) then begin
-              Line := StrParamToStr(TNetEncoding.Base64.EncodeBytesToString(TempBlob.GetBytes));
+              Line := StrParamToStr(String(ZEncodeBase64(TempBlob.GetBytes)));
             end else begin
-              raise Exception.Create('Conversion of parameter of type ' + TypeName + ' to stBinaryStream is not supported (yet).');
+              raise EZSQLException.Create('Conversion of parameter of type ' + TypeName + ' to stBinaryStream is not supported (yet).');
             end;
-          else raise Exception.Create('Conversion of parameter of type ' + TypeName + ' is not supported (yet).');
+          stBytes:
+              line := StrParamToStr(String(ZEncodeBase64(StrToBytes(InParamValues[x].VRawByteString))));
+          else
+            raise EZSQLException.Create('Conversion of parameter of type ' + TypeName + ' is not supported (yet).');
         end;
         Line := 'value="' + Line + '"';
       end;
@@ -325,11 +327,13 @@ function TZDbcProxyPreparedStatement.ExecutePrepared: Boolean;
 var
   Params: String;
   ResultStr: String;
+  xSQL: ZWideString;
 const
   ResultSetStart = '<resultset ';
 begin
   Params := EncodeParams;
-  ResultStr := (Connection as IZDbcProxyConnection).GetConnectionInterface.ExecuteStatement(SQL, Params, GetMaxRows);
+  xSQL := {$IFDEF UNICODE}FWSQL{$ELSE}UTF8Decode(FASQL){$ENDIF};
+  ResultStr := (Connection as IZDbcProxyConnection).GetConnectionInterface.ExecuteStatement(xSQL, Params, GetMaxRows);
 
   if copy(ResultStr, 1, length(ResultSetStart)) = ResultSetStart  then begin
     Result := True;
@@ -353,6 +357,5 @@ initialization
   ProxyFormatSettings.TimeSeparator := ':';
   ProxyFormatSettings.ThousandSeparator := ',';
 
-{$ENDIF ZEOS_DISABLE_PROXY} //if set we have an empty unit
+{$ENDIF ENABLE_PROXY} //if set we have an empty unit
 end.
-

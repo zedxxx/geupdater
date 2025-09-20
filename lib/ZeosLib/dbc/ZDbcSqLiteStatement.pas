@@ -8,7 +8,7 @@
 {*********************************************************}
 
 {@********************************************************}
-{    Copyright (c) 1999-2012 Zeos Development Group       }
+{    Copyright (c) 1999-2020 Zeos Development Group       }
 {                                                         }
 { License Agreement:                                      }
 {                                                         }
@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -57,40 +57,45 @@ interface
 
 {$IFNDEF ZEOS_DISABLE_SQLITE} //if set we have an empty unit
 uses
-  Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils,
-  ZDbcIntfs, ZDbcStatement, ZPlainSqLiteDriver, ZCompatibility, ZDbcLogging,
-  ZVariant;
+  Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils, FmtBCD, Types,
+  {$IFNDEF FPC}ZClasses,{$ENDIF} //inlined Get method of TZCustomElementList
+  ZCompatibility, ZVariant, ZPlainSqLiteDriver,
+  ZDbcIntfs, ZDbcStatement, ZDbcSqLite, ZDbcLogging;
 
 type
-  {** SQLite Prepared SQL statement interface. }
-  IZSQLitePreparedStatement = interface(IZPreparedStatement)
-    ['{1C71D4D9-45D5-468F-A6D2-D7D29EB29A89}']
-    function GetLastErrorCodeAndHandle(var StmtHandle: Psqlite3_stmt): Integer;
-  end;
-
   {** Implements CAPI Prepared SQL Statement. }
-  TZSQLiteCAPIPreparedStatement = class(TZAbstractPreparedStatement,
-    IZSQLitePreparedStatement)
+  TZAbstractSQLiteCAPIPreparedStatement = class(TZRawPreparedStatement)
   private
     FErrorCode: Integer;
     FHandle: Psqlite;
     FStmtHandle: Psqlite3_stmt;
-    FPlainDriver: IZSQLitePlainDriver;
-    FBindDoubleDateTimeValues: Boolean;
+    FPlainDriver: TZSQLitePlainDriver;
     FUndefinedVarcharAsStringLength: Integer;
-    fBindOrdinalBoolValues: Boolean;
-    FExtendedErrorMessage: Boolean;
+    FBindDoubleDateTimeValues, //are DoubleValues used as Date+/time values?
+    FBindOrdinalBoolValues, //do we bind 0/1 as Boolean?
+    FHasLoggingListener: Boolean;
+    FBindLater, //Late bindings?
+    FSQLiteIntAffinity, //see docs
+    FLateBound: Boolean; //LateBound done reset is'nt called -> continue LateBindings
+    FByteBuffer: PByteBuffer;
+    FSQLiteConnection: IZSQLiteConnection;
     function CreateResultSet: IZResultSet;
   protected
+    procedure ResetCallBack;
+  protected
+    procedure CheckParameterIndex(var Index: Integer); override;
     function GetLastErrorCodeAndHandle(var StmtHandle: Psqlite3_stmt): Integer;
+    /// <summary>Prepares eventual structures for binding input parameters.</summary>
     procedure PrepareInParameters; override;
     procedure BindInParameters; override;
+  protected
+    procedure BindBinary(Index: Integer; SQLType: TZSQLType; Buf: Pointer; Len: LengthInt); override;
+    procedure BindLob(Index: Integer; SQLType: TZSQLType; const Value: IZBlob); override;
+    procedure BindRawStr(Index: Integer; Buf: PAnsiChar; Len: LengthInt); override;
+    procedure BindRawStr(Index: Integer; const Value: RawByteString);override;
   public
-    constructor Create(const PlainDriver: IZSQLitePlainDriver;
-      const Connection: IZConnection; const SQL: string; const Info: TStrings;
-      const Handle: Psqlite); overload;
-    constructor Create(const PlainDriver: IZSQLitePlainDriver;
-      const Connection: IZConnection; const Info: TStrings; const Handle: Psqlite); overload;
+    constructor Create(const Connection: IZSQLiteConnection;
+      const SQL: string; const Info: TStrings);
 
     procedure Prepare; override;
     procedure Unprepare; override;
@@ -101,17 +106,83 @@ type
     function ExecuteUpdatePrepared: Integer; override;
     function ExecutePrepared: Boolean; override;
   end;
-  TZSQLiteStatement = class(TZSQLiteCAPIPreparedStatement);
 
+  TZSQLiteCAPIPreparedStatement = class(TZAbstractSQLiteCAPIPreparedStatement, IZPreparedStatement)
+  public
+    //a performance thing: direct dispatched methods for the interfaces :
+    //https://stackoverflow.com/questions/36137977/are-interface-methods-always-virtual
+
+    /// <summary>Sets the designated parameter to SQL <c>NULL</c>.
+    ///  <B>Note:</B> You must specify the parameter's SQL type. </summary>
+    /// <param>"ParameterIndex" the first parameter is 1, the second is 2, ...
+    ///  unless <c>GENERIC_INDEX</c> is defined. Then the first parameter is 0,
+    ///  the second is 1. This will change in future to a zero based index.
+    ///  It's recommented to use an incrementation of FirstDbcIndex.</param>
+    /// <param>"SQLType" the SQL type code defined in <c>ZDbcIntfs.pas</c></param>
+    procedure SetNull(ParameterIndex: Integer; {%H-}SQLType: TZSQLType);
+    /// <summary>Sets the designated parameter to a <c>boolean</c> value.
+    ///  The driver converts this to a SQL <c>Ordinal</c> value when it sends it
+    ///  to the database.</summary>
+    /// <param>"ParameterIndex" the first parameter is 1, the second is 2, ...
+    ///  unless <c>GENERIC_INDEX</c> is defined. Then the first parameter is 0,
+    ///  the second is 1. This will change in future to a zero based index.
+    ///  It's recommented to use an incrementation of FirstDbcIndex.</param>
+    /// <param>"Value" the parameter value</param>
+    procedure SetBoolean(ParameterIndex: Integer; Value: Boolean);
+    /// <summary>Sets the designated parameter to a <c>Byte</c> value.
+    ///  If not supported by provider, the driver converts this to a SQL
+    ///  <c>Ordinal</c> value when it sends it to the database.</summary>
+    /// <param>"ParameterIndex" the first parameter is 1, the second is 2, ...
+    ///  unless <c>GENERIC_INDEX</c> is defined. Then the first parameter is 0,
+    ///  the second is 1. This will change in future to a zero based index.
+    ///  It's recommented to use an incrementation of FirstDbcIndex.</param>
+    /// <param>"Value" the parameter value</param>
+    procedure SetByte(ParameterIndex: Integer; Value: Byte);
+    procedure SetShort(ParameterIndex: Integer; Value: ShortInt);
+    /// <summary>Sets the designated parameter to a <c>Word</c> value.</summary>
+    /// <param>"ParameterIndex" the first parameter is 1, the second is 2, ...
+    ///  unless <c>GENERIC_INDEX</c> is defined. Then the first parameter is 0,
+    ///  the second is 1. This will change in future to a zero based index.
+    ///  It's recommented to use an incrementation of FirstDbcIndex.</param>
+    /// <param>"Value" the parameter value</param>
+    procedure SetWord(ParameterIndex: Integer; Value: Word);
+    procedure SetSmall(ParameterIndex: Integer; Value: SmallInt);
+    procedure SetUInt(ParameterIndex: Integer; Value: Cardinal);
+    procedure SetInt(ParameterIndex: Integer; Value: Integer);
+    procedure SetULong(ParameterIndex: Integer; const Value: UInt64);
+    procedure SetLong(ParameterIndex: Integer; const Value: Int64);
+    procedure SetFloat(ParameterIndex: Integer; Value: Single);
+    procedure SetDouble(ParameterIndex: Integer; const Value: Double);
+    procedure SetCurrency(ParameterIndex: Integer; const Value: Currency); reintroduce;
+    /// <summary>Sets the designated parameter to a <c>BigDecimal(TBCD)</c> value.</summary>
+    /// <param>"ParameterIndex" the first parameter is 1, the second is 2, ...
+    ///  unless <c>GENERIC_INDEX</c> is defined. Then the first parameter is 0,
+    ///  the second is 1. This will change in future to a zero based index.
+    ///  It's recommented to use an incrementation of FirstDbcIndex.</param>
+    /// <param>"Value" the parameter value</param>
+    procedure SetBigDecimal(ParameterIndex: Integer; {$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TBCD); reintroduce;
+    procedure SetDate(Index: Integer; {$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TZDate); reintroduce; overload;
+    procedure SetTime(Index: Integer; {$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TZTime); reintroduce; overload;
+    procedure SetTimestamp(Index: Integer; {$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TZTimeStamp); reintroduce; overload;
+    procedure SetBytes(Index: Integer; Value: PByte; Len: NativeUInt); reintroduce; overload;
+  end;
+
+  TZSQLiteStatement = class(TZAbstractSQLiteCAPIPreparedStatement, IZStatement)
+  public
+    constructor Create(const Connection: IZSQLiteConnection;
+      const Info: TStrings);
+  end;
 
 {$ENDIF ZEOS_DISABLE_SQLITE} //if set we have an empty unit
 implementation
 {$IFNDEF ZEOS_DISABLE_SQLITE} //if set we have an empty unit
 
 uses
-  {$IFDEF WITH_UNITANSISTRINGS} AnsiStrings,{$ENDIF} ZDbcSqLiteUtils,
+  {$IFDEF WITH_UNITANSISTRINGS} AnsiStrings,{$ENDIF}
   ZDbcSqLiteResultSet, ZSysUtils, ZEncoding, ZMessages, ZDbcCachedResultSet,
-  ZDbcUtils;
+  ZDbcUtils, ZDbcProperties, ZFastCode, ZExceptions;
+
+const DeprecatedBoolRaw: array[Boolean] of {$IFDEF NO_ANSISTRING}RawByteString{$ELSE}AnsiString{$ENDIF} = ('N','Y');
 
 (* out of use now...
 procedure BindingDestructor(Value: PAnsiChar); cdecl;
@@ -119,33 +190,46 @@ begin
   {$IFDEF WITH_STRDISPOSE_DEPRECATED}AnsiStrings.{$ENDIF}StrDispose(Value);
 end;*)
 
-{ TZSQLiteCAPIPreparedStatement }
+{ TZAbstractSQLiteCAPIPreparedStatement }
 
-function TZSQLiteCAPIPreparedStatement.GetLastErrorCodeAndHandle(
+function TZAbstractSQLiteCAPIPreparedStatement.GetLastErrorCodeAndHandle(
   var StmtHandle: Psqlite3_stmt): Integer;
 begin
   Result := FErrorCode;
   StmtHandle := FStmtHandle;
 end;
 
-function TZSQLiteCAPIPreparedStatement.CreateResultSet: IZResultSet;
+procedure TZAbstractSQLiteCAPIPreparedStatement.CheckParameterIndex(var Index: Integer);
+begin
+  if not Prepared then begin
+    Prepare;
+    FBindLater := False;
+  end;
+  if (BindList.Count < Index+1) then begin
+    {$IFDEF UNICODE}FUniTemp{$ELSE}FRawTemp{$ENDIF} := Format(SBindVarOutOfRange, [Index]);
+    raise EZSQLException.Create({$IFDEF UNICODE}FUniTemp{$ELSE}FRawTemp{$ENDIF});
+  end;
+end;
+
+function TZAbstractSQLiteCAPIPreparedStatement.CreateResultSet: IZResultSet;
 var
   CachedResolver: TZSQLiteCachedResolver;
   NativeResultSet: TZSQLiteResultSet;
   CachedResultSet: TZCachedResultSet;
 begin
   { Creates a native result set. }
-  NativeResultSet := TZSQLiteResultSet.Create(FPlainDriver, Self, Self.SQL, FHandle,
-    FStmtHandle, FUndefinedVarcharAsStringLength, FExtendedErrorMessage);
+  NativeResultSet := TZSQLiteResultSet.Create(Self, Self.SQL,
+    @FStmtHandle, @FErrorCode, FUndefinedVarcharAsStringLength, ResetCallBack,
+    FSQLiteIntAffinity);
   NativeResultSet.SetConcurrency(rcReadOnly);
 
   if (GetResultSetConcurrency = rcUpdatable)
     or (GetResultSetType <> rtForwardOnly) then
   begin
     { Creates a cached result set. }
-    CachedResolver := TZSQLiteCachedResolver.Create(FPlainDriver, FHandle, Self,
+    CachedResolver := TZSQLiteCachedResolver.Create(FHandle, Self,
       NativeResultSet.GetMetaData);
-    CachedResultSet := TZCachedResultSet.Create(NativeResultSet, Self.SQL,
+    CachedResultSet := TZSQLiteCachedResultSet.Create(NativeResultSet, Self.SQL,
       CachedResolver,GetConnection.GetConSettings);
     CachedResultSet.SetType(rtScrollInsensitive);
     CachedResultSet.SetConcurrency(GetResultSetConcurrency);
@@ -158,178 +242,200 @@ begin
     //we need this reference to close the SQLite resultset and reset the stmt handle.
 end;
 
-procedure TZSQLiteCAPIPreparedStatement.PrepareInParameters;
+procedure TZAbstractSQLiteCAPIPreparedStatement.PrepareInParameters;
 begin
-  if FPlainDriver.bind_parameter_count(FStmtHandle) <> InParamCount then
-    raise Exception.Create('Invalid InParamCount');
+  SetParamCount(FPlainDriver.sqlite3_bind_parameter_count(FStmtHandle));
 end;
 
-const
-  BoolArray: array[Boolean] of PAnsiChar = ('N', 'Y');
-
-procedure TZSQLiteCAPIPreparedStatement.BindInParameters;
-var
-  TempBlob: IZBlob;
-  I: Integer;
-  Buffer: PAnsiChar;
-  CharRec: TZCharRec;
+procedure TZAbstractSQLiteCAPIPreparedStatement.ResetCallBack;
+var ErrorCode: Integer;
 begin
-  FErrorcode := FPlainDriver.clear_bindings(FStmtHandle);
-  CheckSQLiteError(FPlainDriver, FHandle, FErrorCode, lcBindPrepStmt, ASQL, ConSettings, FExtendedErrorMessage);
-  for i := 1 to InParamCount do
-  begin
-    if ClientVarManager.IsNull(InParamValues[i-1])  then
-      FErrorcode := FPlainDriver.bind_null(FStmtHandle, I)
-    else
-    begin
-      case InParamTypes[I-1] of
-        stBoolean:
-          if fBindOrdinalBoolValues then
-            FErrorcode := FPlainDriver.bind_int(FStmtHandle, i,
-              Ord(ClientVarManager.GetAsBoolean(InParamValues[i-1])))
-          else
-            FErrorcode := FPlainDriver.bind_text(FStmtHandle, i,
-              BoolArray[ClientVarManager.GetAsBoolean(InParamValues[i-1])], 1, nil);
-        stByte, stShort, stWord, stSmall, stInteger:
-          FErrorcode := FPlainDriver.bind_int(FStmtHandle, i,
-            ClientVarManager.GetAsInteger(InParamValues[i-1]));
-        stLongWord, stLong, stUlong:
-          FErrorcode := FPlainDriver.bind_int64(FStmtHandle, i,
-            ClientVarManager.GetAsInteger(InParamValues[i-1]));
-        stFloat, stDouble, stCurrency, stBigDecimal:
-          FErrorcode := FPlainDriver.bind_double(FStmtHandle, i,
-            ClientVarManager.GetAsFloat(InParamValues[i-1]));
-        stBytes:
-          begin
-            InParamValues[i-1].VBytes := SoftVarManager.GetAsBytes(InParamValues[i-1]);
-            FErrorcode := FPlainDriver.bind_blob(FStmtHandle, i,
-              @InParamValues[i-1].VBytes[0], Length(InParamValues[i-1].VBytes), nil);
-          end;
-        stString, stUnicodeString:
-          begin
-            CharRec := ClientVarManager.GetAsCharRec(InParamValues[i-1], zCP_UTF8);
-            FErrorcode := FPlainDriver.bind_text(FStmtHandle, i,
-              CharRec.P, CharRec.Len, nil);
-          end;
-        stDate:
-          if FBindDoubleDateTimeValues then
-            FErrorcode := FPlainDriver.bind_double(FStmtHandle, i,
-                ClientVarManager.GetAsDateTime(InParamValues[i-1])-JulianEpoch)
-          else
-          begin
-            InParamValues[i-1].VRawByteString := DateTimeToRawSQLDate(
-              ClientVarManager.GetAsDateTime(InParamValues[i-1]),
-                ConSettings^.WriteFormatSettings, False);
-            FErrorcode := FPlainDriver.bind_text(FStmtHandle, i,
-              Pointer(InParamValues[i-1].VRawByteString),
-              ConSettings^.WriteFormatSettings.DateFormatLen, nil);
-          end;
-        stTime:
-          if FBindDoubleDateTimeValues then
-            FErrorcode := FPlainDriver.bind_double(FStmtHandle, i,
-                ClientVarManager.GetAsDateTime(InParamValues[i-1])-JulianEpoch)
-          else
-          begin
-            InParamValues[i-1].VRawByteString := DateTimeToRawSQLTime(
-              ClientVarManager.GetAsDateTime(InParamValues[i-1]),
-                ConSettings^.WriteFormatSettings, False);
-            FErrorcode := FPlainDriver.bind_text(FStmtHandle, i,
-              Pointer(InParamValues[i-1].VRawByteString),
-              ConSettings^.WriteFormatSettings.TimeFormatLen, nil);
-          end;
-        stTimestamp:
-          if FBindDoubleDateTimeValues then
-            FErrorcode := FPlainDriver.bind_double(FStmtHandle, i,
-                ClientVarManager.GetAsDateTime(InParamValues[i-1])-JulianEpoch)
-          else
-          begin
-            InParamValues[i-1].VRawByteString := DateTimeToRawSQLTimeStamp(
-              ClientVarManager.GetAsDateTime(InParamValues[i-1]),
-                ConSettings^.WriteFormatSettings, False);
-            FErrorcode := FPlainDriver.bind_text(FStmtHandle, i,
-              Pointer(InParamValues[i-1].VRawByteString),
-              ConSettings^.WriteFormatSettings.DateTimeFormatLen, nil);
-          end;
-        stAsciiStream, stUnicodeStream, stBinaryStream:
-          begin
-            TempBlob := ClientVarManager.GetAsInterface(InParamValues[i-1]) as IZBlob;
-            if not TempBlob.IsEmpty then
-              if InParamTypes[I-1] = stBinaryStream then
-              begin
-                FErrorcode := FPlainDriver.bind_blob(FStmtHandle, i,
-                  TempBlob.GetBuffer, TempBlob.Length, nil)
-              end
-              else
-                if TempBlob.IsClob then
-                begin
-                  Buffer := TempBlob.GetPAnsiChar(zCP_UTF8);
-                  FErrorcode := FPlainDriver.bind_text(FStmtHandle, i,
-                    Buffer, TempBlob.Length, nil);
-                end
-                else
-                begin
-                  InParamValues[I-1].VRawByteString := GetValidatedAnsiStringFromBuffer(TempBlob.GetBuffer,
-                    TempBlob.Length, ConSettings);
-                  FErrorcode := FPlainDriver.bind_text(FStmtHandle, i,
-                    Pointer(InParamValues[I-1].VRawByteString),
-                    Length(InParamValues[I-1].VRawByteString), nil);
-                end
-            else
-              FErrorcode := FPlainDriver.bind_null(FStmtHandle, I);
-          end;
-        else
-          RaiseUnsupportedParameterTypeException(InParamTypes[I-1]);
-      end;
-    end;
-    CheckSQLiteError(FPlainDriver, FHandle, FErrorCode, lcBindPrepStmt, ASQL, ConSettings, FExtendedErrorMessage);
+  if Assigned(FStmtHandle) then begin
+    ErrorCode := FPlainDriver.sqlite3_reset(FStmtHandle); //reset handle now!
+    if ErrorCode <> SQLITE_OK then
+      FSQLiteConnection.HandleErrorOrWarning(lcOther, ErrorCode, 'sqlite3_reset',
+        IImmediatelyReleasable(FWeakImmediatRelPtr));
   end;
-  inherited BindInParameters;
+  if not FLateBound then
+    FBindLater := False;
 end;
 
-constructor TZSQLiteCAPIPreparedStatement.Create(
-  const PlainDriver: IZSQLitePlainDriver; const Connection: IZConnection;
-  const SQL: string; const Info: TStrings; const Handle: Psqlite);
+procedure TZAbstractSQLiteCAPIPreparedStatement.BindBinary(Index: Integer;
+  SQLType: TZSQLType; Buf: Pointer; Len: LengthInt);
+var ErrorCode: Integer;
+begin
+  inherited BindBinary(Index, SQLType, Buf, Len);
+  if not FBindLater then begin
+    ErrorCode := FPlainDriver.sqlite3_bind_blob(FStmtHandle, Index +1, Buf, Len, nil);
+    if ErrorCode <> SQLITE_OK then
+      FSQLiteConnection.HandleErrorOrWarning(lcBindPrepStmt, ErrorCode, 'sqlite3_bind_blob',
+        IImmediatelyReleasable(FWeakImmediatRelPtr));
+  end else
+    FLateBound := True;
+end;
+
+{**
+  Binds the input parameters
+}
+procedure TZAbstractSQLiteCAPIPreparedStatement.BindInParameters;
+var
+  I, Errorcode: Integer;
+  BindVal: PZBindValue;
+  P: Pointer;
+  L: NativeUInt;
+begin
+  if FBindLater and (BindList.Count > 0) then begin
+    for i := 0 to BindList.Count-1 do begin
+      BindVal := BindList[i];
+      if BindVal.BindType = zbtNull then
+        Errorcode := FPlainDriver.sqlite3_bind_null(FStmtHandle, I +1)
+      else case BindVal^.SQLType of
+        stString:   if BindVal.BindType = zbtRawString
+                    then Errorcode := FPlainDriver.sqlite3_bind_text(FStmtHandle, I +1, BindVal.Value, Length(RawByteString(BindVal.Value)), nil)
+                    else Errorcode := FPlainDriver.sqlite3_bind_text(FStmtHandle, I +1, PZCharRec(BindVal.Value).P, PZCharRec(BindVal.Value).Len, nil);
+        stInteger:  Errorcode := FPlainDriver.sqlite3_bind_int(FStmtHandle, I +1, PInteger(BindList._4Bytes[I])^);
+        stLong,
+        stCurrency: Errorcode := FPlainDriver.sqlite3_bind_int64(FStmtHandle, I +1, PInt64(BindList._8Bytes[I])^);
+        stDouble:   Errorcode := FPlainDriver.sqlite3_bind_Double(FStmtHandle, I +1, PDouble(BindList._8Bytes[I])^);
+        stBytes:    if BindVal.BindType = zbtBytes
+                    then Errorcode := FPlainDriver.sqlite3_bind_blob(FStmtHandle, I +1, BindVal.Value, Length(TBytes(BindVal.Value)), nil)
+                    else Errorcode := FPlainDriver.sqlite3_bind_blob(FStmtHandle, I +1, PZBufRec(BindVal.Value).Buf, PZBufRec(BindVal.Value).Len, nil);
+        stAsciiStream: begin
+                    P := IZBlob(BindVal.Value).GetBuffer(FRawTemp, L);
+                    Errorcode := FPlainDriver.sqlite3_bind_text(FStmtHandle, I +1, P, L, nil);
+                  end;
+        stBinaryStream: begin
+                    P := IZBlob(BindVal.Value).GetBuffer(FRawTemp, L);
+                    Errorcode := FPlainDriver.sqlite3_bind_blob(FStmtHandle, I +1, P, L, nil);
+                  end;
+        else raise CreateUnsupportedParameterTypeException(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF}, BindVal^.SQLType);
+      end;
+      if ErrorCode <> SQLITE_OK then
+        FSQLiteConnection.HandleErrorOrWarning(lcBindPrepStmt, ErrorCode, 'sqlite3_bind_xxx',
+          IImmediatelyReleasable(FWeakImmediatRelPtr));
+    end;
+  end else
+    FLateBound := False;
+  if FHasLoggingListener then
+    inherited BindInParameters;
+end;
+
+procedure TZAbstractSQLiteCAPIPreparedStatement.BindLob(Index: Integer;
+  SQLType: TZSQLType; const Value: IZBlob);
+var ErrorCode: Integer;
+  P: Pointer;
+  L: NativeUInt;
+begin
+  inherited; //localize lob and make clob conversion if reqired
+  if not FBindLater then begin
+    if (Value = nil) or Value.IsEmpty then
+      Errorcode := FPlainDriver.sqlite3_bind_null(FStmtHandle, Index +1)
+    else begin
+      P := Value.GetBuffer(FRawTemp, L);
+      if SQLType = stBinaryStream
+      then Errorcode := FPlainDriver.sqlite3_bind_blob(FStmtHandle, Index +1, P, L, nil)
+      else Errorcode := FPlainDriver.sqlite3_bind_text(FStmtHandle, Index +1, P, L, nil);
+    end;
+    if ErrorCode <> SQLITE_OK then
+        FSQLiteConnection.HandleErrorOrWarning(lcBindPrepStmt, ErrorCode, 'sqlite3_bind_xxx',
+          IImmediatelyReleasable(FWeakImmediatRelPtr));
+  end;
+end;
+
+{**
+  Constructs this object and assigns main properties.
+  @param Connection a sqlite database connection object.
+  @param Sql a prepared Sql statement.
+  @param Info a statement parameters.
+}
+constructor TZAbstractSQLiteCAPIPreparedStatement.Create(
+  const Connection: IZSQLiteConnection;
+  const SQL: string; const Info: TStrings);
 begin
   inherited Create(Connection, SQL, Info);
   FStmtHandle := nil;
-  FHandle := Handle;
-  FPlainDriver := PlainDriver;
+  FHandle := Connection.GetConnectionHandle;
+  FByteBuffer := Connection.GetByteBufferAddress;
+  FPlainDriver := Connection.GetPlainDriver;
   ResultSetType := rtForwardOnly;
-  FBindDoubleDateTimeValues :=  StrToBoolEx(DefineStatementParameter(Self, 'BindDoubleDateTimeValues', 'false'));
-  FUndefinedVarcharAsStringLength := StrToIntDef(DefineStatementParameter(Self, 'Undefined_Varchar_AsString_Length', '0'), 0);
-  fBindOrdinalBoolValues := StrToBoolEx(DefineStatementParameter(Self, 'BindOrdinalBoolValues', 'false'));
-  FExtendedErrorMessage := StrToBoolEx(DefineStatementParameter(Self, 'ExtendedErrorMessage', 'false'));
+  FSQLiteConnection := Connection;
+  FBindDoubleDateTimeValues :=  StrToBoolEx(DefineStatementParameter(Self, DSProps_BindDoubleDateTimeValues, 'false'));
+  FUndefinedVarcharAsStringLength := StrToIntDef(DefineStatementParameter(Self, DSProps_UndefVarcharAsStringLength, '0'), 0);
+  fBindOrdinalBoolValues := StrToBoolEx(DefineStatementParameter(Self, DSProps_BindOrdinalBoolValues, 'false'));
+  FSQLiteIntAffinity := StrToBoolEx(DefineStatementParameter(Self, DSProps_SQLiteIntAffinity, 'false'));
+  FHasLoggingListener := DriverManager.HasLoggingListener;
 end;
 
-constructor TZSQLiteCAPIPreparedStatement.Create(const PlainDriver: IZSQLitePlainDriver;
-  const Connection: IZConnection; const Info: TStrings; const Handle: Psqlite);
+{**
+  prepares the statement on the server if minimum execution
+  count have been reached
+}
+procedure TZAbstractSQLiteCAPIPreparedStatement.Prepare;
+var pzTail: PAnsiChar;
 begin
-  Create(PlainDriver, Connection, '', Info, Handle);
-end;
-
-procedure TZSQLiteCAPIPreparedStatement.Prepare;
-var pzTail: PAnsichar;
-begin
-  if not Prepared then
-  begin
-    FErrorCode := FPlainDriver.Prepare_v2(FHandle, Pointer(ASQL), Length(ASQL), FStmtHandle, pzTail{%H-});
-    CheckSQLiteError(FPlainDriver, FHandle, FErrorCode, lcPrepStmt, ASQL, ConSettings, FExtendedErrorMessage);
+  if not Prepared then begin
+    RestartTimer;
+    FErrorCode := FPlainDriver.sqlite3_prepare_v2(FHandle, Pointer(ASQL), Length(ASQL), FStmtHandle, pzTail{%H-});
+    if FErrorCode <> SQLITE_OK then
+      FSQLiteConnection.HandleErrorOrWarning(lcPrepStmt, FErrorCode, SQL,
+        IImmediatelyReleasable(FWeakImmediatRelPtr));
     inherited Prepare;
+    if DriverManager.HasLoggingListener then
+      DriverManager.LogMessage(lcPrepStmt,Self);
   end;
 end;
 
-procedure TZSQLiteCAPIPreparedStatement.Unprepare;
+{**
+  unprepares the statement, deallocates all bindings and handles
+}
+procedure TZAbstractSQLiteCAPIPreparedStatement.Unprepare;
 var ErrorCode: Integer;
 begin
   { EH: do not change this sequence!: first close possbile opened resultset}
   inherited UnPrepare;
   if Assigned(FStmtHandle) then begin
-    ErrorCode := FPlainDriver.finalize(FStmtHandle);
+    ErrorCode := FPlainDriver.sqlite3_finalize(FStmtHandle);
     FStmtHandle := nil; //Keep track we do not try to finalize the handle again on destroy or so
     if ErrorCode <> SQLITE_OK then
-      CheckSQLiteError(FPlainDriver, FHandle, ErrorCode,
-        lcUnprepStmt, 'sqlite3_finalize', ConSettings, FExtendedErrorMessage);
+      FSQLiteConnection.HandleErrorOrWarning(lcUnprepStmt, ErrorCode, 'sqlite3_finalize',
+        IImmediatelyReleasable(FWeakImmediatRelPtr));
   end;
+end;
+
+procedure TZAbstractSQLiteCAPIPreparedStatement.BindRawStr(Index: Integer;
+  Buf: PAnsiChar; Len: LengthInt);
+var ErrorCode: Integer;
+begin
+  if FBindLater or FHasLoggingListener
+  then inherited BindRawStr(Index, Buf, Len)
+  else CheckParameterIndex(Index);
+  if not FBindLater then begin
+    if (Buf = nil) then
+      Buf := PEmptyAnsiString;
+    ErrorCode := FPlainDriver.sqlite3_bind_text(FStmtHandle, Index +1, Buf, Len, nil);
+    if ErrorCode <> SQLITE_OK then
+      FSQLiteConnection.HandleErrorOrWarning(lcBindPrepStmt, ErrorCode, 'sqlite3_bind_text',
+        IImmediatelyReleasable(FWeakImmediatRelPtr));
+  end else
+    FLateBound := True;
+end;
+
+procedure TZAbstractSQLiteCAPIPreparedStatement.BindRawStr(Index: Integer;
+  const Value: RawByteString);
+var ErrorCode: Integer;
+  P: PAnsiChar;
+begin
+  inherited BindRawStr(Index, Value); //localize -> no val destructor
+  if not FBindLater then begin
+    P := Pointer(Value);
+    if P = nil then
+    P := PEmptyAnsiString;
+    ErrorCode := FPlainDriver.sqlite3_bind_text(FStmtHandle, Index +1, P, Length(Value), nil);
+    if ErrorCode <> SQLITE_OK then
+      FSQLiteConnection.HandleErrorOrWarning(lcBindPrepStmt, ErrorCode, 'sqlite3_bind_text',
+        IImmediatelyReleasable(FWeakImmediatRelPtr));
+  end else
+    FLateBound := True;
 end;
 
 {**
@@ -338,9 +444,9 @@ end;
   This method can be used by one thread to cancel a statement that
   is being executed by another thread.
 }
-procedure TZSQLiteCAPIPreparedStatement.Cancel;
+procedure TZAbstractSQLiteCAPIPreparedStatement.Cancel;
 begin
-  FPlainDriver.Interrupt(FHandle);
+  FPlainDriver.sqlite3_interrupt(FHandle);
 end;
 
 {**
@@ -350,28 +456,32 @@ end;
   @return a <code>ResultSet</code> object that contains the data produced by the
     query; never <code>null</code>
 }
-function TZSQLiteCAPIPreparedStatement.ExecuteQueryPrepared: IZResultSet;
+function TZAbstractSQLiteCAPIPreparedStatement.ExecuteQueryPrepared: IZResultSet;
 begin
-  Prepare;
+  LastUpdateCount := -1;
   PrepareOpenResultSetForReUse;
+  Prepare;
   BindInParameters;
-
-  FErrorCode := FPlainDriver.Step(FStmtHandle); //exec prepared
-  CheckSQLiteError(FPlainDriver, FHandle, FErrorCode, lcOther,
-    ConSettings^.ConvFuncs.ZStringToRaw(SCanNotRetrieveResultsetData,
-    ConSettings^.CTRL_CP, ConSettings^.ClientCodePage^.CP), ConSettings, FExtendedErrorMessage);
-  if FPlainDriver.column_count(FStmtHandle) = 0 then
-  begin
-    FPlainDriver.reset(FStmtHandle); //reset handle now!
+  RestartTimer;
+  FBindLater := False;
+  FErrorCode := FPlainDriver.sqlite3_step(FStmtHandle); //exec prepared
+  if not (FErrorCode in [SQLITE_OK, SQLITE_ROW, SQLITE_DONE]) then
+    FSQLiteConnection.HandleErrorOrWarning(lcExecPrepStmt, FErrorCode, SQL,
+      IImmediatelyReleasable(FWeakImmediatRelPtr));
+  if FHasLoggingListener then
+    DriverManager.LogMessage(lcExecPrepStmt,Self);
+  if (FErrorCode <> SQLITE_ROW) and (FPlainDriver.sqlite3_column_count(FStmtHandle) = 0) then begin
+    LastUpdateCount := FPlainDriver.sqlite3_Changes(FHandle);
+    FErrorCode := FPlainDriver.sqlite3_reset(FStmtHandle);
+    if FErrorCode <> SQLITE_OK then
+      FSQLiteConnection.HandleErrorOrWarning(lcOther, FErrorCode, '',
+        IImmediatelyReleasable(FWeakImmediatRelPtr));
     Result := nil;
-  end
-  else //expect a resultset
-    if Assigned(FOpenResultSet) then
-      Result := IZResultSet(FOpenResultSet) //return allready reseted RS
-    else
-      Result := CreateResultSet; //resultset executes reset stmt-handle
-
-  inherited ExecuteQueryPrepared; //Log values
+  end else if Assigned(FOpenResultSet) //expect a resultset
+    then Result := IZResultSet(FOpenResultSet) //return allready reseted RS
+    else Result := CreateResultSet; //resultset executes reset stmt-handle
+  FBindLater := Assigned(Result);
+  FHasLoggingListener := DriverManager.HasLoggingListener;
 end;
 
 {**
@@ -384,21 +494,33 @@ end;
   @return either the row count for INSERT, UPDATE or DELETE statements;
   or 0 for SQL statements that return nothing
 }
-function TZSQLiteCAPIPreparedStatement.ExecuteUpdatePrepared: Integer;
+function TZAbstractSQLiteCAPIPreparedStatement.ExecuteUpdatePrepared: Integer;
+var ErrorCode: Integer;
 begin
   Prepare;
   BindInParameters;
-
-  Result := 0;
-  try
-    CheckSQLiteError(FPlainDriver, FHandle, FPlainDriver.Step(FStmtHandle),
-      lcExecPrepStmt, ASQL, ConSettings, FExtendedErrorMessage); //exec prepared
-    Result := FPlainDriver.Changes(FHandle);
-    inherited ExecuteUpdatePrepared; //log values
+  RestartTimer;
+  LastUpdateCount := -1;
+  FBindLater := False;
+  ErrorCode := fPlainDriver.sqlite3_step(FStmtHandle);
+  if (ErrorCode in [SQLITE_OK, SQLITE_ROW, SQLITE_DONE]) then begin
+    if ErrorCode <> SQLITE_ROW then
+      LastUpdateCount := FPlainDriver.sqlite3_Changes(FHandle);
+    if FHasLoggingListener then
+      DriverManager.LogMessage(lcExecPrepStmt,Self);
+    ErrorCode := FPlainDriver.sqlite3_reset(FStmtHandle);
+    if ErrorCode <> SQLITE_OK then
+      FSQLiteConnection.HandleErrorOrWarning(lcOther, ErrorCode, SQL,
+        IImmediatelyReleasable(FWeakImmediatRelPtr));
+    FHasLoggingListener := DriverManager.HasLoggingListener;
+  end else try
+    FSQLiteConnection.HandleErrorOrWarning(lcExecPrepStmt, ErrorCode, SQL,
+      IImmediatelyReleasable(FWeakImmediatRelPtr));
   finally
-    FPlainDriver.reset(FStmtHandle); //reset handle allways without check else -> leaking mem
-    LastUpdateCount := Result;
+    FPlainDriver.sqlite3_reset(FStmtHandle); //reset handle allways without check else -> leaking mem
+    FHasLoggingListener := DriverManager.HasLoggingListener;
   end;
+  Result := LastUpdateCount;
 end;
 
 {**
@@ -409,31 +531,414 @@ end;
   and <code>executeUpdate</code>.
   @see Statement#execute
 }
-function TZSQLiteCAPIPreparedStatement.ExecutePrepared: Boolean;
+function TZAbstractSQLiteCAPIPreparedStatement.ExecutePrepared: Boolean;
 begin
-  Prepare;
   PrepareLastResultSetForReUse;
+  Prepare;
   BindInParameters;
-
-  FErrorCode := FPlainDriver.Step(FStmtHandle);
-  CheckSQLiteError(FPlainDriver, FHandle, FErrorCode, lcExecPrepStmt, 'Step', ConSettings, FExtendedErrorMessage);
-
+  RestartTimer;
+  FBindLater := False;
+  FErrorCode := FPlainDriver.sqlite3_step(FStmtHandle);
+  if not (FErrorCode in [SQLITE_OK, SQLITE_ROW, SQLITE_DONE]) then
+    FSQLiteConnection.HandleErrorOrWarning(lcExecPrepStmt, FErrorCode, SQL,
+      IImmediatelyReleasable(FWeakImmediatRelPtr));
   { Process queries with result sets }
-  if FPlainDriver.column_count(FStmtHandle) <> 0 then
-  begin
+  if (FErrorCode = SQLITE_ROW) or (FPlainDriver.sqlite3_column_count(FStmtHandle) <> 0) then begin
+    LastUpdateCount := -1;
     Result := True;
-    if not Assigned(LastResultSet) then
-      LastResultSet := CreateResultSet;
-  end
-  { Processes regular query. }
-  else
-  begin
+    LastResultSet := CreateResultSet;
+  end else begin { Processes regular query. }
     Result := False;
-    LastUpdateCount := FPlainDriver.Changes(FHandle);
-    FErrorCode := FPlainDriver.reset(FStmtHandle);
-    CheckSQLiteError(FPlainDriver, FHandle, FErrorCode, lcOther, 'Reset', ConSettings, FExtendedErrorMessage);
+    LastUpdateCount := FPlainDriver.sqlite3_Changes(FHandle);
+    FErrorCode := FPlainDriver.sqlite3_reset(FStmtHandle);
+    LastResultSet := nil;
+    if FErrorCode <> SQLITE_OK then
+      FSQLiteConnection.HandleErrorOrWarning(lcOther, FErrorCode, 'Reset',
+        IImmediatelyReleasable(FWeakImmediatRelPtr));
   end;
-  inherited ExecutePrepared;
+  FHasLoggingListener := DriverManager.HasLoggingListener;
+  if FHasLoggingListener then
+    DriverManager.LogMessage(lcExecPrepStmt,Self);
+end;
+
+{ TZSQLiteStatement }
+
+{**
+  Constructs this object and assigns main properties.
+  @param Connection a sqlite database connection object.
+  @param Info a statement parameters.
+}
+constructor TZSQLiteStatement.Create(const Connection: IZSQLiteConnection;
+  const Info: TStrings);
+begin
+  inherited Create(Connection, '', Info);
+end;
+
+{ TZSQLiteCAPIPreparedStatement }
+
+procedure TZSQLiteCAPIPreparedStatement.SetBigDecimal(ParameterIndex: Integer;
+  {$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TBCD);
+var ErrorCode, L: Integer;
+  P: PAnsiChar;
+begin
+  {$IFNDEF GENERIC_INDEX}ParameterIndex := ParameterIndex-1;{$ENDIF}
+  CheckParameterIndex(ParameterIndex);
+  if FBindLater or FHasLoggingListener then
+    BindList.Put(ParameterIndex, Value);
+  if not FBindLater then begin
+    P := BindList.AcquireCustomValue(ParameterIndex, stBigDecimal, MaxFmtBCDFractionSize+3{#0});
+    L := BCDToRaw(Value, P, '.');
+    ErrorCode := FPlainDriver.sqlite3_bind_text(FStmtHandle, ParameterIndex+1, P, l, nil);
+    if ErrorCode <> SQLITE_OK then
+      FSQLiteConnection.HandleErrorOrWarning(lcBindPrepStmt, ErrorCode, 'sqlite3_bind_text',
+        IImmediatelyReleasable(FWeakImmediatRelPtr));
+  end else
+    FLateBound := True;
+end;
+
+procedure TZSQLiteCAPIPreparedStatement.SetBoolean(ParameterIndex: Integer;
+  Value: Boolean);
+begin
+  if fBindOrdinalBoolValues
+  then SetLong(ParameterIndex, Ord(Value))
+  else BindRawStr(ParameterIndex{$IFNDEF GENERIC_INDEX}-1{$ENDIF}, DeprecatedBoolRaw[Value]);
+end;
+
+procedure TZSQLiteCAPIPreparedStatement.SetByte(ParameterIndex: Integer;
+  Value: Byte);
+begin
+  SetInt(ParameterIndex, Value);
+end;
+
+{**
+  Sets the designated parameter to a Java array of bytes by reference.
+  The driver converts this to an SQL <code>VARBINARY</code> or
+  <code>LONGVARBINARY</code> (depending on the argument's size relative to
+  the driver's limits on
+  <code>VARBINARY</code> values) when it sends it to the database.
+
+  @param parameterIndex the first parameter is 1, the second is 2, ...
+  @param Value the parameter value address
+  @param Len the length of the addressed value
+}
+procedure TZSQLiteCAPIPreparedStatement.SetBytes(Index: Integer; Value: PByte;
+  Len: NativeUInt);
+var ErrorCode: Integer;
+begin
+  {$IFNDEF GENERIC_INDEX}Dec(Index);{$ENDIF}
+  CheckParameterIndex(Index);
+  if FBindLater or FHasLoggingListener then
+    BindList.Put(Index, stBytes, Value, Len);
+  if not FBindLater then begin
+    ErrorCode := FPlainDriver.sqlite3_bind_blob(FStmtHandle, Index +1, Value, Len, nil);
+    if ErrorCode <> SQLITE_OK then
+      FSQLiteConnection.HandleErrorOrWarning(lcBindPrepStmt, ErrorCode, 'sqlite3_bind_blob',
+        IImmediatelyReleasable(FWeakImmediatRelPtr));
+  end else
+    FLateBound := True;
+end;
+
+{**
+  Sets the designated parameter to a Java <code>currency</code> value.
+  The driver converts this
+  to an SQL <code>CURRENCY</code> value when it sends it to the database.
+
+  @param parameterIndex the first parameter is 1, the second is 2, ...
+  @param x the parameter value
+}
+procedure TZSQLiteCAPIPreparedStatement.SetCurrency(ParameterIndex: Integer;
+  const Value: Currency);
+var ErrorCode: Integer;
+  i64: Int64 absolute Value;
+begin
+  {$IFNDEF GENERIC_INDEX}Dec(ParameterIndex);{$ENDIF}
+  CheckParameterIndex(ParameterIndex);
+  if FBindLater or FHasLoggingListener then
+    BindList.Put(ParameterIndex, stCurrency, P8Bytes(@Value));
+  if not FBindLater then begin
+    ErrorCode := FPlainDriver.sqlite3_bind_int64(FStmtHandle, ParameterIndex+1, i64);
+    if ErrorCode <> SQLITE_OK then
+      FSQLiteConnection.HandleErrorOrWarning(lcBindPrepStmt, ErrorCode, 'sqlite3_bind_int64',
+        IImmediatelyReleasable(FWeakImmediatRelPtr));
+  end else
+    FLateBound := True;
+end;
+
+{$IFDEF FPC} {$PUSH} {$WARN 5057 off : Local variable "DT" does not seem to be initialized} {$ENDIF}
+procedure TZSQLiteCAPIPreparedStatement.SetDate(Index: Integer;
+  {$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TZDate);
+var
+  ErrorCode: Integer;
+  DT: TDateTime;
+  Len: LengthInt;
+begin
+  {$IFNDEF GENERIC_INDEX}Index := Index-1;{$ENDIF}
+  CheckParameterIndex(Index);
+  if FBindDoubleDateTimeValues then begin
+    ZSysUtils.TryDateToDateTime(Value, DT);
+    if FBindLater or FHasLoggingListener
+      then BindList.Put(Index, Value);
+    if not FBindLater then begin
+      ErrorCode := FPlainDriver.sqlite3_bind_double(FStmtHandle, Index+1, DT-JulianEpoch);
+      if ErrorCode <> SQLITE_OK then
+        FSQLiteConnection.HandleErrorOrWarning(lcBindPrepStmt, ErrorCode, 'sqlite3_bind_double',
+          IImmediatelyReleasable(FWeakImmediatRelPtr));
+    end;
+  end else begin
+    Len := DateToRaw(Value.Year, Value.Month, Value.Day, PAnsiChar(FByteBuffer),
+      ConSettings^.WriteFormatSettings.DateFormat, False, Value.IsNegative);
+    ZSetString(PAnsiChar(FByteBuffer), Len ,fRawTemp);
+    Bindlist.Put(Index, stString, fRawTemp, zCP_UTF8);
+    if not FBindLater then begin
+      ErrorCode := FPlainDriver.sqlite3_bind_text(FStmtHandle, Index +1, Pointer(fRawTemp), Len, nil);
+      if ErrorCode <> SQLITE_OK then
+        FSQLiteConnection.HandleErrorOrWarning(lcBindPrepStmt, ErrorCode, 'sqlite3_bind_text',
+          IImmediatelyReleasable(FWeakImmediatRelPtr));
+    end;
+  end;
+end;
+{$IFDEF FPC} {$POP} {$ENDIF}
+
+
+{**
+  Sets the designated parameter to a Java <code>double</code> value.
+  The driver converts this
+  to an SQL <code>DOUBLE</code> value when it sends it to the database.
+
+  @param parameterIndex the first parameter is 1, the second is 2, ...
+  @param x the parameter value
+}
+procedure TZSQLiteCAPIPreparedStatement.SetDouble(ParameterIndex: Integer;
+  const Value: Double);
+var ErrorCode: Integer;
+begin
+  {$IFNDEF GENERIC_INDEX}Dec(ParameterIndex);{$ENDIF}
+  CheckParameterIndex(ParameterIndex);
+  if FBindLater or FHasLoggingListener then
+    BindList.Put(ParameterIndex, stDouble, P8Bytes(@Value));
+  if not FBindLater then begin
+    ErrorCode := FPlainDriver.sqlite3_bind_double(FStmtHandle, ParameterIndex+1, Value);
+    if ErrorCode <> SQLITE_OK then
+      FSQLiteConnection.HandleErrorOrWarning(lcBindPrepStmt, ErrorCode, 'sqlite3_bind_double',
+        IImmediatelyReleasable(FWeakImmediatRelPtr));
+  end else
+    FLateBound := True;
+end;
+
+{**
+  Sets the designated parameter to a Java <code>float</code> value.
+  The driver converts this
+  to an SQL <code>FLOAT</code> value when it sends it to the database.
+
+  @param parameterIndex the first parameter is 1, the second is 2, ...
+  @param x the parameter value
+}
+procedure TZSQLiteCAPIPreparedStatement.SetFloat(ParameterIndex: Integer;
+  Value: Single);
+begin
+  SetDouble(ParameterIndex, Value);
+end;
+
+{**
+  Sets the designated parameter to a Java <code>int</code> value.
+  The driver converts this
+  to an SQL <code>INTEGER</code> value when it sends it to the database.
+
+  @param parameterIndex the first parameter is 1, the second is 2, ...
+  @param x the parameter value
+}
+procedure TZSQLiteCAPIPreparedStatement.SetInt(ParameterIndex, Value: Integer);
+var ErrorCode: Integer;
+begin
+  {$IFNDEF GENERIC_INDEX}Dec(ParameterIndex);{$ENDIF}
+  CheckParameterIndex(ParameterIndex);
+  if FBindLater or FHasLoggingListener then
+    BindList.Put(ParameterIndex, stInteger, P4Bytes(@Value));
+  if not FBindLater then begin
+    ErrorCode := FPlainDriver.sqlite3_bind_int(FStmtHandle, ParameterIndex+1, Value);
+    if ErrorCode <> SQLITE_OK then
+      FSQLiteConnection.HandleErrorOrWarning(lcBindPrepStmt, ErrorCode, 'sqlite3_bind_int',
+        IImmediatelyReleasable(FWeakImmediatRelPtr));
+  end else
+    FLateBound := True;
+end;
+
+{**
+  Sets the designated parameter to a Java <code>long</code> value.
+  The driver converts this
+  to an SQL <code>BIGINT</code> value when it sends it to the database.
+
+  @param parameterIndex the first parameter is 1, the second is 2, ...
+  @param x the parameter value
+}
+procedure TZSQLiteCAPIPreparedStatement.SetLong(ParameterIndex: Integer;
+  const Value: Int64);
+var ErrorCode: Integer;
+begin
+  {$IFNDEF GENERIC_INDEX}Dec(ParameterIndex);{$ENDIF}
+  CheckParameterIndex(ParameterIndex);
+  if FBindLater or FHasLoggingListener then
+    BindList.Put(ParameterIndex, stLong, P8Bytes(@Value));
+  if not FBindLater then begin
+    ErrorCode := FPlainDriver.sqlite3_bind_int64(FStmtHandle, ParameterIndex+1, Value);
+    if ErrorCode <> SQLITE_OK then
+      FSQLiteConnection.HandleErrorOrWarning(lcBindPrepStmt, ErrorCode, 'sqlite3_bind_int64',
+        IImmediatelyReleasable(FWeakImmediatRelPtr));
+  end else
+    FLateBound := True;
+end;
+
+procedure TZSQLiteCAPIPreparedStatement.SetNull(ParameterIndex: Integer;
+  SQLType: TZSQLType);
+var ErrorCode: Integer;
+begin
+  {$IFNDEF GENERIC_INDEX}ParameterIndex := ParameterIndex -1;{$ENDIF}
+  CheckParameterIndex(ParameterIndex);
+  if FBindLater or FHasLoggingListener
+  then BindList.SetNull(ParameterIndex, SQLType);
+  if not FBindLater then begin
+    ErrorCode := FPlainDriver.sqlite3_bind_null(FStmtHandle, ParameterIndex +1);
+    if ErrorCode <> SQLITE_OK then
+      FSQLiteConnection.HandleErrorOrWarning(lcBindPrepStmt, ErrorCode, 'sqlite3_bind_null',
+        IImmediatelyReleasable(FWeakImmediatRelPtr));
+  end else
+    FLateBound := True;
+end;
+
+{**
+  Sets the designated parameter to a Java <code>ShortInt</code> value.
+  The driver converts this
+  to an SQL <code>ShortInt</code> value when it sends it to the database.
+
+  @param parameterIndex the first parameter is 1, the second is 2, ...
+  @param x the parameter value
+}
+procedure TZSQLiteCAPIPreparedStatement.SetShort(ParameterIndex: Integer;
+  Value: ShortInt);
+begin
+  SetInt(ParameterIndex, Value);
+end;
+
+{**
+  Sets the designated parameter to a Java <code>SmallInt</code> value.
+  The driver converts this
+  to an SQL <code>ShortInt</code> value when it sends it to the database.
+
+  @param parameterIndex the first parameter is 1, the second is 2, ...
+  @param x the parameter value
+}
+procedure TZSQLiteCAPIPreparedStatement.SetSmall(ParameterIndex: Integer;
+  Value: SmallInt);
+begin
+  SetInt(ParameterIndex, Value);
+end;
+
+{$IFDEF FPC} {$PUSH} {$WARN 5057 off : Local variable "DT" does not seem to be initialized} {$ENDIF}
+procedure TZSQLiteCAPIPreparedStatement.SetTime(Index: Integer;
+  {$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TZTime);
+var
+  ErrorCode: Integer;
+  DT: TDateTime;
+  Len: LengthInt;
+begin
+  {$IFNDEF GENERIC_INDEX}Index := Index-1;{$ENDIF}
+  CheckParameterIndex(Index);
+  if FBindDoubleDateTimeValues then begin
+    ZSysUtils.TryTimeToDateTime(Value, DT);
+    if FBindLater or FHasLoggingListener
+      then BindList.Put(Index, Value);
+    if not FBindLater then begin
+      ErrorCode := FPlainDriver.sqlite3_bind_double(FStmtHandle, Index+1, DT-JulianEpoch);
+      if ErrorCode <> SQLITE_OK then
+        FSQLiteConnection.HandleErrorOrWarning(lcBindPrepStmt, ErrorCode, 'sqlite3_bind_double',
+          IImmediatelyReleasable(FWeakImmediatRelPtr));
+    end;
+  end else begin
+    Len := TimeToRaw(Value.Hour, Value.Minute, Value.Second, Value.Fractions,
+      PAnsiChar(FByteBuffer), ConSettings^.WriteFormatSettings.TimeFormat, False, Value.IsNegative);
+    ZSetString(PAnsiChar(FByteBuffer), Len, fRawTemp);
+    Bindlist.Put(Index, stString, fRawTemp, zCP_UTF8);
+    if not FBindLater then begin
+      ErrorCode := FPlainDriver.sqlite3_bind_text(FStmtHandle, Index +1, Pointer(fRawTemp), Len, nil);
+      if ErrorCode <> SQLITE_OK then
+        FSQLiteConnection.HandleErrorOrWarning(lcBindPrepStmt, ErrorCode, 'sqlite3_bind_text',
+          IImmediatelyReleasable(FWeakImmediatRelPtr));
+    end;
+  end;
+end;
+{$IFDEF FPC} {$POP} {$ENDIF}
+
+
+{$IFDEF FPC} {$PUSH} {$WARN 5057 off : Local variable "DT" does not seem to be initialized} {$ENDIF}
+procedure TZSQLiteCAPIPreparedStatement.SetTimestamp(Index: Integer;
+  {$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TZTimeStamp);
+var
+  ErrorCode: Integer;
+  DT: TDateTime;
+  Len: LengthInt;
+begin
+  {$IFNDEF GENERIC_INDEX}Index := Index-1;{$ENDIF}
+  CheckParameterIndex(Index);
+  if FBindDoubleDateTimeValues then begin
+    ZSysUtils.TryTimeStampToDateTime(Value, DT);
+    if FBindLater or FHasLoggingListener
+      then BindList.Put(Index, Value);
+    if not FBindLater then begin
+      ErrorCode := FPlainDriver.sqlite3_bind_double(FStmtHandle, Index+1, DT-JulianEpoch);
+      if ErrorCode <> SQLITE_OK then
+        FSQLiteConnection.HandleErrorOrWarning(lcBindPrepStmt, ErrorCode, 'sqlite3_bind_double',
+          IImmediatelyReleasable(FWeakImmediatRelPtr));
+    end;
+  end else begin
+    Len := DateTimeToRaw(Value.Year, Value.Month, Value.Day,
+      Value.Hour, Value.Minute, Value.Second, Value.Fractions,
+        PAnsiChar(FByteBuffer), ConSettings^.WriteFormatSettings.DateTimeFormat, False, Value.IsNegative);
+    ZSetString(PAnsiChar(FByteBuffer), Len, fRawTemp);
+    Bindlist.Put(Index, stString, fRawTemp, zCP_UTF8);
+    if not FBindLater then begin
+      ErrorCode := FPlainDriver.sqlite3_bind_text(FStmtHandle, Index +1, Pointer(fRawTemp), Len, nil);
+      if ErrorCode <> SQLITE_OK then
+        FSQLiteConnection.HandleErrorOrWarning(lcBindPrepStmt, ErrorCode, 'sqlite3_bind_text',
+          IImmediatelyReleasable(FWeakImmediatRelPtr));
+    end;
+  end;
+end;
+{$IFDEF FPC} {$POP} {$ENDIF}
+
+{**
+  Sets the designated parameter to a Java <code>usigned 32bit int</code> value.
+  The driver converts this
+  to an SQL <code>INTEGER</code> value when it sends it to the database.
+
+  @param parameterIndex the first parameter is 1, the second is 2, ...
+  @param x the parameter value
+}
+procedure TZSQLiteCAPIPreparedStatement.SetUInt(ParameterIndex: Integer;
+  Value: Cardinal);
+begin
+  SetLong(ParameterIndex, Value);
+end;
+
+{**
+  Sets the designated parameter to a Java <code>unsigned long long</code> value.
+  The driver converts this
+  to an SQL <code>BIGINT</code> value when it sends it to the database.
+
+  @param parameterIndex the first parameter is 1, the second is 2, ...
+  @param x the parameter value
+}
+{$IF defined (RangeCheckEnabled) and defined(WITH_UINT64_C1118_ERROR)}{$R-}{$IFEND}
+procedure TZSQLiteCAPIPreparedStatement.SetULong(ParameterIndex: Integer;
+  const Value: UInt64);
+begin
+  SetLong(ParameterIndex, Value);
+end;
+{$IF defined (RangeCheckEnabled) and defined(WITH_UINT64_C1118_ERROR)}{$R+}{$IFEND}
+
+procedure TZSQLiteCAPIPreparedStatement.SetWord(ParameterIndex: Integer;
+  Value: Word);
+begin
+  SetInt(ParameterIndex, Value);
 end;
 
 {$ENDIF ZEOS_DISABLE_SQLITE} //if set we have an empty unit

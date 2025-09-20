@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -62,191 +62,11 @@ interface
 {$IFNDEF ZEOS_DISABLE_ADO}
 uses
   Types, Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils,
-  ZSysUtils, ZDbcIntfs, ZDbcMetadata, ZDbcResultSet, ZURL,
+  ZSysUtils, ZDbcIntfs, ZDbcMetadata, ZDbcResultSet,
   ZCompatibility, ZGenericSqlAnalyser, ZPlainAdo, ZDbcConnection,
-  {$IFDEF FPC}ZOleDB{$ELSE}OleDB{$ENDIF}, ActiveX;
+  ZPlainOleDBDriver, ActiveX, ZDbcOleDBMetadata;
 
 type
-  ULONG = LongWord;
-  IZOleDBDatabaseInfo = interface(IZDatabaseInfo)
-    ['{FCAE90AA-B0B6-49A2-AB74-33E604FF8804}']
-    procedure InitilizePropertiesFromDBInfo(const DBInitialize: IDBInitialize; const Malloc: IMalloc);
-  end;
-
-  // technobot 2008-06-27 - methods moved as is from TZAdoDatabaseMetadata:
-  {** Implements Ado Database Information. }
-  TZAdoDatabaseInfo = class(TZAbstractDatabaseInfo, IZOleDBDatabaseInfo)
-  private
-    fDBPROP_MULTIPLEPARAMSETS: Boolean;
-    fDBPROP_PROVIDERFRIENDLYNAME: String;
-    fDBPROP_PROVIDERVER: String;
-    fDBPROP_DBMSNAME: String;
-    fDBPROP_DBMSVER: string;
-    fSupportedTransactIsolationLevels: set of TZTransactIsolationLevel;
-    fSupportsMultipleResultSets: Boolean;
-    fSupportsMultipleStorageObjects: Boolean;
-    fDBPROP_CATALOGUSAGE: Integer;
-    fDBPROP_SCHEMAUSAGE: Integer;
-    fDBPROP_IDENTIFIERCASE: Integer;
-    fDBPROP_QUOTEDIDENTIFIERCASE: Integer;
-    fDBPROP_MAXROWSIZE: Integer;
-    fDBPROP_MAXROWSIZEINCLUDESBLOB: Boolean;
-    fDBPROP_SQLSUPPORT: Integer;
-    fDBPROP_CATALOGTERM: String;
-    fDBPROP_SCHEMATERM: String;
-    fDBPROP_PROCEDURETERM: String;
-    fDBPROP_SUPPORTEDTXNDDL: Integer;
-    fDBPROP_CONCATNULLBEHAVIOR: Boolean;
-    fDBPROP_NULLCOLLATION: Integer;
-    fDBPROP_SUBQUERIES: Integer;
-    fDBPROP_GROUPBY: Integer;
-    fDBPROP_ORDERBYCOLUMNSINSELECT: Boolean;
-    fDBPROP_PREPAREABORTBEHAVIOR: Integer;
-    fDBPROP_PREPARECOMMITBEHAVIOR: Integer;
-  public
-    constructor Create(const Metadata: TZAbstractDatabaseMetadata);
-    // database/driver/server info:
-    function GetDatabaseProductName: string; override;
-    function GetDatabaseProductVersion: string; override;
-    function GetDriverName: string; override;
-    function GetDriverVersion: string; override;
-    function GetDriverMajorVersion: Integer; override;
-    function GetDriverMinorVersion: Integer; override;
-    function GetServerVersion: string; override;
-
-    // capabilities (what it can/cannot do):
-//    function AllProceduresAreCallable: Boolean; override; -> Not implemented
-//    function AllTablesAreSelectable: Boolean; override; -> Not implemented
-    function SupportsMixedCaseIdentifiers: Boolean; override;
-    function SupportsMixedCaseQuotedIdentifiers: Boolean; override;
-//    function SupportsAlterTableWithAddColumn: Boolean; override; -> Not implemented
-//    function SupportsAlterTableWithDropColumn: Boolean; override; -> Not implemented
-//    function SupportsColumnAliasing: Boolean; override; -> Not implemented
-//    function SupportsConvert: Boolean; override; -> Not implemented
-//    function SupportsConvertForTypes(FromType: TZSQLType; ToType: TZSQLType):
-//      Boolean; override; -> Not implemented
-//    function SupportsTableCorrelationNames: Boolean; override; -> Not implemented
-//    function SupportsDifferentTableCorrelationNames: Boolean; override; -> Not implemented
-    function SupportsExpressionsInOrderBy: Boolean; override;
-    function SupportsOrderByUnrelated: Boolean; override;
-    function SupportsGroupBy: Boolean; override;
-    function SupportsGroupByUnrelated: Boolean; override;
-    function SupportsGroupByBeyondSelect: Boolean; override;
-//    function SupportsLikeEscapeClause: Boolean; override; -> Not implemented
-    function SupportsMultipleResultSets: Boolean; override;
-    function SupportsMultipleStorageObjects: Boolean;
-//    function SupportsMultipleTransactions: Boolean; override; -> Not implemented
-//    function SupportsNonNullableColumns: Boolean; override; -> Not implemented
-    function SupportsMinimumSQLGrammar: Boolean; override;
-    function SupportsCoreSQLGrammar: Boolean; override;
-    function SupportsExtendedSQLGrammar: Boolean; override;
-    function SupportsANSI92EntryLevelSQL: Boolean; override;
-    function SupportsANSI92IntermediateSQL: Boolean; override;
-    function SupportsANSI92FullSQL: Boolean; override;
-    function SupportsIntegrityEnhancementFacility: Boolean; override;
-//    function SupportsOuterJoins: Boolean; override; -> Not implemented
-//    function SupportsFullOuterJoins: Boolean; override; -> Not implemented
-//    function SupportsLimitedOuterJoins: Boolean; override; -> Not implemented
-    function SupportsSchemasInDataManipulation: Boolean; override;
-    function SupportsSchemasInProcedureCalls: Boolean; override;
-    function SupportsSchemasInTableDefinitions: Boolean; override;
-    function SupportsSchemasInIndexDefinitions: Boolean; override;
-    function SupportsSchemasInPrivilegeDefinitions: Boolean; override;
-    function SupportsCatalogsInDataManipulation: Boolean; override;
-    function SupportsCatalogsInProcedureCalls: Boolean; override;
-    function SupportsCatalogsInTableDefinitions: Boolean; override;
-    function SupportsCatalogsInIndexDefinitions: Boolean; override;
-    function SupportsCatalogsInPrivilegeDefinitions: Boolean; override;
-    function SupportsOverloadPrefixInStoredProcedureName: Boolean; override;
-    function SupportsParameterBinding: Boolean; override;
-    function SupportsPositionedDelete: Boolean; override;
-    function SupportsPositionedUpdate: Boolean; override;
-    function SupportsSelectForUpdate: Boolean; override;
-    function SupportsStoredProcedures: Boolean; override;
-    function SupportsSubqueriesInComparisons: Boolean; override;
-    function SupportsSubqueriesInExists: Boolean; override;
-    function SupportsSubqueriesInIns: Boolean; override;
-    function SupportsSubqueriesInQuantifieds: Boolean; override;
-    function SupportsCorrelatedSubqueries: Boolean; override;
-    function SupportsUnion: Boolean; override;
-    function SupportsUnionAll: Boolean; override;
-    function SupportsOpenCursorsAcrossCommit: Boolean; override;
-    function SupportsOpenCursorsAcrossRollback: Boolean; override;
-    function SupportsOpenStatementsAcrossCommit: Boolean; override;
-    function SupportsOpenStatementsAcrossRollback: Boolean; override;
-    function SupportsTransactions: Boolean; override;
-    function SupportsTransactionIsolationLevel(const {%H-}Level: TZTransactIsolationLevel):
-      Boolean; override;
-    function SupportsDataDefinitionAndDataManipulationTransactions: Boolean; override;
-    function SupportsDataManipulationTransactionsOnly: Boolean; override;
-    function SupportsResultSetType(const {%H-}_Type: TZResultSetType): Boolean; override;
-    function SupportsResultSetConcurrency(const {%H-}_Type: TZResultSetType;
-      const {%H-}Concurrency: TZResultSetConcurrency): Boolean; override;
-//    function SupportsBatchUpdates: Boolean; override; -> Not implemented
-    function SupportsNonEscapedSearchStrings: Boolean; override;
-    function SupportsUpdateAutoIncrementFields: Boolean; override;
-    function SupportsArrayBindings: Boolean; override;
-
-    // maxima:
-    function GetMaxBinaryLiteralLength: Integer; override;
-    function GetMaxCharLiteralLength: Integer; override;
-    function GetMaxColumnNameLength: Integer; override;
-    function GetMaxColumnsInGroupBy: Integer; override;
-    function GetMaxColumnsInIndex: Integer; override;
-    function GetMaxColumnsInOrderBy: Integer; override;
-    function GetMaxColumnsInSelect: Integer; override;
-    function GetMaxColumnsInTable: Integer; override;
-    function GetMaxConnections: Integer; override;
-    function GetMaxCursorNameLength: Integer; override;
-    function GetMaxIndexLength: Integer; override;
-    function GetMaxSchemaNameLength: Integer; override;
-    function GetMaxProcedureNameLength: Integer; override;
-    function GetMaxCatalogNameLength: Integer; override;
-    function GetMaxRowSize: Integer; override;
-    function GetMaxStatementLength: Integer; override;
-    function GetMaxStatements: Integer; override;
-    function GetMaxTableNameLength: Integer; override;
-    function GetMaxTablesInSelect: Integer; override;
-    function GetMaxUserNameLength: Integer; override;
-
-    // policies (how are various data and operations handled):
-//    function IsReadOnly: Boolean; override; -> Not implemented
-//    function IsCatalogAtStart: Boolean; override; -> Not implemented
-    function DoesMaxRowSizeIncludeBlobs: Boolean; override;
-    function NullsAreSortedHigh: Boolean; override;
-    function NullsAreSortedLow: Boolean; override;
-    function NullsAreSortedAtStart: Boolean; override;
-    function NullsAreSortedAtEnd: Boolean; override;
-    function NullPlusNonNullIsNull: Boolean; override;
-//    function UsesLocalFiles: Boolean; override; -> Not implemented
-    function UsesLocalFilePerTable: Boolean; override;
-    function StoresUpperCaseIdentifiers: Boolean; override;
-    function StoresLowerCaseIdentifiers: Boolean; override;
-    function StoresMixedCaseIdentifiers: Boolean; override;
-    function StoresUpperCaseQuotedIdentifiers: Boolean; override;
-    function StoresLowerCaseQuotedIdentifiers: Boolean; override;
-    function StoresMixedCaseQuotedIdentifiers: Boolean; override;
-    function GetDefaultTransactionIsolation: TZTransactIsolationLevel; override;
-    function DataDefinitionCausesTransactionCommit: Boolean; override;
-    function DataDefinitionIgnoredInTransactions: Boolean; override;
-
-    // interface details (terms, keywords, etc):
-    function GetSchemaTerm: string; override;
-    function GetProcedureTerm: string; override;
-    function GetCatalogTerm: string; override;
-    function GetCatalogSeparator: string; override;
-    function GetSQLKeywords: string; override;
-    function GetNumericFunctions: string; override;
-    function GetStringFunctions: string; override;
-    function GetSystemFunctions: string; override;
-    function GetTimeDateFunctions: string; override;
-    function GetSearchStringEscape: string; override;
-    function GetExtraNameCharacters: string; override;
-
-    //Ole related
-    procedure InitilizePropertiesFromDBInfo(const DBInitialize: IDBInitialize; const Malloc: IMalloc);
-  end;
-
   {** Implements Ado Metadata. }
   TZAdoDatabaseMetadata = class(TZAbstractDatabaseMetadata)
   private
@@ -267,12 +87,138 @@ type
     function UncachedGetTableTypes: IZResultSet; override;
     function UncachedGetColumns(const Catalog: string; const SchemaPattern: string;
       const TableNamePattern: string; const ColumnNamePattern: string): IZResultSet; override;
+    /// <summary>Gets a description of the access rights for each table
+    ///  available in a catalog from a cache. Note that a table privilege
+    ///  applies to one or more columns in the table. It would be wrong to
+    ///  assume that this priviledge applies to all columns (this may be true
+    ///  for some systems but is not true for all.)
+    ///
+    ///  Only privileges matching the schema and table name
+    ///  criteria are returned. They are ordered by TABLE_SCHEM,
+    ///  TABLE_NAME, and PRIVILEGE.
+    ///
+    ///  Each privilige description has the following columns:
+    ///  <c>TABLE_CAT</c> String => table catalog (may be null)
+    ///  <c>TABLE_SCHEM</c> String => table schema (may be null)
+    ///  <c>TABLE_NAME</c> String => table name
+    ///  <c>GRANTOR</c> => grantor of access (may be null)
+    ///  <c>GRANTEE</c> String => grantee of access
+    ///  <c>PRIVILEGE</c> String => name of access (SELECT,
+    ///      INSERT, UPDATE, REFRENCES, ...)
+    ///  <c>IS_GRANTABLE</c> String => "YES" if grantee is permitted
+    ///   to grant to others; "NO" if not; null if unknown</summary>
+    ///
+    /// <param>"Catalog" a catalog name; "" means drop catalog name from the
+    ///  selection criteria</param>
+    /// <param>"SchemaPattern" a schema name pattern; "" means drop schema from
+    ///  the selection criteria</param>
+    /// <param>"TableNamePattern" a table name pattern</param>
+    /// <returns><c>ResultSet</c> - each row is a table privilege description</returns>
+    /// <remarks>see GetSearchStringEscape</remarks>
     function UncachedGetTablePrivileges(const Catalog: string; const SchemaPattern: string;
       const TableNamePattern: string): IZResultSet; override;
+    /// <summary>Gets a description of the access rights for a table's columns.
+    ///
+    ///  Only privileges matching the column name criteria are
+    ///  returned. They are ordered by COLUMN_NAME and PRIVILEGE.
+    ///
+    ///  Each privilige description has the following columns:
+ 	  ///  <c>TABLE_CAT</c> String => table catalog (may be null)
+ 	  ///  <c>TABLE_SCHEM</c> String => table schema (may be null)
+ 	  ///  <c>TABLE_NAME</c> String => table name
+ 	  ///  <c>COLUMN_NAME</c> String => column name
+ 	  ///  <c>GRANTOR</c> => grantor of access (may be null)
+ 	  ///  <c>GRANTEE</c> String => grantee of access
+ 	  ///  <c>PRIVILEGE</c> String => name of access (SELECT,
+    ///     INSERT, UPDATE, REFRENCES, ...)
+ 	  ///  <c>IS_GRANTABLE</c> String => "YES" if grantee is permitted
+    ///   to grant to others; "NO" if not; null if unknown</summary>
+    /// <param>"Catalog" a catalog name; An empty catalog means drop catalog
+    ///  name from the selection criteria</param>
+    /// <param>"schema" a schema name; An empty schema means drop schema
+    ///  name from the selection criteria</param>
+    /// <param>"table" a table name; An empty table means drop table
+    ///  name from the selection criteria</param>
+    /// <param>"ColumnNamePattern" a column name pattern</param>
+    /// <returns><c>ResultSet</c> - each row is a privilege description</returns>
+    /// <remarks>see GetSearchStringEscape</remarks>
     function UncachedGetColumnPrivileges(const Catalog: string; const Schema: string;
       const Table: string; const ColumnNamePattern: string): IZResultSet; override;
+    /// <summary>Gets a description of a table's primary key columns. They
+    ///  are ordered by COLUMN_NAME.
+    ///  Each primary key column description has the following columns:
+ 	  ///  <c>TABLE_CAT</c> String => table catalog (may be null)
+ 	  ///  <c>TABLE_SCHEM</c> String => table schema (may be null)
+ 	  ///  <c>TABLE_NAME</c> String => table name
+ 	  ///  <c>COLUMN_NAME</c> String => column name
+ 	  ///  <c>KEY_SEQ</c> short => sequence number within primary key
+ 	  ///  <c>PK_NAME</c> String => primary key name (may be null)</summary>
+    /// <param>"Catalog" a catalog name; An empty catalog means drop catalog
+    ///  name from the selection criteria</param>
+    /// <param>"schema" a schema name; An empty schema means drop schema
+    ///  name from the selection criteria</param>
+    /// <param>"table" a table name; An empty table means drop table
+    ///  name from the selection criteria</param>
+    /// <returns><c>ResultSet</c> - each row is a primary key column description</returns>
+    /// <remarks>see GetSearchStringEscape</remarks>
     function UncachedGetPrimaryKeys(const Catalog: string; const Schema: string;
       const Table: string): IZResultSet; override;
+    /// <summary>Gets a description of the primary key columns that are
+    ///  referenced by a table's foreign key columns (the primary keys
+    ///  imported by a table).  They are ordered by PKTABLE_CAT,
+    ///  PKTABLE_SCHEM, PKTABLE_NAME, and KEY_SEQ.
+    ///  Each primary key column description has the following columns:
+    ///  <c>PKTABLE_CAT</c> String => primary key table catalog
+    ///       being imported (may be null)
+    ///  <c>PKTABLE_SCHEM</c> String => primary key table schema
+    ///       being imported (may be null)
+    ///  <c>PKTABLE_NAME</c> String => primary key table name
+    ///       being imported
+    ///  <c>PKCOLUMN_NAME</c> String => primary key column name
+    ///       being imported
+    ///  <c>FKTABLE_CAT</c> String => foreign key table catalog (may be null)
+    ///  <c>FKTABLE_SCHEM</c> String => foreign key table schema (may be null)
+    ///  <c>FKTABLE_NAME</c> String => foreign key table name
+    ///  <c>FKCOLUMN_NAME</c> String => foreign key column name
+    ///  <c>KEY_SEQ</c> short => sequence number within foreign key
+    ///  <c>UPDATE_RULE</c> short => What happens to
+    ///        foreign key when primary is updated:
+    ///        importedNoAction - do not allow update of primary
+    ///                key if it has been imported
+    ///        importedKeyCascade - change imported key to agree
+    ///                with primary key update
+    ///        importedKeySetNull - change imported key to NULL if
+    ///                its primary key has been updated
+    ///        importedKeySetDefault - change imported key to default values
+    ///                if its primary key has been updated
+    ///        importedKeyRestrict - same as importedKeyNoAction
+    ///                                  (for ODBC 2.x compatibility)
+    ///  <c>DELETE_RULE</c> short => What happens to
+    ///       the foreign key when primary is deleted.
+    ///        importedKeyNoAction - do not allow delete of primary
+    ///                key if it has been imported
+    ///        importedKeyCascade - delete rows that import a deleted key
+    ///       importedKeySetNull - change imported key to NULL if
+    ///                its primary key has been deleted
+    ///        importedKeyRestrict - same as importedKeyNoAction
+    ///                                  (for ODBC 2.x compatibility)
+    ///        importedKeySetDefault - change imported key to default if
+    ///                its primary key has been deleted
+    ///  <c>FK_NAME</c> String => foreign key name (may be null)
+    ///  <c>PK_NAME</c> String => primary key name (may be null)
+    ///  <c>DEFERRABILITY</c> short => can the evaluation of foreign key
+    ///       constraints be deferred until commit
+    ///        importedKeyInitiallyDeferred - see SQL92 for definition
+    ///        importedKeyInitiallyImmediate - see SQL92 for definition
+    ///        importedKeyNotDeferrable - see SQL92 for definition</summary>
+    /// <param>"Catalog" a catalog name; An empty catalog means drop catalog
+    ///  name from the selection criteria</param>
+    /// <param>"schema" a schema name; An empty schema means drop schema
+    ///  name from the selection criteria</param>
+    /// <param>"table" a table name; An empty table means drop table
+    ///  name from the selection criteria</param>
+    /// <returns><c>ResultSet</c> - each row is imported key column description</returns>
+    /// <remarks>see GetSearchStringEscape;GetExportedKeys</remarks>
     function UncachedGetImportedKeys(const Catalog: string; const Schema: string;
       const Table: string): IZResultSet; override;
     function UncachedGetExportedKeys(const Catalog: string; const Schema: string;
@@ -295,8 +241,13 @@ type
     function UncachedGetUDTs(const Catalog: string; const SchemaPattern: string;
       const TypeNamePattern: string; const Types: TIntegerDynArray): IZResultSet; override;
   public
-    constructor Create(Connection: TZAbstractConnection; const Url: TZURL); override;
+    constructor Create(Connection: TZAbstractDbcConnection; const Url: TZURL); override;
 //    function GetTokenizer: IZTokenizer; override;
+  end;
+
+  TZAdoDatabaseInfo = Class(TZOleDBDatabaseInfo)
+  public
+    function SupportsArrayBindings: Boolean; override;
   end;
 
 {$ENDIF ZEOS_DISABLE_ADO}
@@ -336,1186 +287,7 @@ type
 var
   SupportedSchemas: array of TSuppSchemaRec;
 
-{ TZAdoDatabaseInfo }
-
-{**
-  Constructs this object.
-  @param Metadata the interface of the correpsonding database metadata object
-  @param IdentifierQuotes the default Quotes for Identifiers used by the driver
-}
-constructor TZAdoDatabaseInfo.Create(const Metadata: TZAbstractDatabaseMetadata);
-begin
-  inherited Create(MetaData, '[]');
-end;
-
-//----------------------------------------------------------------------
-// First, a variety of minor information about the target database.
-
-{**
-  What's the name of this database product?
-  @return database product name
-}
-function TZAdoDatabaseInfo.GetDatabaseProductName: string;
-begin
-  Result := fDBPROP_DBMSNAME;
-end;
-
-{**
-  What's the version of this database product?
-  @return database version
-}
-function TZAdoDatabaseInfo.GetDatabaseProductVersion: string;
-begin
-  Result := fDBPROP_DBMSVER;
-end;
-
-{**
-  What's the name of this JDBC driver?
-  @return JDBC driver name
-}
-function TZAdoDatabaseInfo.GetDriverName: string;
-begin
-  Result := fDBPROP_PROVIDERFRIENDLYNAME;
-end;
-
-{**
-  What's the version of this JDBC driver?
-  @return JDBC driver version
-}
-function TZAdoDatabaseInfo.GetDriverVersion: string;
-begin
-  Result := fDBPROP_PROVIDERVER;
-end;
-
-{**
-  What's this JDBC driver's major version number?
-  @return JDBC driver major version
-}
-function TZAdoDatabaseInfo.GetDriverMajorVersion: Integer;
-begin
-  Result := ZFastCode.{$IFDEF UNICODE}UnicodeToInt{$ELSE}RawToInt{$ENDIF}(Copy(fDBPROP_PROVIDERVER, 1, 2));
-end;
-
-{**
-  What's this JDBC driver's minor version number?
-  @return JDBC driver minor version number
-}
-function TZAdoDatabaseInfo.GetDriverMinorVersion: Integer;
-begin
-  Result := ZFastCode.{$IFDEF UNICODE}UnicodeToInt{$ELSE}RawToInt{$ENDIF}(Copy(fDBPROP_PROVIDERVER, 4, 2));
-end;
-
-{**
-  Does the database use a file for each table?
-  @return true if the database uses a local file for each table
-}
-function TZAdoDatabaseInfo.UsesLocalFilePerTable: Boolean;
-begin
-  Result := False;
-end;
-
-{**
-  Is the ODBC Minimum SQL grammar supported?
-  All JDBC Compliant<sup><font size=-2>TM</font></sup> drivers must return true.
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsMinimumSQLGrammar: Boolean;
-begin
-  Result := fDBPROP_SQLSUPPORT and DBPROPVAL_SQL_ODBC_MINIMUM = DBPROPVAL_SQL_ODBC_MINIMUM;
-end;
-
-{**
-  Does the database treat mixed case unquoted SQL identifiers as
-  case sensitive and as a result store them in mixed case?
-  A JDBC Compliant<sup><font size=-2>TM</font></sup> driver will
-  always return false.
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsMixedCaseIdentifiers: Boolean;
-begin
-  Result := fDBPROP_IDENTIFIERCASE = DBPROPVAL_IC_SENSITIVE;
-end;
-
-{**
-  Does the database treat mixed case unquoted SQL identifiers as
-  case insensitive and store them in upper case?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.StoresUpperCaseIdentifiers: Boolean;
-begin
-  Result := fDBPROP_IDENTIFIERCASE = DBPROPVAL_IC_UPPER;
-end;
-
-{**
-  Does the database treat mixed case unquoted SQL identifiers as
-  case insensitive and store them in lower case?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.StoresLowerCaseIdentifiers: Boolean;
-begin
-  Result := fDBPROP_IDENTIFIERCASE = DBPROPVAL_IC_LOWER;
-end;
-
-{**
-  Does the database treat mixed case unquoted SQL identifiers as
-  case insensitive and store them in mixed case?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.StoresMixedCaseIdentifiers: Boolean;
-begin
-  Result := fDBPROP_IDENTIFIERCASE = DBPROPVAL_IC_MIXED;
-end;
-
-{**
-  Does the database treat mixed case quoted SQL identifiers as
-  case sensitive and as a result store them in mixed case?
-  A JDBC Compliant<sup><font size=-2>TM</font></sup> driver will always return true.
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsMixedCaseQuotedIdentifiers: Boolean;
-begin
-  Result := fDBPROP_QUOTEDIDENTIFIERCASE = DBPROPVAL_IC_SENSITIVE;
-end;
-
-{**
-  Are multiple <code>ResultSet</code> from a single execute supported?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsMultipleResultSets: Boolean;
-begin
-  Result := fSupportsMultipleResultSets;
-end;
-
-function TZAdoDatabaseInfo.SupportsMultipleStorageObjects: Boolean;
-begin
-  Result := fSupportsMultipleStorageObjects;
-end;
-
-{**
-  Does the database treat mixed case quoted SQL identifiers as
-  case insensitive and store them in upper case?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.StoresUpperCaseQuotedIdentifiers: Boolean;
-begin
-  Result := fDBPROP_QUOTEDIDENTIFIERCASE = DBPROPVAL_IC_UPPER;
-end;
-
-{**
-  Does the database treat mixed case quoted SQL identifiers as
-  case insensitive and store them in lower case?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.StoresLowerCaseQuotedIdentifiers: Boolean;
-begin
-  Result := fDBPROP_QUOTEDIDENTIFIERCASE = DBPROPVAL_IC_LOWER;
-end;
-
-{**
-  Does the database treat mixed case quoted SQL identifiers as
-  case insensitive and store them in mixed case?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.StoresMixedCaseQuotedIdentifiers: Boolean;
-begin
-  Result := fDBPROP_QUOTEDIDENTIFIERCASE = DBPROPVAL_IC_MIXED ;
-end;
-
-{**
-  Gets a comma-separated list of all a database's SQL keywords
-  that are NOT also SQL92 keywords.
-  @return the list
-}
-function TZAdoDatabaseInfo.GetSQLKeywords: string;
-begin
-  { TODO -ofjanos -cAPI : SQL Keywords that are not SQL92 compliant }
-  Result := inherited GetSQLKeywords;
-end;
-
-{**
-  Gets a comma-separated list of math functions.  These are the
-  X/Open CLI math function names used in the JDBC function escape
-  clause.
-  @return the list
-}
-function TZAdoDatabaseInfo.GetNumericFunctions: string;
-begin
-  Result := 'ABS,ACOS,ASIN,ATAN,ATN2,CEILING,COS,COT,DEGREES,EXP,FLOOR,LOG,LOG10,'+
-            'PI,POWER,RADIANS,RAND,ROUND,SIGN,SIN,SQUARE,SQRT,TAN';
-end;
-
-{**
-  Gets a comma-separated list of string functions.  These are the
-  X/Open CLI string function names used in the JDBC function escape
-  clause.
-  @return the list
-}
-function TZAdoDatabaseInfo.GetStringFunctions: string;
-begin
-  Result := 'ASCII,CHAR,CHARINDEX,DIFFERENCE,LEFT,LEN,LOWER,LTRIM,NCHAR,PATINDEX,'+
-            'REPLACE,QUOTENAME,REPLICATE,REVERSE,RIGHT,RTRIM,SOUNDEX,SPACE,STR,'+
-            'STUFF,SUBSTRING,UNICODE,UPPER';
-end;
-
-{**
-  Gets a comma-separated list of system functions.  These are the
-  X/Open CLI system function names used in the JDBC function escape
-  clause.
-  @return the list
-}
-function TZAdoDatabaseInfo.GetSystemFunctions: string;
-begin
-  Result := 'APP_NAME,CASE,CAST,CONVERT,COALESCE,CURRENT_TIMESTAMP,CURRENT_USER,'+
-            'DATALENGTH,@@ERROR,FORMATMESSAGE,GETANSINULL,HOST_ID,HOST_NAME,'+
-            'IDENT_INCR,IDENT_SEED,@@IDENTITY,IDENTITY,ISDATE,ISNULL,ISNUMERIC,'+
-            'NEWID,NULLIF,PARSENAME,PERMISSIONS,@@ROWCOUNT,SESSION_USER,STATS_DATE,'+
-            'SYSTEM_USER,@@TRANCOUNT,USER_NAME';
-end;
-
-{**
-  Gets a comma-separated list of time and date functions.
-  @return the list
-}
-function TZAdoDatabaseInfo.GetTimeDateFunctions: string;
-begin
-  Result := 'DATEADD,DATEDIFF,DATENAME,DATEPART,DAY,GETDATE,MONTH,YEAR';
-end;
-
-procedure TZAdoDatabaseInfo.InitilizePropertiesFromDBInfo(
-  const DBInitialize: IDBInitialize; const Malloc: IMalloc);
-const
-  VARIANT_TRUE = -1;
-  PropCount = 26;
-  rgPropertyIDs: array[0..PropCount-1] of DBPROPID =
-    ( DBPROP_PROVIDERFRIENDLYNAME,
-      DBPROP_PROVIDERVER,
-      DBPROP_DBMSNAME,
-      DBPROP_DBMSVER,
-      DBPROP_SUPPORTEDTXNISOLEVELS,
-      DBPROP_MULTIPLERESULTS,
-      DBPROP_MULTIPLESTORAGEOBJECTS,
-      DBPROP_SCHEMAUSAGE,
-      DBPROP_CATALOGUSAGE,
-      DBPROP_IDENTIFIERCASE,
-      DBPROP_QUOTEDIDENTIFIERCASE,
-      DBPROP_MAXROWSIZE,
-      DBPROP_MAXROWSIZEINCLUDESBLOB,
-      DBPROP_SQLSUPPORT,
-      DBPROP_CATALOGTERM,
-      DBPROP_SCHEMATERM,
-      DBPROP_PROCEDURETERM,
-      DBPROP_SUPPORTEDTXNDDL,
-      DBPROP_CONCATNULLBEHAVIOR,
-      DBPROP_NULLCOLLATION,
-      DBPROP_SUBQUERIES,
-      DBPROP_GROUPBY,
-      DBPROP_ORDERBYCOLUMNSINSELECT,
-      DBPROP_PREPAREABORTBEHAVIOR,
-      DBPROP_PREPARECOMMITBEHAVIOR,
-      DBPROP_MULTIPLEPARAMSETS);
-var
-  DBProperties: IDBProperties;
-  PropIDSet: array[0..PropCount-1] of TDBPROPIDSET;
-  prgPropertySets: PDBPropSet;
-  PropSet: TDBPropSet;
-  nPropertySets: ULONG;
-  i, intProp: Integer;
-begin
-  DBProperties := nil;
-  OleCheck(DBInitialize.QueryInterface(IID_IDBProperties, DBProperties));
-  try
-    PropIDSet[0].rgPropertyIDs   := @rgPropertyIDs;
-    PropIDSet[0].cPropertyIDs    := PropCount;
-    PropIDSet[0].guidPropertySet := DBPROPSET_DATASOURCEINFO;
-    nPropertySets := 0;
-    prgPropertySets := nil;
-    OleCheck( DBProperties.GetProperties( 1, @PropIDSet, nPropertySets, prgPropertySets ) );
-    Assert( nPropertySets = 1 ); Assert(prgPropertySets.cProperties = PropCount);
-    for i := 0 to prgPropertySets.cProperties-1 do begin
-      PropSet := prgPropertySets^;
-      if PropSet.rgProperties^[i].dwStatus <> DBPROPSTATUS(DBPROPSTATUS_OK) then
-        Continue;
-      case PropSet.rgProperties^[i].dwPropertyID of
-        DBPROP_PROVIDERFRIENDLYNAME:    fDBPROP_PROVIDERFRIENDLYNAME := String(PropSet.rgProperties^[i].vValue);
-        DBPROP_PROVIDERVER:             fDBPROP_PROVIDERVER := String(PropSet.rgProperties^[i].vValue);
-        DBPROP_DBMSNAME:                fDBPROP_DBMSNAME := String(PropSet.rgProperties^[i].vValue);
-        DBPROP_DBMSVER:                 fDBPROP_DBMSVER := String(PropSet.rgProperties^[i].vValue);
-        DBPROP_SUPPORTEDTXNISOLEVELS:   begin
-            intProp := PropSet.rgProperties^[i].vValue;
-            fSupportedTransactIsolationLevels := [];
-            if ISOLATIONLEVEL_CHAOS and intProp = ISOLATIONLEVEL_CHAOS then
-              Include(fSupportedTransactIsolationLevels, tiNone);
-            if ISOLATIONLEVEL_READUNCOMMITTED and intProp = ISOLATIONLEVEL_READUNCOMMITTED then
-              Include(fSupportedTransactIsolationLevels, tiReadUncommitted);
-            if ISOLATIONLEVEL_READCOMMITTED and intProp = ISOLATIONLEVEL_READCOMMITTED then
-              Include(fSupportedTransactIsolationLevels, tiReadCommitted);
-            if ISOLATIONLEVEL_REPEATABLEREAD and intProp = ISOLATIONLEVEL_REPEATABLEREAD then
-              Include(fSupportedTransactIsolationLevels, tiRepeatableRead);
-            if ISOLATIONLEVEL_SERIALIZABLE and intProp = ISOLATIONLEVEL_SERIALIZABLE then
-              Include(fSupportedTransactIsolationLevels, tiSerializable);
-          end;
-        DBPROP_MULTIPLERESULTS:         fSupportsMultipleResultSets := PropSet.rgProperties^[i].vValue <> DBPROPVAL_MR_NOTSUPPORTED;
-        DBPROP_MULTIPLESTORAGEOBJECTS:  fSupportsMultipleStorageObjects := PropSet.rgProperties^[i].vValue = VARIANT_TRUE;
-        DBPROP_SCHEMAUSAGE:             fDBPROP_SCHEMAUSAGE := PropSet.rgProperties^[i].vValue;
-        DBPROP_CATALOGUSAGE:            fDBPROP_CATALOGUSAGE := PropSet.rgProperties^[i].vValue;
-        DBPROP_QUOTEDIDENTIFIERCASE:    fDBPROP_QUOTEDIDENTIFIERCASE := PropSet.rgProperties^[i].vValue;
-        DBPROP_IDENTIFIERCASE:          fDBPROP_IDENTIFIERCASE := PropSet.rgProperties^[i].vValue;
-        DBPROP_MAXROWSIZE:              fDBPROP_MAXROWSIZE := PropSet.rgProperties^[i].vValue;
-        DBPROP_MAXROWSIZEINCLUDESBLOB:  fDBPROP_MAXROWSIZEINCLUDESBLOB := PropSet.rgProperties^[i].vValue = VARIANT_TRUE;
-        DBPROP_SQLSUPPORT:              fDBPROP_SQLSUPPORT := PropSet.rgProperties^[i].vValue;
-        DBPROP_CATALOGTERM:             fDBPROP_CATALOGTERM := String(PropSet.rgProperties^[i].vValue);
-        DBPROP_SCHEMATERM:              fDBPROP_SCHEMATERM := String(PropSet.rgProperties^[i].vValue);
-        DBPROP_PROCEDURETERM:           fDBPROP_PROCEDURETERM := String(PropSet.rgProperties^[i].vValue);
-        DBPROP_SUPPORTEDTXNDDL:         fDBPROP_SUPPORTEDTXNDDL := PropSet.rgProperties^[i].vValue;
-        DBPROP_CONCATNULLBEHAVIOR:      fDBPROP_CONCATNULLBEHAVIOR := PropSet.rgProperties^[i].vValue = DBPROPVAL_CB_NULL;
-        DBPROP_NULLCOLLATION:           fDBPROP_NULLCOLLATION := PropSet.rgProperties^[i].vValue;
-        DBPROP_SUBQUERIES:              fDBPROP_SUBQUERIES := PropSet.rgProperties^[i].vValue;
-        DBPROP_GROUPBY:                 fDBPROP_GROUPBY := PropSet.rgProperties^[i].vValue;
-        DBPROP_ORDERBYCOLUMNSINSELECT:  fDBPROP_ORDERBYCOLUMNSINSELECT := PropSet.rgProperties^[i].vValue = VARIANT_TRUE;
-        DBPROP_PREPAREABORTBEHAVIOR:    fDBPROP_PREPAREABORTBEHAVIOR := PropSet.rgProperties^[i].vValue;
-        DBPROP_PREPARECOMMITBEHAVIOR:   fDBPROP_PREPARECOMMITBEHAVIOR := PropSet.rgProperties^[i].vValue;
-        DBPROP_MULTIPLEPARAMSETS:       fDBPROP_MULTIPLEPARAMSETS := PropSet.rgProperties^[i].vValue = VARIANT_TRUE;
-      end;
-      VariantClear(PropSet.rgProperties^[i].vValue);
-    end;
-    // free and clear elements of PropIDSet
-    MAlloc.Free(PropSet.rgProperties);
-    MAlloc.Free(prgPropertySets); //free prgPropertySets
-  finally
-    DBProperties := nil;
-  end;
-end;
-
-{**
-  Are concatenations between NULL and non-NULL values NULL?
-  For SQL-92 compliance, a JDBC technology-enabled driver will
-  return <code>true</code>.
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.NullPlusNonNullIsNull: Boolean;
-begin
-  Result := fDBPROP_CONCATNULLBEHAVIOR
-end;
-
-function TZAdoDatabaseInfo.NullsAreSortedAtEnd: Boolean;
-begin
-  Result := fDBPROP_NULLCOLLATION = DBPROPVAL_NC_START;
-end;
-
-{**
-  Are NULL values sorted at the start regardless of sort order?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.NullsAreSortedAtStart: Boolean;
-begin
-  Result := fDBPROP_NULLCOLLATION = DBPROPVAL_NC_END;
-end;
-
-{**
-  Are NULL values sorted high?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.NullsAreSortedHigh: Boolean;
-begin
-  Result := fDBPROP_NULLCOLLATION = DBPROPVAL_NC_HIGH;
-end;
-
-{**
-  Are NULL values sorted low?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.NullsAreSortedLow: Boolean;
-begin
-  Result := fDBPROP_NULLCOLLATION = DBPROPVAL_NC_LOW;
-end;
-
-{**
-  Gets the string that can be used to escape wildcard characters.
-  This is the string that can be used to escape '_' or '%' in
-  the string pattern style catalog search parameters.
-
-  <P>The '_' character represents any single character.
-  <P>The '%' character represents any sequence of zero or
-  more characters.
-
-  @return the string used to escape wildcard characters
-}
-function TZAdoDatabaseInfo.GetSearchStringEscape: string;
-begin
-{ TODO -ofjanos -cgeneral : 
-In sql server this must be specified as the parameter of like.
-example: WHERE ColumnA LIKE '%5/%%' ESCAPE '/' }
-  Result := '/';
-end;
-
-{**
-  Returns the server version
-  @return the server version string
-}
-function TZAdoDatabaseInfo.GetServerVersion: string;
-begin
-  Result := fDBPROP_DBMSVER;
-end;
-
-{**
-  Gets all the "extra" characters that can be used in unquoted
-  identifier names (those beyond a-z, A-Z, 0-9 and _).
-  @return the string containing the extra characters
-}
-function TZAdoDatabaseInfo.GetExtraNameCharacters: string;
-begin
-  Result := '@$#';
-end;
-
-//--------------------------------------------------------------------
-// Functions describing which features are supported.
-
-{**
-  Are expressions in "ORDER BY" lists supported?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsExpressionsInOrderBy: Boolean;
-begin
-  Result := True;
-end;
-
-{**
-  Is the ODBC Extended SQL grammar supported?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsExtendedSQLGrammar: Boolean;
-begin
-  Result := fDBPROP_SQLSUPPORT and DBPROPVAL_SQL_ODBC_EXTENDED = DBPROPVAL_SQL_ODBC_EXTENDED;
-end;
-
-{**
-  Can an "ORDER BY" clause use columns not in the SELECT statement?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsOrderByUnrelated: Boolean;
-begin
-  Result := not fDBPROP_ORDERBYCOLUMNSINSELECT;
-end;
-
-{**
-  Is some form of "GROUP BY" clause supported?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsGroupBy: Boolean;
-begin
-  Result := fDBPROP_GROUPBY <> 0;
-end;
-
-{**
-  Can a "GROUP BY" clause use columns not in the SELECT?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsGroupByUnrelated: Boolean;
-begin
-  Result := (fDBPROP_GROUPBY = DBPROPVAL_GB_CONTAINS_SELECT) or SupportsGroupByBeyondSelect;
-end;
-
-{**
-  Can a "GROUP BY" clause add columns not in the SELECT
-  provided it specifies all the columns in the SELECT?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsGroupByBeyondSelect: Boolean;
-begin
-  Result := fDBPROP_GROUPBY = DBPROPVAL_GB_NO_RELATION;
-end;
-
-{**
-  Is the SQL Integrity Enhancement Facility supported?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsIntegrityEnhancementFacility: Boolean;
-begin
-  Result := fDBPROP_SQLSUPPORT and DBPROPVAL_SQL_ANSI89_IEF = DBPROPVAL_SQL_ANSI89_IEF;
-end;
-
-{**
-  What's the database vendor's preferred term for "schema"?
-  @return the vendor term
-}
-function TZAdoDatabaseInfo.GetSchemaTerm: string;
-begin
-  Result := fDBPROP_SCHEMATERM;
-end;
-
-{**
-  What's the database vendor's preferred term for "procedure"?
-  @return the vendor term
-}
-function TZAdoDatabaseInfo.GetProcedureTerm: string;
-begin
-  Result := fDBPROP_PROCEDURETERM;
-end;
-
-{**
-  What's the database vendor's preferred term for "catalog"?
-  @return the vendor term
-}
-function TZAdoDatabaseInfo.GetCatalogTerm: string;
-begin
-  Result := fDBPROP_CATALOGTERM;
-end;
-
-{**
-  What's the separator between catalog and table name?
-  @return the separator string
-}
-function TZAdoDatabaseInfo.GetCatalogSeparator: string;
-begin
-  Result := '.';
-end;
-
-{**
-  Can a schema name be used in a data manipulation statement?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsSchemasInDataManipulation: Boolean;
-begin
-  Result := fDBPROP_SCHEMAUSAGE and DBPROPVAL_SU_DML_STATEMENTS = DBPROPVAL_SU_DML_STATEMENTS;
-end;
-
-{**
-  Can a schema name be used in a procedure call statement?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsSchemasInProcedureCalls: Boolean;
-begin
-  //NA
-  Result := SupportsStoredProcedures and SupportsSchemasInTableDefinitions;
-end;
-
-{**
-  Can a schema name be used in a table definition statement?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsSchemasInTableDefinitions: Boolean;
-begin
-  Result := fDBPROP_SCHEMAUSAGE and DBPROPVAL_SU_TABLE_DEFINITION = DBPROPVAL_SU_TABLE_DEFINITION;
-end;
-
-{**
-  Can a schema name be used in an index definition statement?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsSchemasInIndexDefinitions: Boolean;
-begin
-  Result := fDBPROP_SCHEMAUSAGE and DBPROPVAL_SU_INDEX_DEFINITION = DBPROPVAL_SU_INDEX_DEFINITION;
-end;
-
-{**
-  Can a schema name be used in a privilege definition statement?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsSchemasInPrivilegeDefinitions: Boolean;
-begin
-  Result := fDBPROP_SCHEMAUSAGE and DBPROPVAL_SU_PRIVILEGE_DEFINITION = DBPROPVAL_SU_PRIVILEGE_DEFINITION;
-end;
-
-{**
-  Can a catalog name be used in a data manipulation statement?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsCatalogsInDataManipulation: Boolean;
-begin
-  Result := fDBPROP_CATALOGUSAGE and DBPROPVAL_CU_DML_STATEMENTS = DBPROPVAL_CU_DML_STATEMENTS;
-end;
-
-{**
-  Can a catalog name be used in a procedure call statement?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsCatalogsInProcedureCalls: Boolean;
-begin
-  //NA
-  Result := SupportsStoredProcedures and SupportsCatalogsInTableDefinitions;
-end;
-
-{**
-  Can a catalog name be used in a table definition statement?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsCatalogsInTableDefinitions: Boolean;
-begin
-  Result := fDBPROP_CATALOGUSAGE and DBPROPVAL_CU_TABLE_DEFINITION = DBPROPVAL_CU_TABLE_DEFINITION;
-end;
-
-{**
-  Can a catalog name be used in an index definition statement?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsCatalogsInIndexDefinitions: Boolean;
-begin
-  Result := fDBPROP_CATALOGUSAGE and DBPROPVAL_CU_INDEX_DEFINITION = DBPROPVAL_CU_INDEX_DEFINITION;
-end;
-
-{**
-  Can a catalog name be used in a privilege definition statement?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsCatalogsInPrivilegeDefinitions: Boolean;
-begin
-  Result := fDBPROP_CATALOGUSAGE and DBPROPVAL_CU_PRIVILEGE_DEFINITION = DBPROPVAL_CU_PRIVILEGE_DEFINITION;
-end;
-
-{**
-  Can a stored procedure have an additional overload suffix?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsOverloadPrefixInStoredProcedureName: Boolean;
-begin
-  Result := True;
-end;
-
-{**
-  Is parameter bindings supported by Provider?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsParameterBinding: Boolean;
-begin
-  Result := fDBPROP_MULTIPLEPARAMSETS
-end;
-
-{**
-  Is positioned DELETE supported?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsPositionedDelete: Boolean;
-begin
-//CURRENT OF
-//Specifies that the DELETE is done at the current position of the specified cursor.
-  Result := True;
-end;
-
-{**
-  Is positioned UPDATE supported?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsPositionedUpdate: Boolean;
-begin
-  Result := True;
-end;
-
-{**
-  Is SELECT for UPDATE supported?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsSelectForUpdate: Boolean;
-begin
-  Result := True;
-end;
-
-{**
-  Are stored procedure calls using the stored procedure escape
-  syntax supported?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsStoredProcedures: Boolean;
-begin
-  Result := True;
-end;
-
-{**
-  Are subqueries in comparison expressions supported?
-  A JDBC Compliant<sup><font size=-2>TM</font></sup> driver always returns true.
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsSubqueriesInComparisons: Boolean;
-begin
-  Result := fDBPROP_SQLSUPPORT and DBPROPVAL_SQ_COMPARISON = DBPROPVAL_SQ_COMPARISON;
-end;
-
-{**
-  Are subqueries in 'exists' expressions supported?
-  A JDBC Compliant<sup><font size=-2>TM</font></sup> driver always returns true.
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsSubqueriesInExists: Boolean;
-begin
-  Result := fDBPROP_SQLSUPPORT and DBPROPVAL_SQ_EXISTS = DBPROPVAL_SQ_EXISTS;
-end;
-
-{**
-  Are subqueries in 'in' statements supported?
-  A JDBC Compliant<sup><font size=-2>TM</font></sup> driver always returns true.
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsSubqueriesInIns: Boolean;
-begin
-  Result := fDBPROP_SQLSUPPORT and DBPROPVAL_SQ_IN = DBPROPVAL_SQ_IN;
-end;
-
-{**
-  Are subqueries in quantified expressions supported?
-  A JDBC Compliant<sup><font size=-2>TM</font></sup> driver always returns true.
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsSubqueriesInQuantifieds: Boolean;
-begin
-  Result := fDBPROP_SQLSUPPORT and DBPROPVAL_SQ_QUANTIFIED = DBPROPVAL_SQ_QUANTIFIED;
-end;
-
-{**
-  Is the ODBC Core SQL grammar supported?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsCoreSQLGrammar: Boolean;
-begin
-  Result := fDBPROP_SQLSUPPORT and DBPROPVAL_SQL_ODBC_CORE = DBPROPVAL_SQL_ODBC_CORE;
-end;
-
-{**
-  Are correlated subqueries supported?
-  A JDBC Compliant<sup><font size=-2>TM</font></sup> driver always returns true.
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsCorrelatedSubqueries: Boolean;
-begin
-  Result := fDBPROP_SUBQUERIES and DBPROPVAL_SQ_CORRELATEDSUBQUERIES = DBPROPVAL_SQ_CORRELATEDSUBQUERIES;
-end;
-
-{**
-  Is SQL UNION supported?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsUnion: Boolean;
-begin
-  Result := True;
-end;
-
-{**
-  Is SQL UNION ALL supported?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsUnionAll: Boolean;
-begin
-  Result := True;
-end;
-
-{**
-  Can cursors remain open across commits?
-  @return <code>true</code> if cursors always remain open;
-        <code>false</code> if they might not remain open
-}
-function TZAdoDatabaseInfo.SupportsOpenCursorsAcrossCommit: Boolean;
-begin
-  Result := fDBPROP_PREPARECOMMITBEHAVIOR = DBPROPVAL_CB_PRESERVE;
-end;
-
-{**
-  Can cursors remain open across rollbacks?
-  @return <code>true</code> if cursors always remain open;
-        <code>false</code> if they might not remain open
-}
-function TZAdoDatabaseInfo.SupportsOpenCursorsAcrossRollback: Boolean;
-begin
-  Result := fDBPROP_PREPAREABORTBEHAVIOR = DBPROPVAL_CB_PRESERVE;
-end;
-
-{**
-  Can statements remain open across commits?
-  @return <code>true</code> if statements always remain open;
-        <code>false</code> if they might not remain open
-}
-function TZAdoDatabaseInfo.SupportsOpenStatementsAcrossCommit: Boolean;
-begin
-  Result := fDBPROP_PREPARECOMMITBEHAVIOR = DBPROPVAL_CB_PRESERVE;
-end;
-
-{**
-  Can statements remain open across rollbacks?
-  @return <code>true</code> if statements always remain open;
-        <code>false</code> if they might not remain open
-}
-function TZAdoDatabaseInfo.SupportsOpenStatementsAcrossRollback: Boolean;
-begin
-  Result := fDBPROP_PREPAREABORTBEHAVIOR = DBPROPVAL_CB_PRESERVE;
-end;
-
-//----------------------------------------------------------------------
-// The following group of methods exposes various limitations
-// based on the target database with the current driver.
-// Unless otherwise specified, a result of zero means there is no
-// limit, or the limit is not known.
-
-{**
-  How many hex characters can you have in an inline binary literal?
-  @return max binary literal length in hex characters;
-       a result of zero means that there is no limit or the limit is not known
-}
-function TZAdoDatabaseInfo.GetMaxBinaryLiteralLength: Integer;
-begin
-  Result := 16000;
-end;
-
-{**
-  What's the max length for a character literal?
-  @return max literal length;
-       a result of zero means that there is no limit or the limit is not known
-}
-function TZAdoDatabaseInfo.GetMaxCharLiteralLength: Integer;
-begin
-  Result := 8000;
-end;
-
-{**
-  What's the limit on column name length?
-  @return max column name length;
-       a result of zero means that there is no limit or the limit is not known
-}
-function TZAdoDatabaseInfo.GetMaxColumnNameLength: Integer;
-begin
-  Result := 128;
-end;
-
-{**
-  What's the maximum number of columns in a "GROUP BY" clause?
-  @return max number of columns;
-       a result of zero means that there is no limit or the limit is not known
-}
-function TZAdoDatabaseInfo.GetMaxColumnsInGroupBy: Integer;
-begin
-  Result := 0;
-end;
-
-{**
-  What's the maximum number of columns allowed in an index?
-  @return max number of columns;
-       a result of zero means that there is no limit or the limit is not known
-}
-function TZAdoDatabaseInfo.GetMaxColumnsInIndex: Integer;
-begin
-  Result := 16;
-end;
-
-{**
-  What's the maximum number of columns in an "ORDER BY" clause?
-  @return max number of columns;
-       a result of zero means that there is no limit or the limit is not known
-}
-function TZAdoDatabaseInfo.GetMaxColumnsInOrderBy: Integer;
-begin
-  Result := 0;
-end;
-
-{**
-  What's the maximum number of columns in a "SELECT" list?
-  @return max number of columns;
-       a result of zero means that there is no limit or the limit is not known
-}
-function TZAdoDatabaseInfo.GetMaxColumnsInSelect: Integer;
-begin
-  Result := 4096;
-end;
-
-{**
-  What's the maximum number of columns in a table?
-  @return max number of columns;
-       a result of zero means that there is no limit or the limit is not known
-}
-function TZAdoDatabaseInfo.GetMaxColumnsInTable: Integer;
-begin
-  Result := 1024;
-end;
-
-{**
-  How many active connections can we have at a time to this database?
-  @return max number of active connections;
-       a result of zero means that there is no limit or the limit is not known
-}
-function TZAdoDatabaseInfo.GetMaxConnections: Integer;
-begin
-  Result := 0;
-end;
-
-{**
-  What's the maximum cursor name length?
-  @return max cursor name length in bytes;
-       a result of zero means that there is no limit or the limit is not known
-}
-function TZAdoDatabaseInfo.GetMaxCursorNameLength: Integer;
-begin
-  Result := 128;
-end;
-
-{**
-  Retrieves the maximum number of bytes for an index, including all
-  of the parts of the index.
-  @return max index length in bytes, which includes the composite of all
-   the constituent parts of the index;
-   a result of zero means that there is no limit or the limit is not known
-}
-function TZAdoDatabaseInfo.GetMaxIndexLength: Integer;
-begin
-  Result := 900;
-end;
-
-{**
-  What's the maximum length allowed for a schema name?
-  @return max name length in bytes;
-       a result of zero means that there is no limit or the limit is not known
-}
-function TZAdoDatabaseInfo.GetMaxSchemaNameLength: Integer;
-begin
-  Result := 128;
-end;
-
-{**
-  What's the maximum length of a procedure name?
-  @return max name length in bytes;
-       a result of zero means that there is no limit or the limit is not known
-}
-function TZAdoDatabaseInfo.GetMaxProcedureNameLength: Integer;
-begin
-  Result := 128;
-end;
-
-{**
-  What's the maximum length of a catalog name?
-  @return max name length in bytes;
-       a result of zero means that there is no limit or the limit is not known
-}
-function TZAdoDatabaseInfo.GetMaxCatalogNameLength: Integer;
-begin
-  Result := 128;
-end;
-
-{**
-  What's the maximum length of a single row?
-  @return max row size in bytes;
-       a result of zero means that there is no limit or the limit is not known
-}
-function TZAdoDatabaseInfo.GetMaxRowSize: Integer;
-begin
-  Result := fDBPROP_MAXROWSIZE;
-end;
-
-{**
-  Did getMaxRowSize() include LONGVARCHAR and LONGVARBINARY
-  blobs?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.DoesMaxRowSizeIncludeBlobs: Boolean;
-begin
-  Result := fDBPROP_MAXROWSIZEINCLUDESBLOB;
-end;
-
-{**
-  What's the maximum length of an SQL statement?
-  @return max length in bytes;
-       a result of zero means that there is no limit or the limit is not known
-}
-function TZAdoDatabaseInfo.GetMaxStatementLength: Integer;
-begin
-  Result := 0;
-end;
-
-{**
-  How many active statements can we have open at one time to this
-  database?
-  @return the maximum number of statements that can be open at one time;
-       a result of zero means that there is no limit or the limit is not known
-}
-function TZAdoDatabaseInfo.GetMaxStatements: Integer;
-begin
-  Result := 0;
-end;
-
-{**
-  What's the maximum length of a table name?
-  @return max name length in bytes;
-       a result of zero means that there is no limit or the limit is not known
-}
-function TZAdoDatabaseInfo.GetMaxTableNameLength: Integer;
-begin
-  Result := 128;
-end;
-
-{**
-  What's the maximum number of tables in a SELECT statement?
-  @return the maximum number of tables allowed in a SELECT statement;
-       a result of zero means that there is no limit or the limit is not known
-}
-function TZAdoDatabaseInfo.GetMaxTablesInSelect: Integer;
-begin
-  Result := 256;
-end;
-
-{**
-  What's the maximum length of a user name?
-  @return max user name length  in bytes;
-       a result of zero means that there is no limit or the limit is not known
-}
-function TZAdoDatabaseInfo.GetMaxUserNameLength: Integer;
-begin
-  Result := 128;
-end;
-
-//----------------------------------------------------------------------
-
-{**
-  What's the database's default transaction isolation level?  The
-  values are defined in <code>java.sql.Connection</code>.
-  @return the default isolation level
-  @see Connection
-}
-function TZAdoDatabaseInfo.GetDefaultTransactionIsolation:
-  TZTransactIsolationLevel;
-begin
-  Result := tiReadCommitted;
-end;
-
-{**
-  Are transactions supported? If not, invoking the method
-  <code>commit</code> is a noop and the isolation level is TRANSACTION_NONE.
-  @return <code>true</code> if transactions are supported; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsTransactions: Boolean;
-begin
-  Result := fSupportedTransactIsolationLevels <> [];
-end;
-
-{**
-  Does this database support the given transaction isolation level?
-  @param level the values are defined in <code>java.sql.Connection</code>
-  @return <code>true</code> if so; <code>false</code> otherwise
-  @see Connection
-}
-function TZAdoDatabaseInfo.SupportsTransactionIsolationLevel(
-  const Level: TZTransactIsolationLevel): Boolean;
-begin
-  Result := Level in fSupportedTransactIsolationLevels;
-end;
-
-{**
-  Are both data definition and data manipulation statements
-  within a transaction supported?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.
-  SupportsDataDefinitionAndDataManipulationTransactions: Boolean;
-begin
-  Result := fDBPROP_SUPPORTEDTXNDDL and DBPROPVAL_TC_ALL = DBPROPVAL_TC_ALL;
-end;
-
-{**
-  Are only data manipulation statements within a transaction
-  supported?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.
-  SupportsDataManipulationTransactionsOnly: Boolean;
-begin
-  Result := fDBPROP_SUPPORTEDTXNDDL and DBPROPVAL_TC_DML = DBPROPVAL_TC_DML;
-end;
-
-{**
-  Does a data definition statement within a transaction force the
-  transaction to commit?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.DataDefinitionCausesTransactionCommit: Boolean;
-begin
-  Result := fDBPROP_SUPPORTEDTXNDDL and DBPROPVAL_TC_DDL_COMMIT = DBPROPVAL_TC_DDL_COMMIT;
-end;
-
-{**
-  Is a data definition statement within a transaction ignored?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.DataDefinitionIgnoredInTransactions: Boolean;
-begin
-  Result := fDBPROP_SUPPORTEDTXNDDL and DBPROPVAL_TC_DDL_IGNORE = DBPROPVAL_TC_DDL_IGNORE;
-end;
-
-{**
-  Does the database support the given result set type?
-  @param type defined in <code>java.sql.ResultSet</code>
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsResultSetType(
-  const _Type: TZResultSetType): Boolean;
-begin
-  Result := True;
-end;
-
-{**
-  Does the database support the concurrency type in combination
-  with the given result set type?
-
-  @param type defined in <code>java.sql.ResultSet</code>
-  @param concurrency type defined in <code>java.sql.ResultSet</code>
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsResultSetConcurrency(
-  const _Type: TZResultSetType; const Concurrency: TZResultSetConcurrency): Boolean;
-begin
-  Result := True;
-end;
-
-{**
-  Does the Database or Actual Version understand non escaped search strings?
-  @return <code>true</code> if the DataBase does understand non escaped
-  search strings
-}
-function TZAdoDatabaseInfo.SupportsNonEscapedSearchStrings: Boolean;
-begin
-  Result := True;
-end;
-
-{**
-  Does the Database support updating auto incremental fields?
-  @return <code>true</code> if the DataBase allows it.
-}
-function TZAdoDatabaseInfo.SupportsUpdateAutoIncrementFields: Boolean;
-begin
-  Result := False;
-end;
-
-{**
-  Is the ANSI92 entry level SQL grammar supported?
-  All JDBC Compliant<sup><font size=-2>TM</font></sup> drivers must return true.
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsANSI92EntryLevelSQL: Boolean;
-begin
-  Result := fDBPROP_SQLSUPPORT and DBPROPVAL_SQL_ANSI92_ENTRY = DBPROPVAL_SQL_ANSI92_ENTRY;
-end;
-
-{**
-  Is the ANSI92 full SQL grammar supported?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsANSI92FullSQL: Boolean;
-begin
-  Result := fDBPROP_SQLSUPPORT and DBPROPVAL_SQL_ANSI92_FULL = DBPROPVAL_SQL_ANSI92_FULL;
-end;
-
-{**
-  Is the ANSI92 intermediate SQL grammar supported?
-  @return <code>true</code> if so; <code>false</code> otherwise
-}
-function TZAdoDatabaseInfo.SupportsANSI92IntermediateSQL: Boolean;
-begin
-  Result := fDBPROP_SQLSUPPORT and DBPROPVAL_SQL_ANSI92_INTERMEDIATE = DBPROPVAL_SQL_ANSI92_INTERMEDIATE;
-end;
-
-{**
-  Does the Database support binding arrays? Is the ZDbc ready for this?
-  @return <code>true</code> if the DataBase allows it.
-}
-function TZAdoDatabaseInfo.SupportsArrayBindings: Boolean;
-begin
-  Result := True;
-end;
-
-
 { TZAdoDatabaseMetadata }
-
 
 {**
   Constructs this object and assignes the main properties.
@@ -1523,7 +295,7 @@ end;
   @param Url a database connection url string.
   @param Info an extra connection properties.
 }
-constructor TZAdoDatabaseMetadata.Create(Connection: TZAbstractConnection;
+constructor TZAdoDatabaseMetadata.Create(Connection: TZAbstractDbcConnection;
   const Url: TZURL);
 begin
   inherited Create(Connection, Url);
@@ -1580,19 +352,17 @@ var
   Len: NativeUInt;
 begin
   Result:=inherited UncachedGetProcedures(Catalog, SchemaPattern, ProcedureNamePattern);
-
+  {$IFDEF WITH_VAR_INIT_WARNING}Len := 0;{$ENDIF}
   AdoRecordSet := AdoOpenSchema(adSchemaProcedures,
     [Catalog, SchemaPattern, ProcedureNamePattern, '']);
   if AdoRecordSet <> nil then
-    with TZAdoResultSet.Create(GetStatement, '', AdoRecordSet) do
-    begin
-      while Next do
-      begin
+    with TZAdoResultSet.Create(GetStatement, '', AdoRecordSet) do begin
+      while Next do begin
         Result.MoveToInsertRow;
-        Result.UpdatePWideChar(CatalogNameIndex, GetPWideCharByName('PROCEDURE_CATALOG', Len), @Len);
-        Result.UpdatePWideChar(SchemaNameIndex, GetPWideCharByName('PROCEDURE_SCHEMA', Len), @Len);
-        Result.UpdatePWideChar(ProcedureNameIndex, GetPWideCharByName('PROCEDURE_NAME', Len), @Len);
-        Result.UpdatePWideChar(ProcedureRemarksIndex, GetPWideCharByName('DESCRIPTION', Len), @Len);
+        Result.UpdatePWideChar(CatalogNameIndex, GetPWideCharByName('PROCEDURE_CATALOG', Len), Len);
+        Result.UpdatePWideChar(SchemaNameIndex, GetPWideCharByName('PROCEDURE_SCHEMA', Len), Len);
+        Result.UpdatePWideChar(ProcedureNameIndex, GetPWideCharByName('PROCEDURE_NAME', Len), Len);
+        Result.UpdatePWideChar(ProcedureRemarksIndex, GetPWideCharByName('DESCRIPTION', Len), Len);
         Result.UpdateSmall(ProcedureTypeIndex, GetSmallByName('PROCEDURE_TYPE') - 1);
         Result.InsertRow;
       end;
@@ -1663,21 +433,21 @@ function TZAdoDatabaseMetadata.UncachedGetProcedureColumns(const Catalog: string
 var
   AdoRecordSet: ZPlainAdo.RecordSet;
   Len: NativeUInt;
+  Precision: Integer;
 begin
   Result:=inherited UncachedGetProcedureColumns(Catalog, SchemaPattern, ProcedureNamePattern, ColumnNamePattern);
 
+  {$IFDEF WITH_VAR_INIT_WARNING}Len := 0;{$ENDIF}
   AdoRecordSet := AdoOpenSchema(adSchemaProcedureParameters,
     [Catalog, SchemaPattern, ProcedureNamePattern]);
   if AdoRecordSet <> nil then
-    with TZAdoResultSet.Create(GetStatement, '', AdoRecordSet) do
-    begin
-      while Next do
-      begin
+    with TZAdoResultSet.Create(GetStatement, '', AdoRecordSet) do begin
+      while Next do begin
         Result.MoveToInsertRow;
-        Result.UpdatePWideChar(CatalogNameIndex, GetPWideCharByName('PROCEDURE_CATALOG', Len), @Len);
-        Result.UpdatePWideChar(SchemaNameIndex, GetPWideCharByName('PROCEDURE_SCHEMA', Len), @Len);
-        Result.UpdatePWideChar(ProcColProcedureNameIndex, GetPWideCharByName('PROCEDURE_NAME', Len), @Len);
-        Result.UpdatePWideChar(ProcColColumnNameIndex, GetPWideCharByName('PARAMETER_NAME', Len), @Len);
+        Result.UpdatePWideChar(CatalogNameIndex, GetPWideCharByName('PROCEDURE_CATALOG', Len), Len);
+        Result.UpdatePWideChar(SchemaNameIndex, GetPWideCharByName('PROCEDURE_SCHEMA', Len), Len);
+        Result.UpdatePWideChar(ProcColProcedureNameIndex, GetPWideCharByName('PROCEDURE_NAME', Len), Len);
+        Result.UpdatePWideChar(ProcColColumnNameIndex, GetPWideCharByName('PARAMETER_NAME', Len), Len);
         case GetSmallByName('PARAMETER_TYPE') of
           1: Result.UpdateSmall(ProcColColumnTypeIndex, Ord(pctIn));
           2: Result.UpdateSmall(ProcColColumnTypeIndex, Ord(pctInOut));
@@ -1686,11 +456,16 @@ begin
         else
           Result.UpdateSmall(ProcColColumnTypeIndex, Ord(pctUnknown));
         end;
+        if not IsNullByName('NUMERIC_PRECISION')
+        then Precision := GetIntByName('CHARACTER_OCTET_LENGTH')
+        else Precision := GetIntByName('NUMERIC_PRECISION');
         Result.UpdateSmall(ProcColDataTypeIndex, Ord(ConvertAdoToSqlType(
-          GetSmallByName('DATA_TYPE'), ConSettings.CPType)));
-        Result.UpdatePWideChar(ProcColTypeNameIndex, GetPWideCharByName('TYPE_NAME', Len), @Len);
-        Result.UpdateInt(ProcColPrecisionIndex, GetIntByName('NUMERIC_PRECISION'));
-        Result.UpdateInt(ProcColLengthIndex, GetIntByName('CHARACTER_OCTET_LENGTH'));
+          GetSmallByName('DATA_TYPE'), Precision, GetSmallByName('NUMERIC_SCALE'))));
+        Result.UpdatePWideChar(ProcColTypeNameIndex, GetPWideCharByName('TYPE_NAME', Len), Len);
+        if not IsNullByName('NUMERIC_PRECISION')then
+          Result.UpdateInt(ProcColPrecisionIndex, GetIntByName('NUMERIC_PRECISION'));
+        if not IsNullByName('CHARACTER_OCTET_LENGTH')then
+          Result.UpdateInt(ProcColLengthIndex, GetIntByName('CHARACTER_OCTET_LENGTH'));
         Result.UpdateSmall(ProcColScaleIndex, GetSmallByName('NUMERIC_SCALE'));
   //      Result.UpdateSmall(ProcColRadixIndex, GetSmallByName('RADIX'));
         if GetStringByName('IS_NULLABLE') = 'NO' then
@@ -1700,7 +475,7 @@ begin
             Result.UpdateSmall(ProcColNullableIndex, 1)
           else
             Result.UpdateSmall(ProcColNullableIndex, 2);
-        Result.UpdatePWideChar(ProcColRemarksIndex, GetPWideCharByName('DESCRIPTION', Len), @Len);
+        Result.UpdatePWideChar(ProcColRemarksIndex, GetPWideCharByName('DESCRIPTION', Len), Len);
         Result.InsertRow;
       end;
       Close;
@@ -1750,26 +525,23 @@ begin
   Result:=inherited UncachedGetTables(Catalog, SchemaPattern, TableNamePattern, Types);
 
   TableTypes := '';
-  for I := Low(Types) to High(Types) do
-  begin
+  for I := Low(Types) to High(Types) do begin
     if Length(TableTypes) > 0 then
       TableTypes := TableTypes + ',';
     TableTypes := TableTypes + Types[I];
   end;
-
+  {$IFDEF WITH_VAR_INIT_WARNING}Len := 0;{$ENDIF}
   AdoRecordSet := AdoOpenSchema(adSchemaTables,
     [Catalog, SchemaPattern, TableNamePattern, TableTypes]);
   if Assigned(AdoRecordSet) then
-    with TZAdoResultSet.Create(GetStatement, '', AdoRecordset) do
-    begin
-      while Next do
-      begin
+    with TZAdoResultSet.Create(GetStatement, '', AdoRecordset) do begin
+      while Next do begin
         Result.MoveToInsertRow;
-        Result.UpdatePWideChar(CatalogNameIndex, GetPWideCharByName('TABLE_CATALOG', Len), @Len);
-        Result.UpdatePWideChar(SchemaNameIndex, GetPWideCharByName('TABLE_SCHEMA', Len), @Len);
-        Result.UpdatePWideChar(TableNameIndex, GetPWideCharByName('TABLE_NAME', Len), @Len);
-        Result.UpdatePWideChar(TableColumnsSQLType, GetPWideCharByName('TABLE_TYPE', Len), @Len);
-        Result.UpdatePWideChar(TableColumnsRemarks, GetPWideCharByName('DESCRIPTION', Len), @Len);
+        Result.UpdatePWideChar(CatalogNameIndex, GetPWideCharByName('TABLE_CATALOG', Len), Len);
+        Result.UpdatePWideChar(SchemaNameIndex, GetPWideCharByName('TABLE_SCHEMA', Len), Len);
+        Result.UpdatePWideChar(TableNameIndex, GetPWideCharByName('TABLE_NAME', Len), Len);
+        Result.UpdatePWideChar(TableColumnsSQLType, GetPWideCharByName('TABLE_TYPE', Len), Len);
+        Result.UpdatePWideChar(TableColumnsRemarks, GetPWideCharByName('DESCRIPTION', Len), Len);
         Result.InsertRow;
       end;
       Close;
@@ -1795,16 +567,14 @@ var
   Len: NativeUInt;
 begin
   Result := inherited UncachedGetSchemas;
-
+  {$IFDEF WITH_VAR_INIT_WARNING}Len := 0;{$ENDIF}
   AdoRecordSet := AdoOpenSchema(adSchemaSchemata, []);
   if AdoRecordSet <> nil then
-    with TZAdoResultSet.Create(GetStatement, '', AdoRecordSet) do
-    begin
-      while Next do
-      begin
+    with TZAdoResultSet.Create(GetStatement, '', AdoRecordSet) do begin
+      while Next do begin
         Result.MoveToInsertRow;
         Result.UpdatePWideChar(SchemaColumnsTableSchemaIndex,
-          GetPWideCharByName('SCHEMA_NAME', Len), @Len);
+          GetPWideCharByName('SCHEMA_NAME', Len), Len);
         Result.InsertRow;
       end;
       Close;
@@ -1830,15 +600,13 @@ var
   Len: NativeUInt;
 begin
   Result:=inherited UncachedGetCatalogs;
-
+  {$IFDEF WITH_VAR_INIT_WARNING}Len := 0;{$ENDIF}
   AdoRecordSet := AdoOpenSchema(adSchemaCatalogs, []);
   if Assigned(AdoRecordSet) then
-    with TZAdoResultSet.Create(GetStatement, '', AdoRecordSet) do
-    begin
-      while Next do
-      begin
+    with TZAdoResultSet.Create(GetStatement, '', AdoRecordSet) do begin
+      while Next do begin
         Result.MoveToInsertRow;
-        Result.UpdatePWideChar(CatalogNameIndex, GetPWideCharByName('CATALOG_NAME', Len), @Len);
+        Result.UpdatePWideChar(CatalogNameIndex, GetPWideCharByName('CATALOG_NAME', Len), Len);
         Result.InsertRow;
       end;
       Close;
@@ -1862,7 +630,7 @@ end;
 }
 function TZAdoDatabaseMetadata.UncachedGetTableTypes: IZResultSet;
 const
-  TableTypes: array[0..7] of ZWideString = (
+  TableTypes: array[0..7] of UnicodeString = (
     'ALIAS', 'TABLE', 'SYNONYM', 'SYSTEM TABLE', 'VIEW',
     'GLOBAL TEMPORARY', 'LOCAL TEMPORARY', 'SYSTEM VIEW'
   );
@@ -1938,10 +706,14 @@ var
   Flags: Integer;
   SQLType: TZSQLType;
   Len: NativeUInt;
+  P: PChar;
 begin
   Result:=inherited UncachedGetColumns(Catalog, SchemaPattern,
       TableNamePattern, ColumnNamePattern);
-
+  P := Pointer(TableNamePattern);
+  if (P <> nil) and (P^ = '#') and (GetConnection.GetServerProvider in [spMSSQL, spASE]) then //test against temporary table -> not resolvable
+    Exit;
+  {$IFDEF WITH_VAR_INIT_WARNING}Len := 0;{$ENDIF}
   AdoRecordSet := AdoOpenSchema(adSchemaColumns,
     [DecomposeObjectString(Catalog), DecomposeObjectString(SchemaPattern),
     DecomposeObjectString(TableNamePattern), DecomposeObjectString(ColumnNamePattern)]);
@@ -1953,13 +725,13 @@ begin
       while Next do
       begin
         Result.MoveToInsertRow;
-        Result.UpdatePWideChar(CatalogNameIndex, GetPWideCharByName('TABLE_CATALOG', Len), @Len);
-        Result.UpdatePWideChar(SchemaNameIndex, GetPWideCharByName('TABLE_SCHEMA', Len), @Len);
-        Result.UpdatePWideChar(TableNameIndex, GetPWideCharByName('TABLE_NAME', Len), @Len);
-        Result.UpdatePWideChar(ColumnNameIndex, GetPWideCharByName('COLUMN_NAME', Len), @Len);
+        Result.UpdatePWideChar(CatalogNameIndex, GetPWideCharByName('TABLE_CATALOG', Len), Len);
+        Result.UpdatePWideChar(SchemaNameIndex, GetPWideCharByName('TABLE_SCHEMA', Len), Len);
+        Result.UpdatePWideChar(TableNameIndex, GetPWideCharByName('TABLE_NAME', Len), Len);
+        Result.UpdatePWideChar(ColumnNameIndex, GetPWideCharByName('COLUMN_NAME', Len), Len);
 
         SQLType := ConvertAdoToSqlType(GetSmallByName('DATA_TYPE'),
-          ConSettings.CPType);
+          GetSmallByName('NUMERIC_PRECISION'), GetIntByName('NUMERIC_SCALE'));
         Flags := GetIntByName('COLUMN_FLAGS');
 //!!!If the field type is long then this is the only way to know it because it just returns string type
         if ((Flags and DBCOLUMNFLAGS_ISLONG) <> 0 ) and (SQLType in [stBytes, stString, stUnicodeString]) then
@@ -1967,25 +739,26 @@ begin
             stBytes: SQLType := stBinaryStream;
             stString: SQLType := stAsciiStream;
             stUnicodeString: SQLType := stUnicodeStream;
+            {$IFDEF WITH_CASE_WARNING}else ;{$ENDIF}
           end;
         Result.UpdateSmall(TableColColumnTypeIndex, Ord(SQLType));
-        Result.UpdateInt(TableColColumnSizeIndex, GetIntByName('CHARACTER_MAXIMUM_LENGTH'));
-        Result.UpdateInt(TableColColumnBufLengthIndex, GetIntByName('CHARACTER_MAXIMUM_LENGTH'));
-        Result.UpdateInt(TableColColumnDecimalDigitsIndex, GetIntByName('NUMERIC_SCALE'));
-        Result.UpdateInt(TableColColumnNumPrecRadixIndex, GetSmallByName('NUMERIC_PRECISION'));
-        if GetBooleanByName('IS_NULLABLE') then
-          Result.UpdateSmall(TableColColumnNullableIndex, 1)
-        else
-          Result.UpdateSmall(TableColColumnNullableIndex, 0);
-        Result.UpdatePWideChar(TableColColumnRemarksIndex, GetPWideCharByName('DESCRIPTION', Len), @Len);
-        Result.UpdatePWideChar(TableColColumnColDefIndex, GetPWideCharByName('COLUMN_DEFAULT', Len), @Len);
-        Result.UpdateSmall(TableColColumnSQLDataTypeIndex, GetSmallByName('DATETIME_PRECISION'));
+        if SQLType in [stCurrency, stBigDecimal] then begin
+          Result.UpdateInt(TableColColumnSizeIndex, GetSmallByName('NUMERIC_PRECISION'));
+          Result.UpdateInt(TableColColumnDecimalDigitsIndex, GetIntByName('NUMERIC_SCALE'));
+        end else
+          Result.UpdateInt(TableColColumnSizeIndex, GetIntByName('CHARACTER_MAXIMUM_LENGTH'));
+        //Result.UpdateInt(TableColColumnBufLengthIndex, GetIntByName('CHARACTER_MAXIMUM_LENGTH'));
+        if GetBooleanByName('IS_NULLABLE')
+        then Result.UpdateSmall(TableColColumnNullableIndex, 1)
+        else Result.UpdateSmall(TableColColumnNullableIndex, 0);
+        Result.UpdatePWideChar(TableColColumnRemarksIndex, GetPWideCharByName('DESCRIPTION', Len), Len);
+        Result.UpdatePWideChar(TableColColumnColDefIndex, GetPWideCharByName('COLUMN_DEFAULT', Len), Len);
+        Result.UpdateSmall(TableColColumnSQLDataTypeIndex, GetSmallByName('DATETIME_PRECISION'));  //EH????
         Result.UpdateInt(TableColColumnCharOctetLengthIndex, GetIntByName('CHARACTER_OCTET_LENGTH'));
         Result.UpdateInt(TableColColumnOrdPosIndex, GetIntByName('ORDINAL_POSITION'));
-        if UpperCase(GetStringByName('IS_NULLABLE')) = 'FALSE' then
-          Result.UpdateString(TableColColumnIsNullableIndex, 'NO')
-        else
-          Result.UpdateString(TableColColumnIsNullableIndex, 'YES');
+        if UpperCase(GetStringByName('IS_NULLABLE')) = 'FALSE'
+        then Result.UpdateString(TableColColumnIsNullableIndex, 'NO')
+        else Result.UpdateString(TableColColumnIsNullableIndex, 'YES');
 
         //Result.UpdateNullByName(TableColColumnAutoIncIndex);
         Result.UpdateBoolean(TableColColumnSearchableIndex, (Flags and (DBCOLUMNFLAGS_ISLONG) = 0));
@@ -2001,34 +774,6 @@ begin
   end;
 end;
 
-{**
-  Gets a description of the access rights for a table's columns.
-
-  <P>Only privileges matching the column name criteria are
-  returned.  They are ordered by COLUMN_NAME and PRIVILEGE.
-
-  <P>Each privilige description has the following columns:
-   <OL>
- 	<LI><B>TABLE_CAT</B> String => table catalog (may be null)
- 	<LI><B>TABLE_SCHEM</B> String => table schema (may be null)
- 	<LI><B>TABLE_NAME</B> String => table name
- 	<LI><B>COLUMN_NAME</B> String => column name
- 	<LI><B>GRANTOR</B> => grantor of access (may be null)
- 	<LI><B>GRANTEE</B> String => grantee of access
- 	<LI><B>PRIVILEGE</B> String => name of access (SELECT,
-       INSERT, UPDATE, REFRENCES, ...)
- 	<LI><B>IS_GRANTABLE</B> String => "YES" if grantee is permitted
-       to grant to others; "NO" if not; null if unknown
-   </OL>
-
-  @param catalog a catalog name; "" retrieves those without a
-  catalog; null means drop catalog name from the selection criteria
-  @param schema a schema name; "" retrieves those without a schema
-  @param table a table name
-  @param columnNamePattern a column name pattern
-  @return <code>ResultSet</code> - each row is a column privilege description
-  @see #getSearchStringEscape
-}
 function TZAdoDatabaseMetadata.UncachedGetColumnPrivileges(const Catalog: string;
   const Schema: string; const Table: string; const ColumnNamePattern: string): IZResultSet;
 var
@@ -2036,23 +781,20 @@ var
   Len: NativeUInt;
 begin
   Result:=inherited UncachedGetColumnPrivileges(Catalog, Schema, Table, ColumnNamePattern);
-
+  {$IFDEF WITH_VAR_INIT_WARNING}Len := 0;{$ENDIF}
   AdoRecordSet := AdoOpenSchema(adSchemaColumnPrivileges,
     [Catalog, Schema, Table, ColumnNamePattern]);
   if Assigned(AdoRecordSet) then
-  begin
-    with TZAdoResultSet.Create(GetStatement, '', AdoRecordSet) do
-    begin
-      while Next do
-      begin
+    with TZAdoResultSet.Create(GetStatement, '', AdoRecordSet) do begin
+      while Next do begin
         Result.MoveToInsertRow;
-        Result.UpdatePWideChar(CatalogNameIndex, GetPWideCharByName('TABLE_CATALOG', Len), @Len);
-        Result.UpdatePWideChar(SchemaNameIndex, GetPWideCharByName('TABLE_SCHEMA', Len), @Len);
-        Result.UpdatePWideChar(TableNameIndex, GetPWideCharByName('TABLE_NAME', Len), @Len);
-        Result.UpdatePWideChar(ColumnNameIndex, GetPWideCharByName('COLUMN_NAME', Len), @Len);
-        Result.UpdatePWideChar(TableColPrivGrantorIndex, GetPWideCharByName('GRANTOR', Len), @Len);
-        Result.UpdatePWideChar(TableColPrivGranteeIndex, GetPWideCharByName('GRANTEE', Len), @Len);
-        Result.UpdatePWideChar(TableColPrivPrivilegeIndex, GetPWideCharByName('PRIVILEGE_TYPE', Len), @Len);
+        Result.UpdatePWideChar(CatalogNameIndex, GetPWideCharByName('TABLE_CATALOG', Len), Len);
+        Result.UpdatePWideChar(SchemaNameIndex, GetPWideCharByName('TABLE_SCHEMA', Len), Len);
+        Result.UpdatePWideChar(TableNameIndex, GetPWideCharByName('TABLE_NAME', Len), Len);
+        Result.UpdatePWideChar(ColumnNameIndex, GetPWideCharByName('COLUMN_NAME', Len), Len);
+        Result.UpdatePWideChar(TableColPrivGrantorIndex, GetPWideCharByName('GRANTOR', Len), Len);
+        Result.UpdatePWideChar(TableColPrivGranteeIndex, GetPWideCharByName('GRANTEE', Len), Len);
+        Result.UpdatePWideChar(TableColPrivPrivilegeIndex, GetPWideCharByName('PRIVILEGE_TYPE', Len), Len);
         if GetBooleanByName('IS_GRANTABLE') then
           Result.UpdateString(TableColPrivIsGrantableIndex, 'YES')
         else
@@ -2062,41 +804,8 @@ begin
       Close;
       Free;
     end;
-  end;
 end;
 
-{**
-  Gets a description of the access rights for each table available
-  in a catalog. Note that a table privilege applies to one or
-  more columns in the table. It would be wrong to assume that
-  this priviledge applies to all columns (this may be true for
-  some systems but is not true for all.)
-
-  <P>Only privileges matching the schema and table name
-  criteria are returned.  They are ordered by TABLE_SCHEM,
-  TABLE_NAME, and PRIVILEGE.
-
-  <P>Each privilige description has the following columns:
-   <OL>
- 	<LI><B>TABLE_CAT</B> String => table catalog (may be null)
- 	<LI><B>TABLE_SCHEM</B> String => table schema (may be null)
- 	<LI><B>TABLE_NAME</B> String => table name
- 	<LI><B>GRANTOR</B> => grantor of access (may be null)
- 	<LI><B>GRANTEE</B> String => grantee of access
- 	<LI><B>PRIVILEGE</B> String => name of access (SELECT,
-       INSERT, UPDATE, REFRENCES, ...)
- 	<LI><B>IS_GRANTABLE</B> String => "YES" if grantee is permitted
-       to grant to others; "NO" if not; null if unknown
-   </OL>
-
-  @param catalog a catalog name; "" retrieves those without a
-  catalog; null means drop catalog name from the selection criteria
-  @param schemaPattern a schema name pattern; "" retrieves those
-  without a schema
-  @param tableNamePattern a table name pattern
-  @return <code>ResultSet</code> - each row is a table privilege description
-  @see #getSearchStringEscape
-}
 function TZAdoDatabaseMetadata.UncachedGetTablePrivileges(const Catalog: string;
   const SchemaPattern: string; const TableNamePattern: string): IZResultSet;
 var
@@ -2104,22 +813,19 @@ var
   Len: NativeUInt;
 begin
   Result:=inherited UncachedGetTablePrivileges(Catalog, SchemaPattern, TableNamePattern);
-
+  {$IFDEF WITH_VAR_INIT_WARNING}Len := 0;{$ENDIF}
   AdoRecordSet := AdoOpenSchema(adSchemaTablePrivileges,
     [Catalog, SchemaPattern, TableNamePattern]);
   if Assigned(AdoRecordSet) then
-  begin
-    with TZAdoResultSet.Create(GetStatement, '', AdoRecordSet) do
-    begin
-      while Next do
-      begin
+    with TZAdoResultSet.Create(GetStatement, '', AdoRecordSet) do begin
+      while Next do begin
         Result.MoveToInsertRow;
-        Result.UpdatePWideChar(CatalogNameIndex, GetPWideCharByName('TABLE_CATALOG', Len), @Len);
-        Result.UpdatePWideChar(SchemaNameIndex, GetPWideCharByName('TABLE_SCHEMA', Len), @Len);
-        Result.UpdatePWideChar(TableNameIndex, GetPWideCharByName('TABLE_NAME', Len), @Len);
-        Result.UpdatePWideChar(TablePrivGrantorIndex, GetPWideCharByName('GRANTOR', Len), @Len);
-        Result.UpdatePWideChar(TablePrivGranteeIndex, GetPWideCharByName('GRANTEE', Len), @Len);
-        Result.UpdatePWideChar(TablePrivPrivilegeIndex, GetPWideCharByName('PRIVILEGE_TYPE', Len), @Len);
+        Result.UpdatePWideChar(CatalogNameIndex, GetPWideCharByName('TABLE_CATALOG', Len), Len);
+        Result.UpdatePWideChar(SchemaNameIndex, GetPWideCharByName('TABLE_SCHEMA', Len), Len);
+        Result.UpdatePWideChar(TableNameIndex, GetPWideCharByName('TABLE_NAME', Len), Len);
+        Result.UpdatePWideChar(TablePrivGrantorIndex, GetPWideCharByName('GRANTOR', Len), Len);
+        Result.UpdatePWideChar(TablePrivGranteeIndex, GetPWideCharByName('GRANTEE', Len), Len);
+        Result.UpdatePWideChar(TablePrivPrivilegeIndex, GetPWideCharByName('PRIVILEGE_TYPE', Len), Len);
         if GetBooleanByName('IS_GRANTABLE') then
           Result.UpdateString(TablePrivIsGrantableIndex, 'YES')
         else
@@ -2128,7 +834,6 @@ begin
       end;
       Close;
       Free;
-    end;
     end;
 end;
 
@@ -2171,23 +876,21 @@ var
   Len: NativeUInt;
 begin
   Result:=inherited UncachedGetVersionColumns(Catalog, Schema, Table);
-
+  {$IFDEF WITH_VAR_INIT_WARNING}Len := 0;{$ENDIF}
   AdoRecordSet := AdoOpenSchema(adSchemaColumns, [Catalog, Schema, Table]);
   if Assigned(AdoRecordSet) then
-  begin
-    with TZAdoResultSet.Create(GetStatement, '', AdoRecordSet) do
-    begin
-      while Next do
-      begin
+    with TZAdoResultSet.Create(GetStatement, '', AdoRecordSet) do begin
+      while Next do begin
         if (GetIntByName('COLUMN_FLAGS')
           and DBCOLUMNFLAGS_ISROWVER) = 0 then
           Continue;
         Result.MoveToInsertRow;
         Result.UpdateSmall(TableColVerScopeIndex, 0);
-        Result.UpdatePWideChar(TableColVerColNameIndex, GetPWideCharByName('COLUMN_NAME', Len), @Len);
+        Result.UpdatePWideChar(TableColVerColNameIndex, GetPWideCharByName('COLUMN_NAME', Len), Len);
         Result.UpdateSmall(TableColVerDataTypeIndex, Ord(ConvertAdoToSqlType(
-          GetSmallByName('DATA_TYPE'), ConSettings.CPType)));
-        Result.UpdatePWideChar(TableColVerTypeNameIndex, GetPWideCharByName('TYPE_NAME', Len), @Len);
+          GetSmallByName('DATA_TYPE'), GetIntByName('PRECISION'),
+          GetIntByName('NUMERIC_SCALE'))));
+        Result.UpdatePWideChar(TableColVerTypeNameIndex, GetPWideCharByName('TYPE_NAME', Len), Len);
         Result.UpdateInt(TableColVerColSizeIndex, GetIntByName('CHARACTER_OCTET_LENGTH'));
         Result.UpdateInt(TableColVerBufLengthIndex, GetIntByName('CHARACTER_OCTET_LENGTH'));
         Result.UpdateInt(TableColVerDecimalDigitsIndex, GetIntByName('NUMERIC_SCALE'));
@@ -2197,31 +900,8 @@ begin
       Close;
       Free;
     end;
-  end;
 end;
 
-{**
-  Gets a description of a table's primary key columns.  They
-  are ordered by COLUMN_NAME.
-
-  <P>Each primary key column description has the following columns:
-   <OL>
- 	<LI><B>TABLE_CAT</B> String => table catalog (may be null)
- 	<LI><B>TABLE_SCHEM</B> String => table schema (may be null)
- 	<LI><B>TABLE_NAME</B> String => table name
- 	<LI><B>COLUMN_NAME</B> String => column name
- 	<LI><B>KEY_SEQ</B> short => sequence number within primary key
- 	<LI><B>PK_NAME</B> String => primary key name (may be null)
-   </OL>
-
-  @param catalog a catalog name; "" retrieves those without a
-  catalog; null means drop catalog name from the selection criteria
-  @param schema a schema name; "" retrieves those
-  without a schema
-  @param table a table name
-  @return <code>ResultSet</code> - each row is a primary key column description
-  @exception SQLException if a database access error occurs
-}
 function TZAdoDatabaseMetadata.UncachedGetPrimaryKeys(const Catalog: string;
   const Schema: string; const Table: string): IZResultSet;
 var
@@ -2229,98 +909,27 @@ var
   Len: NativeUInt;
 begin
   Result:=inherited UncachedGetPrimaryKeys(Catalog, Schema, Table);
-
+  {$IFDEF WITH_VAR_INIT_WARNING}Len := 0;{$ENDIF}
   AdoRecordSet := AdoOpenSchema(adSchemaPrimaryKeys,
     [Catalog, Schema, Table]);
   if AdoRecordSet <> nil then
-  begin
-    with TZAdoResultSet.Create(GetStatement, '', AdoRecordSet) do
-    begin
-      while Next do
-      begin
+    with TZAdoResultSet.Create(GetStatement, '', AdoRecordSet) do begin
+      while Next do begin
         Result.MoveToInsertRow;
-        Result.UpdatePWideChar(CatalogNameIndex, GetPWideCharByName('TABLE_CATALOG', Len), @Len);
-        Result.UpdatePWideChar(SchemaNameIndex, GetPWideCharByName('TABLE_SCHEMA', Len), @Len);
-        Result.UpdatePWideChar(TableNameIndex, GetPWideCharByName('TABLE_NAME', Len), @Len);
-        Result.UpdatePWideChar(PrimaryKeyColumnNameIndex, GetPWideCharByName('COLUMN_NAME', Len), @Len);
+        Result.UpdatePWideChar(CatalogNameIndex, GetPWideCharByName('TABLE_CATALOG', Len), Len);
+        Result.UpdatePWideChar(SchemaNameIndex, GetPWideCharByName('TABLE_SCHEMA', Len), Len);
+        Result.UpdatePWideChar(TableNameIndex, GetPWideCharByName('TABLE_NAME', Len), Len);
+        Result.UpdatePWideChar(PrimaryKeyColumnNameIndex, GetPWideCharByName('COLUMN_NAME', Len), Len);
         Result.UpdateSmall(PrimaryKeyKeySeqIndex, GetSmallByName('ORDINAL'));
         if FindColumn('PK_NAME') > FirstDbcIndex then
-          Result.UpdatePWideChar(PrimaryKeyPKNameIndex, GetPWideCharByName('PK_NAME', Len), @Len);
+          Result.UpdatePWideChar(PrimaryKeyPKNameIndex, GetPWideCharByName('PK_NAME', Len), Len);
         Result.InsertRow;
       end;
       Close;
       Free;
     end;
-  end;
 end;
 
-{**
-  Gets a description of the primary key columns that are
-  referenced by a table's foreign key columns (the primary keys
-  imported by a table).  They are ordered by PKTABLE_CAT,
-  PKTABLE_SCHEM, PKTABLE_NAME, and KEY_SEQ.
-
-  <P>Each primary key column description has the following columns:
-   <OL>
- 	<LI><B>PKTABLE_CAT</B> String => primary key table catalog
-       being imported (may be null)
- 	<LI><B>PKTABLE_SCHEM</B> String => primary key table schema
-       being imported (may be null)
- 	<LI><B>PKTABLE_NAME</B> String => primary key table name
-       being imported
- 	<LI><B>PKCOLUMN_NAME</B> String => primary key column name
-       being imported
- 	<LI><B>FKTABLE_CAT</B> String => foreign key table catalog (may be null)
- 	<LI><B>FKTABLE_SCHEM</B> String => foreign key table schema (may be null)
- 	<LI><B>FKTABLE_NAME</B> String => foreign key table name
- 	<LI><B>FKCOLUMN_NAME</B> String => foreign key column name
- 	<LI><B>KEY_SEQ</B> short => sequence number within foreign key
- 	<LI><B>UPDATE_RULE</B> short => What happens to
-        foreign key when primary is updated:
-       <UL>
-       <LI> importedNoAction - do not allow update of primary
-                key if it has been imported
-       <LI> importedKeyCascade - change imported key to agree
-                with primary key update
-       <LI> importedKeySetNull - change imported key to NULL if
-                its primary key has been updated
-       <LI> importedKeySetDefault - change imported key to default values
-                if its primary key has been updated
-       <LI> importedKeyRestrict - same as importedKeyNoAction
-                                  (for ODBC 2.x compatibility)
-       </UL>
- 	<LI><B>DELETE_RULE</B> short => What happens to
-       the foreign key when primary is deleted.
-       <UL>
-       <LI> importedKeyNoAction - do not allow delete of primary
-                key if it has been imported
-       <LI> importedKeyCascade - delete rows that import a deleted key
-       <LI> importedKeySetNull - change imported key to NULL if
-                its primary key has been deleted
-       <LI> importedKeyRestrict - same as importedKeyNoAction
-                                  (for ODBC 2.x compatibility)
-       <LI> importedKeySetDefault - change imported key to default if
-                its primary key has been deleted
-       </UL>
- 	<LI><B>FK_NAME</B> String => foreign key name (may be null)
- 	<LI><B>PK_NAME</B> String => primary key name (may be null)
- 	<LI><B>DEFERRABILITY</B> short => can the evaluation of foreign key
-       constraints be deferred until commit
-       <UL>
-       <LI> importedKeyInitiallyDeferred - see SQL92 for definition
-       <LI> importedKeyInitiallyImmediate - see SQL92 for definition
-       <LI> importedKeyNotDeferrable - see SQL92 for definition
-       </UL>
-   </OL>
-
-  @param catalog a catalog name; "" retrieves those without a
-  catalog; null means drop catalog name from the selection criteria
-  @param schema a schema name; "" retrieves those
-  without a schema
-  @param table a table name
-  @return <code>ResultSet</code> - each row is a primary key column description
-  @see #getExportedKeys
-}
 function TZAdoDatabaseMetadata.UncachedGetImportedKeys(const Catalog: string;
   const Schema: string; const Table: string): IZResultSet;
 begin
@@ -2500,28 +1109,26 @@ var
 begin
   Result:=inherited UncachedGetCrossReference(PrimaryCatalog, PrimarySchema, PrimaryTable,
                                               ForeignCatalog, ForeignSchema, ForeignTable);
-
+  {$IFDEF WITH_VAR_INIT_WARNING}Len := 0;{$ENDIF}
   AdoRecordSet := AdoOpenSchema(adSchemaForeignKeys, [PrimaryCatalog,
     PrimarySchema, PrimaryTable, ForeignCatalog, ForeignSchema, ForeignTable]);
   if AdoRecordSet <> nil then
-    with TZAdoResultSet.Create(GetStatement, '', AdoRecordSet) do
-    begin
-      while Next do
-      begin
+    with TZAdoResultSet.Create(GetStatement, '', AdoRecordSet) do begin
+      while Next do begin
         Result.MoveToInsertRow;
-        Result.UpdatePWideChar(CrossRefKeyColPKTableCatalogIndex, GetPWideCharByName('PK_TABLE_CATALOG', Len), @Len);
-        Result.UpdatePWideChar(CrossRefKeyColPKTableSchemaIndex, GetPWideCharByName('PK_TABLE_SCHEMA', Len), @Len);
-        Result.UpdatePWideChar(CrossRefKeyColPKTableNameIndex, GetPWideCharByName('PK_TABLE_NAME', Len), @Len);
-        Result.UpdatePWideChar(CrossRefKeyColPKColumnNameIndex, GetPWideCharByName('PK_COLUMN_NAME', Len), @Len);
-        Result.UpdatePWideChar(CrossRefKeyColFKTableCatalogIndex, GetPWideCharByName('FK_TABLE_CATALOG', Len), @Len);
-        Result.UpdatePWideChar(CrossRefKeyColFKTableSchemaIndex, GetPWideCharByName('FK_TABLE_SCHEMA', Len), @Len);
-        Result.UpdatePWideChar(CrossRefKeyColFKTableNameIndex, GetPWideCharByName('FK_TABLE_NAME', Len), @Len);
-        Result.UpdatePWideChar(CrossRefKeyColFKColumnNameIndex, GetPWideCharByName('FK_COLUMN_NAME', Len), @Len);
+        Result.UpdatePWideChar(CrossRefKeyColPKTableCatalogIndex, GetPWideCharByName('PK_TABLE_CATALOG', Len), Len);
+        Result.UpdatePWideChar(CrossRefKeyColPKTableSchemaIndex, GetPWideCharByName('PK_TABLE_SCHEMA', Len), Len);
+        Result.UpdatePWideChar(CrossRefKeyColPKTableNameIndex, GetPWideCharByName('PK_TABLE_NAME', Len), Len);
+        Result.UpdatePWideChar(CrossRefKeyColPKColumnNameIndex, GetPWideCharByName('PK_COLUMN_NAME', Len), Len);
+        Result.UpdatePWideChar(CrossRefKeyColFKTableCatalogIndex, GetPWideCharByName('FK_TABLE_CATALOG', Len), Len);
+        Result.UpdatePWideChar(CrossRefKeyColFKTableSchemaIndex, GetPWideCharByName('FK_TABLE_SCHEMA', Len), Len);
+        Result.UpdatePWideChar(CrossRefKeyColFKTableNameIndex, GetPWideCharByName('FK_TABLE_NAME', Len), Len);
+        Result.UpdatePWideChar(CrossRefKeyColFKColumnNameIndex, GetPWideCharByName('FK_COLUMN_NAME', Len), Len);
         Result.UpdateSmall(CrossRefKeyColKeySeqIndex, GetSmallByName('ORDINAL'));
         Result.UpdateSmall(CrossRefKeyColUpdateRuleIndex, Ord(GetRuleType(GetStringByName('UPDATE_RULE'))));
         Result.UpdateSmall(CrossRefKeyColDeleteRuleIndex, Ord(GetRuleType(GetStringByName('DELETE_RULE'))));
-        Result.UpdatePWideChar(CrossRefKeyColFKNameIndex, GetPWideCharByName('FK_NAME', Len), @Len);
-        Result.UpdatePWideChar(CrossRefKeyColPKNameIndex, GetPWideCharByName('PK_NAME', Len), @Len);
+        Result.UpdatePWideChar(CrossRefKeyColFKNameIndex, GetPWideCharByName('FK_NAME', Len), Len);
+        Result.UpdatePWideChar(CrossRefKeyColPKNameIndex, GetPWideCharByName('PK_NAME', Len), Len);
         Result.UpdateInt(CrossRefKeyColDeferrabilityIndex, GetSmallByName('DEFERRABILITY'));
         Result.InsertRow;
       end;
@@ -2581,22 +1188,20 @@ var
   Len: NativeUInt;
 begin
   Result:=inherited UncachedGetTypeInfo;
-
+  {$IFDEF WITH_VAR_INIT_WARNING}Len := 0;{$ENDIF}
   AdoRecordSet := AdoOpenSchema(adSchemaProviderTypes, []);
   if AdoRecordSet <> nil then
-  begin
-    with TZAdoResultSet.Create(GetStatement, '', AdoRecordSet) do
-    begin
-      while Next do
-      begin
+    with TZAdoResultSet.Create(GetStatement, '', AdoRecordSet) do begin
+      while Next do begin
         Result.MoveToInsertRow;
-        Result.UpdatePWideChar(TypeInfoTypeNameIndex, GetPWideCharByName('TYPE_NAME', Len), @Len);
+        Result.UpdatePWideChar(TypeInfoTypeNameIndex, GetPWideCharByName('TYPE_NAME', Len), Len);
         Result.UpdateSmall(TypeInfoDataTypeIndex, Ord(ConvertAdoToSqlType(
-          GetSmallByName('DATA_TYPE'), ConSettings.CPType)));
+          GetSmallByName('DATA_TYPE'), GetIntByName('FIXED_PREC_SCALE'),
+          GetSmallByName('MAXIMUM_SCALE'))));
         Result.UpdateInt(TypeInfoPecisionIndex, 0);//GetIntByName('PRECISION'));
-        Result.UpdatePWideChar(TypeInfoLiteralPrefixIndex, GetPWideCharByName('LITERAL_PREFIX', Len), @Len);
-        Result.UpdatePWideChar(TypeInfoLiteralSuffixIndex, GetPWideCharByName('LITERAL_SUFFIX', Len), @Len);
-        Result.UpdatePWideChar(TypeInfoCreateParamsIndex, GetPWideCharByName('CREATE_PARAMS', Len), @Len);
+        Result.UpdatePWideChar(TypeInfoLiteralPrefixIndex, GetPWideCharByName('LITERAL_PREFIX', Len), Len);
+        Result.UpdatePWideChar(TypeInfoLiteralSuffixIndex, GetPWideCharByName('LITERAL_SUFFIX', Len), Len);
+        Result.UpdatePWideChar(TypeInfoCreateParamsIndex, GetPWideCharByName('CREATE_PARAMS', Len), Len);
         if GetBooleanByName('IS_NULLABLE') then
           Result.UpdateSmall(TypeInfoNullAbleIndex, 1)
         else
@@ -2606,7 +1211,7 @@ begin
         Result.UpdateBoolean(TypeInfoUnsignedAttributeIndex, GetBooleanByName('UNSIGNED_ATTRIBUTE'));
         Result.UpdateBoolean(TypeInfoFixedPrecScaleIndex, GetBooleanByName('FIXED_PREC_SCALE'));
         Result.UpdateBoolean(TypeInfoAutoIncrementIndex, False);
-        Result.UpdatePWideChar(TypeInfoLocaleTypeNameIndex, GetPWideCharByName('LOCAL_TYPE_NAME', Len), @Len);
+        Result.UpdatePWideChar(TypeInfoLocaleTypeNameIndex, GetPWideCharByName('LOCAL_TYPE_NAME', Len), Len);
         Result.UpdateSmall(TypeInfoMinimumScaleIndex, GetSmallByName('MINIMUM_SCALE'));
         Result.UpdateSmall(TypeInfoMaximumScaleIndex, GetSmallByName('MAXIMUM_SCALE'));
   //      Result.UpdateSmall(TypeInfoSQLDataTypeIndex, GetSmallByName('SQL_DATA_TYPE'));
@@ -2617,7 +1222,6 @@ begin
       Close;
       Free;
     end;
-  end;
 end;
 
 {**
@@ -2679,28 +1283,26 @@ var
   Len: NativeUInt;
 begin
   Result:=inherited UncachedGetIndexInfo(Catalog, Schema, Table, Unique, Approximate);
-
+  {$IFDEF WITH_VAR_INIT_WARNING}Len := 0;{$ENDIF}
   AdoRecordSet := AdoOpenSchema(adSchemaIndexes,
     [Catalog, Schema, '', '', Table]);
   if AdoRecordSet <> nil then
-    with TZAdoResultSet.Create(GetStatement, '', AdoRecordSet) do
-    begin
-      while Next do
-      begin
+    with TZAdoResultSet.Create(GetStatement, '', AdoRecordSet) do begin
+      while Next do begin
         Result.MoveToInsertRow;
-        Result.UpdatePWideChar(CatalogNameIndex, GetPWideCharByName('TABLE_CATALOG', Len), @Len);
-        Result.UpdatePWideChar(SchemaNameIndex, GetPWideCharByName('TABLE_SCHEMA', Len), @Len);
-        Result.UpdatePWideChar(TableNameIndex, GetPWideCharByName('TABLE_NAME', Len), @Len);
+        Result.UpdatePWideChar(CatalogNameIndex, GetPWideCharByName('TABLE_CATALOG', Len), Len);
+        Result.UpdatePWideChar(SchemaNameIndex, GetPWideCharByName('TABLE_SCHEMA', Len), Len);
+        Result.UpdatePWideChar(TableNameIndex, GetPWideCharByName('TABLE_NAME', Len), Len);
         Result.UpdateBoolean(IndexInfoColNonUniqueIndex, not GetBooleanByName('UNIQUE'));
-        Result.UpdatePWideChar(IndexInfoColIndexQualifierIndex, GetPWideCharByName('INDEX_CATALOG', Len), @Len);
-        Result.UpdatePWideChar(IndexInfoColIndexNameIndex, GetPWideCharByName('INDEX_NAME', Len), @Len);
+        Result.UpdatePWideChar(IndexInfoColIndexQualifierIndex, GetPWideCharByName('INDEX_CATALOG', Len), Len);
+        Result.UpdatePWideChar(IndexInfoColIndexNameIndex, GetPWideCharByName('INDEX_NAME', Len), Len);
         Result.UpdateSmall(IndexInfoColTypeIndex, GetSmallByName('TYPE'));
         Result.UpdateSmall(IndexInfoColOrdPositionIndex, GetSmallByName('ORDINAL_POSITION'));
-        Result.UpdatePWideChar(IndexInfoColColumnNameIndex, GetPWideCharByName('COLUMN_NAME', Len), @Len);
-  //!!!      Result.UpdatePWideChar(IndexInfoColAscOrDescIndex, GetPWideCharByName('COLLATION', Len), @Len);
+        Result.UpdatePWideChar(IndexInfoColColumnNameIndex, GetPWideCharByName('COLUMN_NAME', Len), Len);
+  //!!!      Result.UpdatePWideChar(IndexInfoColAscOrDescIndex, GetPWideCharByName('COLLATION', Len), Len);
         Result.UpdateInt(IndexInfoColCardinalityIndex, GetIntByName('CARDINALITY'));
         Result.UpdateInt(IndexInfoColPagesIndex, GetIntByName('PAGES'));
-        Result.UpdatePWideChar(IndexInfoColFilterConditionIndex, GetPWideCharByName('FILTER_CONDITION', Len), @Len);
+        Result.UpdatePWideChar(IndexInfoColFilterConditionIndex, GetPWideCharByName('FILTER_CONDITION', Len), Len);
         Result.InsertRow;
       end;
       Close;
@@ -2760,9 +1362,9 @@ begin
 //    while Next do
 //    begin
 //      Result.MoveToInsertRow;
-//      Result.UpdatePWideChar(CatalogNameIndex, GetPWideChar('TYPE_CAT', Len), @Len);
-//      Result.UpdatePWideChar(SchemaNameIndex, GetPWideChar('TYPE_SCHEM', Len), @Len);
-//      Result.UpdatePWideChar(UDTColTypeNameIndex, GetPWideChar('TYPE_NAME', Len), @Len);
+//      Result.UpdatePWideChar(CatalogNameIndex, GetPWideChar('TYPE_CAT', Len), Len);
+//      Result.UpdatePWideChar(SchemaNameIndex, GetPWideChar('TYPE_SCHEM', Len), Len);
+//      Result.UpdatePWideChar(UDTColTypeNameIndex, GetPWideChar('TYPE_NAME', Len), Len);
 //      Result.UpdateNull(UDTColClassNameIndex);
 //      Result.UpdateSmall(UDTColDataTypeIndex, GetSmall('DATA_TYPE'));
 //      Result.UpdateNull(UDTColRemarksIndex);
@@ -2809,8 +1411,7 @@ var
   Nr: Integer;
   I: Integer;
 begin
-  if not FSupportedSchemasInitialized then
-  begin
+  if not FSupportedSchemasInitialized then begin
     if not Assigned(FAdoConnection) then begin
       GetConnection.QueryInterface(IZAdoConnection, AdoConnection);
       FAdoConnection := AdoConnection.GetAdoConnection;
@@ -2818,13 +1419,11 @@ begin
     (FAdoConnection as ADOConnectionConstruction).Get_Session(OleDBSession);
     if Assigned(OleDBSession) then begin
       OleDBSession.QueryInterface(IDBSchemaRowset, SchemaRS);
-      if Assigned(SchemaRS) then
-      begin
+      if Assigned(SchemaRS) then begin
         SchemaRS.GetSchemas(Nr{%H-}, PG{%H-}, PInteger({%H-}IA));
         OriginalPG := PG;
         SetLength(SupportedSchemas, Nr);
-        for I := 0 to Nr - 1 do
-        begin
+        for I := 0 to Nr - 1 do begin
           SupportedSchemas[I].SchemaGuid := PG^;
           SupportedSchemas[I].SupportedRestrictions := IA^[I];
           SupportedSchemas[I].AdoSchemaId := ConvertOleDBToAdoSchema(PG^);
@@ -2909,5 +1508,12 @@ begin
   end;
 end;
 
+function TZAdoDatabaseInfo.SupportsArrayBindings: Boolean;
+begin
+  Result := False;
+end;
+
 {$ENDIF ZEOS_DISABLE_ADO}
+{ TZAdoDatabaseInfo }
+
 end.

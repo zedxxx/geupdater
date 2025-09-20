@@ -47,7 +47,7 @@ uses
   System.NetEncoding;
 
 const
-  cProtocolName = 'sqlite-3';
+  cProtocolName = 'sqlite';
   cLibraryName = 'sqlite3.dll';
   cStorageFileName = 'data.db3';
 

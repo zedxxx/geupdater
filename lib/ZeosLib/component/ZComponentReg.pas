@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -72,6 +72,7 @@ uses
   ComponentEditors,
   LResources,
 {$ELSE}
+  Windows,
 {$IFNDEF UNIX}
 {$IFNDEF FPC}
   ZUpdateSqlEditor,
@@ -80,13 +81,12 @@ uses
   DesignIntf,
   SysUtils,                                     // **** Pitfiend addition, required to be able to put info in the delphi ide splash screen and about box 
   ToolsAPI,                                     //
-  Windows,
 {$ENDIF}
 {$ENDIF}
+  ZPropertiesEditor,
   Classes, ZConnection, ZAbstractConnection, ZDataset, ZSqlUpdate, ZSqlProcessor,
-  ZStoredProcedure, ZGroupedConnection, ZConnectionGroup ,
-  ZSqlMonitor, ZSqlMetadata, ZSequence
-  {$IFDEF WITH_ZSTRINGFIELDS}, ZAbstractRODataset{$ENDIF}
+  ZStoredProcedure, ZGroupedConnection, ZConnectionGroup, ZEventListener,
+  ZSqlMonitor, ZSqlMetadata, ZSequence, ZAbstractRODataset
   {$IFDEF ENABLE_INTERBASE}, ZIBEventAlerter {$ENDIF}
   {$IFDEF ENABLE_POSTGRESQL}, ZPgEventAlerter {$ENDIF};
 
@@ -98,34 +98,29 @@ procedure Register;
 {$IF DECLARED(IOTAAboutBoxServices)}            //   this allow to put a nice and pro entry in the delphi ide splash screen and about box
 var                                             //
   AboutSvcs: IOTAAboutBoxServices;              //
-  hImage   : THandle;
 {$IFEND}                                        //
 {$ENDIF}                                        // **** Pitfiend addition end
 begin
-  RegisterComponents(ZEOS_DB_PALETTE, [
-    TZConnection, TZReadOnlyQuery, TZQuery, TZTable, TZUpdateSQL,
-    TZConnectionGroup, TZGroupedConnection,
+  RegisterComponents(ZEOS_DB_PALETTE, [TZConnection,
+    TZTransaction, TZReadOnlyQuery, TZQuery, TZTable, TZMemTable, TZUpdateSQL,
+    TZConnectionGroup, TZGroupedConnection, TZEventListener,
     TZStoredProc, TZSQLMetadata, TZSQLProcessor, TZSQLMonitor, TZSequence
     {$IFDEF ENABLE_INTERBASE}, TZIBEventAlerter {$ENDIF}
     {$IFDEF ENABLE_POSTGRESQL}, TZPgEventAlerter{$ENDIF}]) ;
 
-  {$IFDEF WITH_ZSTRINGFIELDS}
-  RegisterClasses([TZWideStringField, TZStringField]);
-  {$ENDIF}
+{$IFDEF WITH_REGISTER_CLASSES_BUG}RegisterNoIcon{$ELSE}RegisterClasses{$ENDIF}([
+  TZDateField, TZDateTimeField, TZTimeField, TZBooleanField,
+  TZSmallIntField, TZShortIntField, TZWordField, TZByteField, TZIntegerField,
+  TZInt64Field, TZCardinalField, TZUInt64Field, TZDoubleField, TZSingleField,
+  TZBCDField, TZFMTBCDField, TZGuidField, TZRawStringField,
+  TZUnicodeStringField, TZBytesField, TZVarBytesField, TZRawCLobField,
+  TZUnicodeCLobField, TZBlobField]);
 {$IFNDEF FPC}                                   // **** Pitfiend addition start
 {$IF DECLARED(IOTAAboutBoxServices)}
     if Assigned(SplashScreenServices) then
-    begin
-      hImage := LoadBitmap(HInstance, 'ZEOSLIBSPLASH');
-      SplashScreenServices.AddPluginBitmap(
-        'ZEOSLib Open Source Database Objects',
-        hImage, // to have a nice icon, a .res file must be included, then replace 0 by loadbitmap(HInstance, 'RESOURCENAME')
-        False,  // IsUnRegistered
-        'GNU Lesser General Public License v2.1', // GNU LGPL
-        'v' + ZEOS_VERSION);   // SKUName: Version information.
-    end;
+       SplashScreenServices.AddPluginBitmap('ZEOSLib Open Source Database Objects', loadbitmap(HInstance, 'ZEOSLIBSPLASH')); // to have a nice icon, a .res file must be included, then replace 0 by loadbitmap(HInstance, 'RESOURCENAME')
     if (BorlandIDEServices<>nil) and supports(BorlandIDEServices, IOTAAboutBoxServices, AboutSvcs) then
-       AboutSvcs.AddPluginInfo('ZEOSLib', 'ZEOSLib'+sLineBreak+'OpenSource database components collection'+sLineBreak+sLineBreak+'Forum:http://zeoslib.sourceforge.net', 0, False, 'OpenSource'); // replace 0 by loadbitmap(HInstance, 'RESOURCENAME')
+       AboutSvcs.AddPluginInfo('ZEOSLib', 'ZEOSLib'+sLineBreak+'OpenSource database components collection'+sLineBreak+sLineBreak+'Forum:http://zeoslib.sourceforge.net', loadbitmap(HInstance, 'ZEOSLIBSPLASH'), False, 'OpenSource'); // replace 0 by loadbitmap(HInstance, 'ZEOSLIBSPLASH')
 {$IFEND}
 {$ENDIF}                                        // **** Pitfiend addition end
 
@@ -136,6 +131,7 @@ begin
   RegisterPropertyEditor(TypeInfo(string), TZConnection, 'Database', TZDatabasePropertyEditor);
   RegisterPropertyEditor(TypeInfo(string), TZConnection, 'Catalog', TZCatalogPropertyEditor);
   RegisterPropertyEditor(TypeInfo(string), TZConnection, 'LibraryLocation', TZLibLocationPropertyEditor);
+  RegisterPropertyEditor(TypeInfo(TStrings), TZConnection, 'Properties', TZProperitesEditor);
 
   RegisterPropertyEditor(TypeInfo(string), TZConnectionGroup, 'Protocol', TZProtocolPropertyEditor);
   RegisterPropertyEditor(TypeInfo(string), TZConnectionGroup, 'Database', TZConnectionGroupPropertyEditor);
@@ -146,22 +142,28 @@ begin
   RegisterPropertyEditor(TypeInfo(string), TZQuery, 'MasterFields', TZMasterFieldPropertyEditor);
   RegisterPropertyEditor(TypeInfo(string), TZQuery, 'SortedFields', TZDataFieldPropertyEditor);
   RegisterPropertyEditor(TypeInfo(string), TZQuery, 'SequenceField', TZDataFieldPropertyEditor);
+  RegisterPropertyEditor(TypeInfo(TStrings), TZQuery, 'Properties', TZProperitesEditor);
 
   RegisterPropertyEditor(TypeInfo(string), TZReadOnlyQuery, 'LinkedFields', TZDataFieldPropertyEditor); {renamed by bangfauzan}
   RegisterPropertyEditor(TypeInfo(string), TZReadOnlyQuery, 'MasterFields', TZMasterFieldPropertyEditor);
   RegisterPropertyEditor(TypeInfo(string), TZReadOnlyQuery, 'SortedFields', TZDataFieldPropertyEditor);
+  RegisterPropertyEditor(TypeInfo(TStrings), TZReadOnlyQuery, 'Properties', TZProperitesEditor);
 
   RegisterPropertyEditor(TypeInfo(string), TZTable, 'TableName', TZTableNamePropertyEditor);
   RegisterPropertyEditor(TypeInfo(string), TZTable, 'LinkedFields', TZDataFieldPropertyEditor); {renamed by bangfauzan}
   RegisterPropertyEditor(TypeInfo(string), TZTable, 'MasterFields', TZMasterFieldPropertyEditor);
   RegisterPropertyEditor(TypeInfo(string), TZTable, 'SortedFields', TZDataFieldPropertyEditor);
   RegisterPropertyEditor(TypeInfo(string), TZTable, 'SequenceField', TZDataFieldPropertyEditor);
+  RegisterPropertyEditor(TypeInfo(TStrings), TZTable, 'Properties', TZProperitesEditor);
 
   RegisterPropertyEditor(TypeInfo(string), TZStoredProc, 'StoredProcName', TZProcedureNamePropertyEditor);
   RegisterPropertyEditor(TypeInfo(string), TZStoredProc, 'SortedFields', TZDataFieldPropertyEditor);
 
   RegisterPropertyEditor(TypeInfo(string), TZSequence, 'SequenceName', TZSequenceNamePropertyEditor);
 
+  RegisterPropertyEditor(TypeInfo(TStrings), TZTransaction, 'Properties', TZProperitesEditor);
+
+  RegisterPropertyEditor(TypeInfo(TStrings), TZEventListener, 'Properties', TZProperitesEditor);
 {$IFDEF USE_METADATA}
   RegisterPropertyEditor(TypeInfo(string), TZSQLMetadata, 'Catalog', TZCatalogProperty);
   RegisterPropertyEditor(TypeInfo(string), TZSQLMetadata, 'ColumnName', TZColumnNamePropertyEditor);

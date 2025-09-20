@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -48,6 +48,20 @@
 {                                                         }
 {                                 Zeos Development Group. }
 {********************************************************@}
+
+(*
+ Constributors:
+  aehimself,
+  cipto,
+  EgonHugeist
+  firmos
+  HA,
+  marsupilami97
+  mdeams (Mark Deams)
+  miab3
+  mse
+  and many others
+*)
 
 unit ZAbstractConnection;
 
@@ -72,6 +86,9 @@ uses
 {$IFDEF ENABLE_INTERBASE}
   ZDbcInterbase6,
 {$ENDIF}
+{$IFDEF ENABLE_FIREBIRD}
+  ZDbcFirebird,
+{$ENDIF}
 {$IFDEF ENABLE_SQLITE}
   ZDbcSqLite,
 {$ENDIF}
@@ -81,48 +98,69 @@ uses
 {$IFDEF ENABLE_ASA}
   ZDbcASA,
 {$ENDIF}
+{$IFDEF ENABLE_SQLANY}
+  ZDbcSQLAnywhere,
+{$ENDIF}
 {$IFDEF ENABLE_POOLED}
   ZDbcPooled,
 {$ENDIF}
+{$IFDEF ENABLE_OLEDB}
+  ZDbcOleDB,
+{$ENDIF}
+{$IFDEF ENABLE_ODBC}
+  ZDbcODBCCon,
+{$ENDIF}
+{$IFDEF ENABLE_PROXY}
+  ZDbcProxy,
+{$ENDIF}
 
   SysUtils, Classes, {$IFDEF MSEgui}mclasses, mdb{$ELSE}DB{$ENDIF},
-  {$IFDEF TLIST_IS_DEPRECATED}ZSysUtils,{$ENDIF}
-  ZDbcIntfs, ZCompatibility, ZURL;
-
+  ZClasses, ZCompatibility, ZSysUtils,
+  ZDbcIntfs,
+  ZDatasetUtils, ZFormatSettings, ZExceptions;
 
 type
-  //HA 090811 New Type TZLoginEvent to make Username and Password persistent
+  /// <author>HA</author>
+  /// <summary>Defines a login event.</summary>
   TZLoginEvent = procedure(Sender: TObject; var Username:string ; var Password: string) of object;
 
-  {** Represents a component which wraps a connection to database. }
+  /// <author>EgonHugeist</author>
+  /// <summary>Forward declaration of the TZRawCharacterTransliterateOptions.</summary>
+  TZRawCharacterTransliterateOptions = class;
 
   { TZAbstractConnection }
 
+  /// <summary>Implements an abstract connection component which wraps a
+  ///  connection to database.</summary>
   TZAbstractConnection = class(TComponent)
   private
     FUseMetaData: Boolean;
-    FAutoEncode: Boolean;
     FControlsCodePage: TZControlsCodePage;
     {$IFDEF ZEOS_TEST_ONLY}
     FTestMode: Byte;
     {$ENDIF}
     function GetVersion: string;
     procedure SetUseMetadata(AValue: Boolean);
-    procedure SetControlsCodePage(const Value: TZControlsCodePage);
+    procedure SetCharacterFieldType(const Value: TZControlsCodePage);
   protected
+    // just a fake for compatibility to Zeos 7.2:
+    {$IFDEF WITH_FAKE_AUTOENCODESTRINGS}
+    FAutoEncodeStrings: Boolean;
+    {$ENDIF}
+
     FURL: TZURL;
     FCatalog: string;
     FAutoCommit: Boolean;
     FReadOnly: Boolean;
     FTransactIsolationLevel: TZTransactIsolationLevel;
     FConnection: IZConnection;
-    FDatasets: {$IFDEF TLIST_IS_DEPRECATED}TZSortedList{$ELSE}TList{$ENDIF};
-    // Modified by cipto 8/1/2007 1:44:22 PM
-    FSequences: {$IFDEF TLIST_IS_DEPRECATED}TZSortedList{$ELSE}TList{$ENDIF};
-
+    FLinkedComponents: TZSortedList;
+    FAddLogMsgToExceptionOrWarningMsg: Boolean;
+    FRaiseWarningMessages: Boolean;
     FLoginPrompt: Boolean;
     FStreamedConnected: Boolean;
-    FExplicitTransactionCounter: Integer;
+    FExplicitTransactionCounter: Integer; //this counter is required to find out setting autocommit mode back to True without loosing changes
+    FTxnLevel: Integer; //the current nested_transaction/savepoint level
     FSQLHourGlass: Boolean;
     FDesignConnection: Boolean;
 
@@ -133,15 +171,17 @@ type
     FBeforeReconnect: TNotifyEvent;
     FAfterReconnect: TNotifyEvent;
     FOnCommit: TNotifyEvent;
-    FOnRollback: TNotifyEvent;
+    FOnRollback, FOnLost: TNotifyEvent;
     FOnStartTransaction: TNotifyEvent;
-    //HA 090811 Change Type of FOnLogin to new TZLoginEvent
-    //FOnLogin: TLoginEvent;
     FOnLogin: TZLoginEvent;
     FClientCodepage: String;
-
-    function GetAutoEncode: Boolean;
-    procedure SetAutoEncode(Value: Boolean);
+    FTransactions: TZSortedList;
+    FRawCharacterTransliterateOptions: TZRawCharacterTransliterateOptions;
+    FFormatSettings: TZFormatSettings;
+    FDisableSavepoints: Boolean;
+    procedure SetRawCharacterTransliterateOptions(Value: TZRawCharacterTransliterateOptions);
+    procedure SetFormatSettings(const Value: TZFormatSettings);
+    function GetFormatSettings: TZFormatSettings;
     function GetHostName: string;
     procedure SetHostName(const Value: String);
     function GetConnPort: Integer;
@@ -157,11 +197,18 @@ type
     function GetProtocol: String;
     procedure SetProtocol(const Value: String);
     function GetProperties: TStrings;
+    procedure SetAddLogMsgToExceptionOrWarningMsg(Value: Boolean);
+    procedure SetRaiseWarningMessages(Value: Boolean);
     function GetConnected: Boolean;
     procedure SetConnected(Value: Boolean);
     procedure SetProperties(Value: TStrings);
     procedure SetTransactIsolationLevel(Value: TZTransactIsolationLevel);
     procedure SetAutoCommit(Value: Boolean);
+    /// <summary>Puts this connection in read-only mode as a hint to enable
+    ///  database optimizations. Note: This method cannot be called while in the
+    ///  middle of a transaction.</summary>
+    /// <param>"value" true enables read-only mode; false disables read-only
+    ///  mode.</param>
     procedure SetReadOnly(Value: Boolean);
     function GetDbcDriver: IZDriver;
     function GetInTransaction: Boolean;
@@ -180,17 +227,14 @@ type
     procedure DoStartTransaction;
 
     procedure CheckConnected;
+    procedure CheckDisconnected;
     procedure CheckAutoCommitMode;
     procedure CheckNonAutoCommitMode;
 
     function ConstructURL(const UserName, Password: string): string;
 
-    procedure CloseAllDataSets;
-    procedure UnregisterAllDataSets;
-
-    // Modified by cipto 8/1/2007 1:48:17 PM
-    procedure CloseAllSequences;
-    ////////////////////////////////////////
+    procedure CloseAllLinkedComponents;
+    procedure UnregisterAllComponents;
 
     procedure Notification(AComponent: TComponent;
       Operation: TOperation); override;
@@ -198,7 +242,8 @@ type
 
     property StreamedConnected: Boolean read FStreamedConnected write FStreamedConnected;
 
-    procedure SetClientCodePage(Const Value: String); //Egonhugeist
+    procedure SetClientCodePage(Const Value: String);
+    procedure ConnectionLost(var AError: EZSQLConnectionLost);
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -208,7 +253,7 @@ type
     procedure Reconnect;
     function Ping: Boolean; virtual;
 
-    procedure StartTransaction; virtual;
+    function StartTransaction: Integer; virtual;
     procedure Commit; virtual;
     procedure Rollback; virtual;
 
@@ -216,31 +261,26 @@ type
     procedure CommitPrepared(const transactionid: string); virtual;
     procedure RollbackPrepared(const transactionid: string); virtual;
     function PingServer: Boolean; virtual;
+    Function AbortOperation: Boolean; virtual;
 
-    procedure RegisterDataSet(DataSet: TDataset);
-    procedure UnregisterDataSet(DataSet: TDataset);
     function ExecuteDirect(const SQL: string): boolean; overload;
     function ExecuteDirect(const SQL: string; out RowsAffected: integer): boolean; overload;
-    // Modified by cipto 8/2/2007 10:16:50 AM
-    procedure RegisterSequence(Sequence: TComponent);
-    procedure UnregisterSequence(Sequence: TComponent);
-    ///////////////////////////////////////////////////
+
+    procedure RegisterComponent(Value: TComponent);
+    procedure UnregisterComponent(Value: TComponent);
 
     procedure GetProtocolNames(List: TStrings);
     procedure GetCatalogNames(List: TStrings);
     procedure GetSchemaNames(List: TStrings);
     procedure GetTableNames(const Pattern: string; List: TStrings);overload;
     procedure GetTableNames(const schemaPattern, tablePattern: string; List: TStrings);overload;
-    procedure GetTableNames(const schemaPattern, tablePattern: string; Types: TStringDynArray; List: TStrings);overload;
-    procedure GetColumnNames(const TablePattern, ColumnPattern: string; List: TStrings);
+    procedure GetTableNames(const schemaPattern, tablePattern: string; const Types: TStringDynArray; List: TStrings);overload;
+    procedure GetColumnNames(const schemaPattern, TablePattern, ColumnPattern: string; List: TStrings); overload;
+    procedure GetColumnNames(const TablePattern, ColumnPattern: string; List: TStrings); overload;
 
     procedure GetStoredProcNames(const Pattern: string; List: TStrings);
     procedure GetTriggerNames(const TablePattern, SchemaPattern: string; List: TStrings);
 
-    //EgonHugeist
-    function GetBinaryEscapeStringFromString(const BinaryString: RawByteString): String; overload;
-    function GetBinaryEscapeStringFromStream(const Stream: TStream): String; overload;
-    function GetBinaryEscapeStringFromFile(const FileName: String): String; overload;
     function GetURL: String;
 
     property InTransaction: Boolean read GetInTransaction;
@@ -255,16 +295,32 @@ type
 
     property DbcDriver: IZDriver read GetDbcDriver;
     property DbcConnection: IZConnection read FConnection;
+    /// <summary>
+    ///  Gets clients's full version number.
+    ///    The format of the version resturned must be XYYYZZZ where
+    ///    X   = Major version
+    ///    YYY = Minor version
+    ///   ZZZ = Sub version
+    /// </summary>
     property ClientVersion: Integer read GetClientVersion;
+    /// <summary>
+    ///  Gets server's full version number.
+    ///    The format of the version resturned must be XYYYZZZ where
+    ///    X   = Major version
+    ///    YYY = Minor version
+    ///   ZZZ = Sub version
+    /// </summary>
     property ServerVersion: Integer read GetServerVersion;
     property ClientVersionStr: String read GetClientVersionStr;
     property ServerVersionStr: String read GetServerVersionStr;
     procedure ShowSQLHourGlass;
     procedure HideSQLHourGlass;
   published
-    property ControlsCodePage: TZControlsCodePage read FControlsCodePage write SetControlsCodePage;
-    property AutoEncodeStrings: Boolean read GetAutoEncode write SetAutoEncode stored True default {$IFDEF UNICODDE}True{$ELSE}False{$ENDIF};
-    property ClientCodepage: String read FClientCodepage write SetClientCodePage; //EgonHugeist
+    property FormatSettings: TZFormatSettings read GetFormatSettings write SetFormatSettings;
+    property ControlsCodePage: TZControlsCodePage read FControlsCodePage write SetCharacterFieldType;
+    property RawCharacterTransliterateOptions: TZRawCharacterTransliterateOptions read FRawCharacterTransliterateOptions write
+      SetRawCharacterTransliterateOptions;
+    property ClientCodepage: String read FClientCodepage write SetClientCodePage;
     property Catalog: string read FCatalog write FCatalog;
     property Properties: TStrings read GetProperties write SetProperties;
     property AutoCommit: Boolean read FAutoCommit write SetAutoCommit
@@ -282,6 +338,11 @@ type
     property Version: string read GetVersion stored False;
     property DesignConnection: Boolean read FDesignConnection
       write FDesignConnection default False;
+    property AddLogMsgToExceptionOrWarningMsg: Boolean
+      read fAddLogMsgToExceptionOrWarningMsg
+      write SetAddLogMsgToExceptionOrWarningMsg default True;
+    property RaiseWarningMessages: Boolean read fRaiseWarningMessages
+      write SetRaiseWarningMessages default False;
 
     property BeforeConnect: TNotifyEvent
       read FBeforeConnect write FBeforeConnect;
@@ -299,27 +360,100 @@ type
       default False;
     property OnCommit: TNotifyEvent read FOnCommit write FOnCommit;
     property OnRollback: TNotifyEvent read FOnRollback write FOnRollback;
-    //HA 090811 Change Type of FOnLogin to new TZLoginEvent
-    //property OnLogin: TLoginEvent read FOnLogin write FOnLogin;
     property OnLogin: TZLoginEvent read FOnLogin write FOnLogin;
     property OnStartTransaction: TNotifyEvent
       read FOnStartTransaction write FOnStartTransaction;
+    property OnLost: TNotifyEvent read FOnLost write FOnLost;
+    property DisableSavepoints: Boolean read FDisableSavepoints write FDisableSavepoints;
     {$IFDEF ZEOS_TEST_ONLY}
     property TestMode : Byte read FTestMode write FTestMode;
     {$ENDIF}
+
+    {$IFDEF WITH_FAKE_AUTOENCODESTRINGS}
+    property AutoEncodeStrings: Boolean read FAutoEncodeStrings write FAutoEncodeStrings;
+    {$ENDIF}
   end;
+
+  /// <author>EgonHugeist</author>
+  /// <summary>Implements a raw to utf16 and vice verca setting object</summary>
+  TZRawCharacterTransliterateOptions = class(TPersistent)
+  private
+    {$IFDEF AUTOREFCOUNT}[WEAK]{$ENDIF}FConnection: TZAbstractConnection;
+    {$IFNDEF UNICODE}
+    FSQL: Boolean;
+    {$ENDIF}
+    FEncoding: TZW2A2WEncodingSource;
+    FParams: Boolean;
+    FFields: Boolean;
+    function GetSQL: Boolean;
+    {$IFNDEF UNICODE}
+    procedure SetSQL(Value: Boolean);
+    {$ENDIF UNICODE}
+    function GetEncoding: TZW2A2WEncodingSource;
+    procedure SetEncoding(Value: TZW2A2WEncodingSource);
+  public
+    Constructor Create(AOwner: TZAbstractConnection);
+    function GetRawTransliterateCodePage(Target: TZTransliterationType): Word;
+  published
+    property SQL: Boolean read GetSQL {$IFNDEF UNICODE}write SetSQL stored True{$ELSE}stored False{$ENDIF} default False;
+    //this option is not reachable in Component-Layer for the Unicode-Compilers
+    //it's always DB_CP!! But in DBC it's also interesting. Thus another enumerator
+    property Encoding: TZW2A2WEncodingSource read GetEncoding
+      write SetEncoding stored {$IFDEF UNCIODE}False{$ELSE}True{$ENDIF} default encDB_CP;
+    property Params: Boolean read FParams write FParams stored true default False;
+    property Fields: Boolean read FFields write FFields stored True default True;
+  end;
+
+  /// <author>EgonHugeist</author>
+  /// <summary>Implements an abstract component which is linked with a
+  ///  connection component</summary>
+  TZAbstractConnectionLinkedComponent = Class(TComponent)
+  protected
+    FConnection: TZAbstractConnection;
+    FActive: Boolean;
+    procedure SetConnection(Value: TZAbstractConnection); virtual; abstract;
+    /// <summary>Processes component notifications.</summary>
+    /// <param>"AComponent" a changed component object.</summary>
+    /// <param>"Operation" a component operation code.</summary>
+    procedure Notification(AComponent: TComponent;
+      Operation: TOperation); override;
+  protected
+    property Connection: TZAbstractConnection read FConnection write SetConnection;
+  End;
+
+  /// <author>EgonHugeist</author>
+  /// <summary>Implements an abstract component which is linked with a
+  ///  connection component and can be (de)activated</summary>
+  TAbstractActiveConnectionLinkedComponent = Class(TZAbstractConnectionLinkedComponent)
+  protected
+    FActive: Boolean;
+    procedure SetActive(Value: Boolean); virtual; abstract;
+  protected
+    property Active: Boolean read FActive write SetActive;
+  End;
+
+  /// <author>EgonHugeist</author>
+  /// <summary>Test if the component is a zeos component</summary>
+  function IsZeosConnectionComponent(AValue: TComponent): Boolean;
 
 implementation
 
-uses ZMessages, ZClasses, ZAbstractRODataset,
-  {$IFNDEF TLIST_IS_DEPRECATED}ZSysUtils, {$ENDIF}
-      // Modified by cipto 8/2/2007 10:00:22 AM
-      ZSequence, ZAbstractDataset, ZEncoding;
+uses ZMessages, ZFastCode, ZEncoding,
+  ZDbcProperties, ZDbcLogging,
+  ZSequence, ZAbstractDataset, ZAbstractRODataset, ZMemTable, ZSqlProcessor,
+  ZTransaction;
 
 var
   SqlHourGlassLock: Integer;
   CursorBackup: TDBScreenCursor;
 
+function IsZeosConnectionComponent(AValue: TComponent): Boolean;
+begin
+  Result := (AValue <> nil) and (AValue.InheritsFrom(TZAbstractRODataSet) or
+      AValue.InheritsFrom(TZSQLProcessor) or AValue.InheritsFrom(TZSequence) or
+      AValue.InheritsFrom(TZAbstractTransaction) or AValue.InheritsFrom(TZSqlProcessor) or
+      AValue.InheritsFrom(TZAbstractConnectionLinkedComponent));
+end;
 { TZAbstractConnection }
 
 {**
@@ -330,9 +464,7 @@ constructor TZAbstractConnection.Create(AOwner: TComponent);
 begin
   {$IFDEF UNICODE}
   FControlsCodePage := cCP_UTF16;
-  //FAutoEncode := True;
   {$ELSE}
-    FAutoEncode := true;
     {$IFDEF FPC}
     FControlsCodePage := cCP_UTF8;
     {$ELSE}
@@ -341,16 +473,19 @@ begin
   {$ENDIF}
   FURL := TZURL.Create;
   inherited Create(AOwner);
+  FRawCharacterTransliterateOptions := TZRawCharacterTransliterateOptions.Create(Self);
   FAutoCommit := True;
   FReadOnly := False;
   FTransactIsolationLevel := tiNone;
+  FAddLogMsgToExceptionOrWarningMsg := True;
+  FRaiseWarningMessages := False;
   FConnection := nil;
   FUseMetadata := True;
-  FDatasets := {$IFDEF TLIST_IS_DEPRECATED}TZSortedList{$ELSE}TList{$ENDIF}.Create;
-  // Modified by cipto 8/1/2007 1:45:56 PM
-  FSequences:= {$IFDEF TLIST_IS_DEPRECATED}TZSortedList{$ELSE}TList{$ENDIF}.Create;
+  FLinkedComponents := TZSortedList.Create;
+  FTransactions := TZSortedList.Create;
   FLoginPrompt := False;
   FDesignConnection := False;
+  FFormatSettings := TZFormatSettings.Create(Self);
 end;
 
 {**
@@ -359,14 +494,13 @@ end;
 destructor TZAbstractConnection.Destroy;
 begin
   Disconnect;
-  UnregisterAllDataSets;
-  FDatasets.Free;
+  UnregisterAllComponents;
+  inherited Destroy; //calls Notification(self,opRemove)
   FURL.Free;
-  // Modified by cipto 8/1/2007 1:47:37 PM
-  FSequences.Clear;
-  FSequences.Free;
-  ////////////////////////////////////////
-  inherited Destroy;
+  FreeAndNil(FLinkedComponents);
+  FreeAndNil(FTransactions);
+  FreeAndNil(FRawCharacterTransliterateOptions);
+  FreeAndNil(FFormatSettings);
 end;
 
 function TZAbstractConnection.GetHostName: string;
@@ -397,6 +531,11 @@ end;
 procedure TZAbstractConnection.SetDatabase(const Value: String);
 begin
   FURL.Database := Value;
+end;
+
+procedure TZAbstractConnection.SetFormatSettings(const Value: TZFormatSettings);
+begin
+  FFormatSettings.Assign(Value);
 end;
 
 function TZAbstractConnection.GetUser: string;
@@ -478,11 +617,11 @@ begin
     //possible! -> result of PropertyEditor if not complete yet
     //Later we should remove this if the MeataData/Plaindriver-Informations
     //where complete
-    FClientCodepage := Trim(FURL.Properties.Values['codepage'])
+    FClientCodepage := Trim(FURL.Properties.Values[ConnProps_CodePage])
   else
     Self.FClientCodepage := Value;
-  if ( Trim(FURL.Properties.Values['codepage']) <> FClientCodepage ) then
-    FURL.Properties.Values['codepage'] := FClientCodepage;
+  if ( Trim(FURL.Properties.Values[ConnProps_CodePage]) <> FClientCodepage ) then
+    FURL.Properties.Values[ConnProps_CodePage] := FClientCodepage;
 end;
 
 {**
@@ -517,50 +656,22 @@ end;
   @param Value a list with new connection properties.
 }
 procedure TZAbstractConnection.SetProperties(Value: TStrings);
-var NewControlsCodePage: TZControlsCodePage;
-    S: String;
 begin
-  FURL.Properties.Clear;
-  if Value = nil then Exit;
-  S := Trim(Value.Values['codepage']);
-  if S <> '' then
-    FClientCodepage := S;
-  Value.Values['codepage'] := FClientCodepage;
-  { check autoencodestrings }
-  if Connected then
-    DbcConnection.AutoEncodeStrings := Value.Values['AutoEncodeStrings'] = 'ON';
-  FAutoEncode := Value.Values['AutoEncodeStrings'] = 'ON';
-  if Value.Values['controls_cp'] <> '' then begin
-    S := Value.Values['controls_cp'];
-    if S = 'CP_UTF16' then
-      NewControlsCodePage := cCP_UTF16
-    else if S = 'CP_UTF8' then
-      NewControlsCodePage := cCP_UTF8
-    else NewControlsCodePage := cGET_ACP;
-    { possibly fix given value }
-    case NewControlsCodePage of
-      cCP_UTF16:  {$IFDEF WITH_WIDEFIELDS}
-                  {keepit};
-                  {$ELSE}
-                  NewControlsCodePage := cCP_UTF8;
-                  {$ENDIF}
-      cCP_UTF8:   {$IF defined(MSWINDOWS) and defined(UNICODE)}
-                  NewControlsCodePage := cCP_UTF16;
-                  {$ELSE}
-                  {keep it};
-                  {$IFEND}
-      else        if ZOSCodePage = zCP_UTF8
-                  then NewControlsCodePage := cCP_UTF8;
-    end;
-  end else
-    NewControlsCodePage := FControlsCodePage;
-  case NewControlsCodePage of
-    cCP_UTF16:  S := 'CP_UTF16';
-    cCP_UTF8:   S := 'CP_UTF8';
-    else        S := 'GET_ACP';
+  FURL.Properties.Assign(Value);
+end;
+
+{**
+  Sets AddLogMsgToExceptionOrWarningMsg flag.
+  @param Value <code>True</code> to turn message concatation.
+}
+procedure TZAbstractConnection.SetAddLogMsgToExceptionOrWarningMsg(
+  Value: Boolean);
+begin
+  if FAddLogMsgToExceptionOrWarningMsg <> Value then begin
+    if FConnection <> nil then
+      FConnection.SetAddLogMsgToExceptionOrWarningMsg(Value);
+    FAddLogMsgToExceptionOrWarningMsg := Value;
   end;
-  Value.Values['controls_cp'] := S;
-  FURL.Properties.AddStrings(Value);
 end;
 
 {**
@@ -569,17 +680,19 @@ end;
 }
 procedure TZAbstractConnection.SetAutoCommit(Value: Boolean);
 begin
-  if FAutoCommit <> Value then
-  begin
+  if FAutoCommit <> Value then begin
     if FExplicitTransactionCounter > 0 then
-      raise Exception.Create(SInvalidOperationInTrans);
+      raise EZSQLException.Create(SInvalidOperationInTrans);
     FAutoCommit := Value;
-    ShowSQLHourGlass;
-    try
-      if FConnection <> nil then
+    if Value then
+      FExplicitTransactionCounter := 0;
+    if FConnection <> nil then begin
+      if not FConnection.IsClosed then ShowSQLHourGlass;
+      try
         FConnection.SetAutoCommit(Value);
-    finally
-      HideSqlHourGlass
+      finally
+        if not FConnection.IsClosed then HideSqlHourGlass
+      end;
     end;
   end;
 end;
@@ -588,19 +701,28 @@ end;
   Sets readonly flag.
   @param Value readonly flag.
 }
+procedure TZAbstractConnection.SetRaiseWarningMessages(Value: Boolean);
+begin
+  if FRaiseWarningMessages <> Value then begin
+    if FConnection <> nil then
+      FConnection.SetRaiseWarnings(Value);
+    FRaiseWarningMessages := Value;
+  end;
+end;
+
 procedure TZAbstractConnection.SetReadOnly(Value: Boolean);
 begin
-  if FReadOnly <> Value then
-  begin
+  if FReadOnly <> Value then begin
     if FExplicitTransactionCounter > 0 then
-      raise Exception.Create(SInvalidOperationInTrans);
+      raise EZSQLException.Create(SInvalidOperationInTrans);
     FReadOnly := Value;
-    ShowSQLHourGlass;
-    try
-      if FConnection <> nil then
+    if FConnection <> nil then begin
+      if not FConnection.IsClosed then ShowSQLHourGlass;
+      try
         FConnection.SetReadOnly(Value);
-    finally
-      HideSqlHourGlass
+      finally
+        if not FConnection.IsClosed then HideSqlHourGlass
+      end;
     end;
   end;
 end;
@@ -615,12 +737,13 @@ begin
   if FTransactIsolationLevel <> Value then
   begin
     FTransactIsolationLevel := Value;
-    ShowSqlhourGlass;
-    try
-      if FConnection <> nil then
+    if FConnection <> nil then begin
+      if not FConnection.IsClosed then ShowSQLHourGlass;
+      try
         FConnection.SetTransactionIsolation(Value);
-    finally
-      HideSqlHourGlass
+      finally
+        if not FConnection.IsClosed then HideSqlHourGlass
+      end;
     end;
   end;
 end;
@@ -635,6 +758,13 @@ begin
     Result := FConnection.GetDriver
   else
     Result := DriverManager.GetDriver(ConstructURL('', ''));
+end;
+
+function TZAbstractConnection.GetFormatSettings: TZFormatSettings;
+begin
+  if FFormatSettings = nil then
+    FFormatSettings := TZFormatSettings.Create(Self);
+  Result := FFormatSettings;
 end;
 
 {**
@@ -716,6 +846,20 @@ begin
   AURL := TZURL.Create;
   Result := '';
   try
+    //EH: Set the attachment charsset, AuotEncode, and ControlsCP again
+    //if the user did clear the properties then this info is lost
+    //See https://sourceforge.net/p/zeoslib/tickets/329/
+    if (FURL.Properties.Values[ConnProps_CodePage] = '') and (FClientCodePage <> '') then
+      FURL.Properties.Values[ConnProps_CodePage] := FClientCodePage;
+    {$IFDEF UNICODE}
+    FURL.Properties.Values[ConnProps_RawStringEncoding] := 'DB_CP';
+    {$ELSE}
+    case FRawCharacterTransliterateOptions.FEncoding of //automated check..
+      encDB_CP: FURL.Properties.Values[ConnProps_RawStringEncoding] := 'DB_CP';
+      encUTF8: FURL.Properties.Values[ConnProps_RawStringEncoding] := 'CP_UTF8';
+      encDefaultSystemCodePage: FURL.Properties.Values[ConnProps_RawStringEncoding] := 'GET_ACP';
+    end;
+    {$ENDIF}
     AURL.Protocol := FURL.Protocol;
     AURL.HostName := FURL.HostName;
     AURL.Database := FURL.Database;
@@ -819,17 +963,10 @@ var
 //Local variables declared in order to preserve the original property value
 //and to avoid the storage of password
   Username, Password: string;
+  URL: String;
 begin
-  if FConnection = nil then
-  begin
-// Fixes Zeos Bug 00056
-//    try
-      DoBeforeConnect;
-//    except
-//This is here to support aborting the Connection in BeforeConnect event without fatal errors
-//      on E: EAbort do
-//        Exit;
-//    end;
+  if FConnection = nil then begin
+    DoBeforeConnect;
 
     UserName := FURL.UserName;
     Password := FURL.Password;
@@ -841,48 +978,72 @@ begin
         if not LoginDialogProc(FURL.Database, UserName, Password) then
           Exit;
       end else
-        raise Exception.Create(SLoginPromptFailure);
+        raise EZDatabaseError.Create(SLoginPromptFailure);
 
     ShowSqlHourGlass;
     try
-      //EH: Set the attachment charsset, AutoEncode, and ControlsCP again
-      //if the user did clear the properties then this info is lost
-      //See https://sourceforge.net/p/zeoslib/tickets/329/
-      if (FURL.Properties.Values['codepage'] = '') and (FClientCodePage <> '') then
-        FURL.Properties.Values['codepage'] := FClientCodePage;
-      if (FURL.Properties.Values['AutoEncodeStrings'] = '') and FAutoEncode then
-        FURL.Properties.Values['AutoEncodeStrings'] := 'True';
-      if (FURL.Properties.Values['controls_cp'] = '') then
-        case ControlsCodePage of //automated check..
-          cCP_UTF16: FURL.Properties.Values['controls_cp'] := 'CP_UTF16';
-          cCP_UTF8: FURL.Properties.Values['controls_cp'] := 'CP_UTF8';
-          cGET_ACP: FURL.Properties.Values['controls_cp'] := 'GET_ACP';
-        end;
+      URL := ConstructURL(UserName, Password);
       FConnection := DriverManager.GetConnectionWithParams(
-        ConstructURL(UserName, Password), FURL.Properties);
+        URL, FURL.Properties);
       try
         with FConnection do begin
+          SetOnConnectionLostErrorHandler(ConnectionLost);
           SetAutoCommit(FAutoCommit);
           SetReadOnly(FReadOnly);
           SetCatalog(FCatalog);
-         // SetAutoEncodeStrings(FAutoEncode);
           SetTransactionIsolation(FTransactIsolationLevel);
           SetUseMetadata(FUseMetadata);
+          SetAddLogMsgToExceptionOrWarningMsg(FAddLogMsgToExceptionOrWarningMsg);
+          SetRaiseWarnings(FRaiseWarningMessages);
           Open;
           {$IFDEF ZEOS_TEST_ONLY}
           SetTestMode(FTestMode);
           {$ENDIF}
         end;
-      except
-        FConnection := nil;
-        raise;
+      finally
+        if Assigned(FConnection) And FConnection.IsClosed then
+          FConnection := nil;
       end;
     finally
       HideSqlHourGlass;
     end;
-
-    if not FConnection.IsClosed then
+    FTxnLevel := Ord(not FAutoCommit);
+    FExplicitTransactionCounter := FTxnLevel;
+    if not FAutoCommit then
+      DoStartTransaction;
+    if Assigned(FConnection) And not FConnection.IsClosed then
       DoAfterConnect;
+  end;
+end;
+
+procedure TZAbstractConnection.ConnectionLost(var AError: EZSQLConnectionLost);
+var Err: EZSQLConnectionLost;
+    EventErrorRaised: Boolean;
+    ADatBaseError: EZDataBaseError;
+begin
+  Err := AError;
+  AError := nil;
+  try
+    CloseAllLinkedComponents;
+  except end;
+  EventErrorRaised := True;
+  try
+    if Assigned(FOnLost) then
+      FOnLost(Self);
+    EventErrorRaised := False;
+  finally
+    if EventErrorRaised then begin
+      if (Err <> nil) then
+        FreeAndNil(Err);
+    end else begin
+      if Err = nil //should not happen
+      then ADatBaseError := EZDatabaseConnectionLostError.Create('Connection lost.')
+      else begin
+        ADatBaseError := EZDatabaseConnectionLostError.CreateFromException(Err);
+        FreeAndNil(Err);
+      end;
+      raise ADatBaseError;
+    end;
   end;
 end;
 
@@ -891,21 +1052,20 @@ end;
 }
 procedure TZAbstractConnection.Disconnect;
 begin
-  if FConnection <> nil then
-  begin
+  if FConnection <> nil then begin
     DoBeforeDisconnect;
 
     ShowSqlHourGlass;
     try
-      CloseAllDataSets;
-      // Modified by cipto 8/2/2007 10:11:02 AM
-      CloseAllSequences;
+      CloseAllLinkedComponents;
       FConnection.Close;
+      FConnection.SetOnConnectionLostErrorHandler(nil);
     finally
       FConnection := nil;
       HideSqlHourGlass;
     end;
-
+    FTxnLevel := 0;
+    FExplicitTransactionCounter := 0;
     DoAfterDisconnect;
   end;
 end;
@@ -923,24 +1083,24 @@ end;
   Reconnect, doesn't destroy DataSets if successful.
 }
 procedure TZAbstractConnection.Reconnect;
+var Succeeded: Boolean;
 begin
-  if FConnection <> nil then
-  begin
+  if FConnection <> nil then begin
     DoBeforeReconnect;
-
     ShowSqlHourGlass;
+    Succeeded := False;
     try
       try
         FConnection.Close;
         FConnection.Open;
-      except
-        CloseAllDataSets;
-        raise;
+        Succeeded := True;
+      finally
+        if not Succeeded then
+          CloseAllLinkedComponents;
       end;
     finally
       HideSqlHourGlass;
     end;
-
     DoAfterReconnect;
   end;
 end;
@@ -949,7 +1109,15 @@ end;
 }
 procedure TZAbstractConnection.CheckConnected;
 begin
-  if FConnection = nil then
+  if (FConnection = nil) or FConnection.IsClosed then
+    raise EZDatabaseError.Create(SConnectionIsNotOpened);
+end;
+
+{**  Checks if this connection is inactive.
+}
+procedure TZAbstractConnection.CheckDisconnected;
+begin
+  if (FConnection <> nil) and not FConnection.IsClosed then
     raise EZDatabaseError.Create(SConnectionIsNotOpened);
 end;
 
@@ -963,6 +1131,15 @@ begin
 end;
 
 {**
+  Attempts to kill a long-running operation on the database server
+  side
+}
+function TZAbstractConnection.AbortOperation: Boolean;
+begin
+ Result := FConnection.AbortOperation = 0;
+end;
+
+{**
   Checks if this connection is in auto-commit mode.
 }
 procedure TZAbstractConnection.CheckAutoCommitMode;
@@ -972,66 +1149,45 @@ begin
 end;
 
 {**
-  Commits the current transaction.
+  Starts a new transaction or saves the transaction.
 }
-procedure TZAbstractConnection.StartTransaction;
+function TZAbstractConnection.StartTransaction: Integer;
 begin
-  CheckAutoCommitMode;
-
-  if FExplicitTransactionCounter = 0 then
-    AutoCommit := False;
+  CheckConnected;
+  if FDisableSavepoints and (not FAutoCommit or (FExplicitTransactionCounter > 0))  then
+    raise EZDatabaseError.Create('Cannot start another transaction - savepoints are disabled.');
+  ShowSQLHourGlass;
+  try
+    FTxnLevel := FConnection.StartTransaction;
+    FAutoCommit := False;
+  finally
+    HideSQLHourGlass;
+  end;
+  FExplicitTransactionCounter := FTxnLevel;
+  Result := FTxnLevel;
   DoStartTransaction;
-  Inc(FExplicitTransactionCounter);
 end;
 
 {**
   Commits the current transaction.
 }
-type //To get protected methodes
-  THack_ZAbstractDataset = Class(TZAbstractDataset);
 procedure TZAbstractConnection.Commit;
-var
-  ExplicitTran: Boolean;
-  i: Integer;
 begin
   CheckConnected;
   CheckNonAutoCommitMode;
 
-  ExplicitTran := FExplicitTransactionCounter > 0;
-  if FExplicitTransactionCounter < 2 then
-  //when 0 then AutoCommit was turned off, when 1 StartTransaction was used
-  begin
-    ShowSQLHourGlass;
-    try
-	  (*
-      for i := 0 to FDatasets.Count -1 do
-        if Assigned(FDatasets[i]) And
-          (TObject(FDatasets[i]) is TZAbstractDataset) and
-          TZAbstractDataset(FDatasets[i]).CachedUpdates and
-          TZAbstractDataset(FDatasets[i]).UpdatesPending then
-            TZAbstractDataset(FDatasets[i]).ApplyUpdates;
-	  *)
-      FConnection.Commit;
- { TODO -oEgonHugeist : Change this code sequence on 7.3! My automation idea simply is wrong! A commit vs. commitupdate(clear the cache) shouldn't be same! }
-      //See: http://zeoslib.sourceforge.net/viewtopic.php?f=38&t=19800
-	  (*
-      for i := 0 to FDatasets.Count -1 do
-        if (TObject(FDatasets[i]) is TZAbstractDataset) and (THack_ZAbstractDataset(FDatasets[i]).UpdatesPending) then
-          if Assigned(FDatasets[i]) then
-            THack_ZAbstractDataset(FDatasets[i]).DisposeCachedUpdates;
-	  *)
-    finally
-      HideSQLHourGlass;
-    end;
-
-    FExplicitTransactionCounter := 0;
-    if ExplicitTran then
-      AutoCommit := True;
-
-    DoCommit;
-  end
-  else
+  ShowSQLHourGlass;
+  try
+    FConnection.Commit;
+  finally
     Dec(FExplicitTransactionCounter);
+    HideSQLHourGlass;
+    FAutoCommit := FConnection.GetAutoCommit;
+    Dec(FTxnLevel);
+    if FTxnLevel = 0 then
+      FTxnLevel := Ord(not FAutoCommit);
+  end;
+  DoCommit;
 end;
 
 procedure TZAbstractConnection.CommitPrepared(const transactionid: string);
@@ -1049,32 +1205,22 @@ end;
   Rollbacks the current transaction.
 }
 procedure TZAbstractConnection.Rollback;
-var
-  ExplicitTran: Boolean;
 begin
   CheckConnected;
   CheckNonAutoCommitMode;
 
-  ExplicitTran := FExplicitTransactionCounter > 0;
-  if FExplicitTransactionCounter < 2 then
-  //when 0 then AutoCommit was turned off, when 1 StartTransaction was used
-  begin
-    ShowSQLHourGlass;
-    try
-      try
-        FConnection.RollBack;
-      finally
-        FExplicitTransactionCounter := 0;
-        if ExplicitTran then
-          AutoCommit := True;
-      end;
-    finally
-      HideSQLHourGlass;
-    end;
-    DoRollback;
-  end
-  else
+  ShowSQLHourGlass;
+  try
+    FConnection.RollBack;
+  finally
     Dec(FExplicitTransactionCounter);
+    HideSQLHourGlass;
+    FAutoCommit := FConnection.GetAutoCommit;
+    Dec(FTxnLevel);
+    if FTxnLevel = 0 then
+      FTxnLevel := Ord(not FAutoCommit);
+  end;
+  DoRollback;
 end;
 
 procedure TZAbstractConnection.RollbackPrepared(const transactionid: string);
@@ -1095,47 +1241,42 @@ end;
 }
 procedure TZAbstractConnection.Notification(AComponent: TComponent;
   Operation: TOperation);
+var Idx: Integer;
 begin
   inherited Notification(AComponent, Operation);
 
-  if (Operation = opRemove) then
-  begin
-    if (AComponent is TDataset) then
-      UnregisterDataSet(TDataset(AComponent));
-    if (AComponent is TZSequence) then
-      UnregisterSequence(TZSequence(AComponent));
+  if (Operation = opRemove) then begin
+    Idx := FLinkedComponents.IndexOf(AComponent);
+    if Idx <> -1 then
+      FLinkedComponents.Remove(AComponent);
   end;
 end;
 
 Function TZAbstractConnection.PingServer: Boolean;
 var
-  LastState : boolean;
+  LastState: boolean;
 begin
   Result := false;
   // Check connection status
   LastState := GetConnected;
   If FConnection <> Nil Then
-    Begin
-      Try
-        Result := (FConnection.PingServer=0);
-        // Connection now is false but was true
-        If (Not Result) And (LastState) Then
-          // Generate OnDisconnect event
-          SetConnected(Result);
-      Except
-        On E:Exception Do
-        Begin
-         If LastState Then
-           // Generate OnDisconnect event
-           SetConnected(False);
-         Raise;
-       End
-      End;
-    End
-  Else
+  try
+    Result := (FConnection.PingServer=0);
     // Connection now is false but was true
-    If LastState Then
-      SetConnected(false);
+    If (Not Result) And (LastState) Then
+      // Generate OnDisconnect event
+      SetConnected(Result);
+  except
+    on E:Exception do
+    begin
+      if not (E is EZUnsupportedException) and LastState then
+        // Generate OnDisconnect event
+        SetConnected(False);
+      Raise;
+    End;
+  end
+  else If LastState Then // Connection now is false but was true
+    SetConnected(false);
 end;
 
 procedure TZAbstractConnection.PrepareTransaction(const transactionid: string);
@@ -1145,39 +1286,63 @@ begin
   CheckConnected;
   CheckNonAutoCommitMode;
   if FExplicitTransactionCounter <> 1 then
-  begin
     raise EZDatabaseError.Create(SInvalidOpPrepare);
-  end;
-    ShowSQLHourGlass;
+  ShowSQLHourGlass;
+  try
     try
-      try
-        FConnection.PrepareTransaction(transactionid);
-      finally
-        FExplicitTransactionCounter := 0;
-        AutoCommit := True;
-      end;
+      FConnection.PrepareTransaction(transactionid);
     finally
-      HideSQLHourGlass;
+      FExplicitTransactionCounter := 0;
+      AutoCommit := True;
     end;
+  finally
+    HideSQLHourGlass;
+  end;
 end;
 
+
+type
+  TZProtectedMethodTransaction = Class(TZAbstractTransaction);
+  TZProtectedAbstractRODataset = class(TZAbstractRODataset);
+  TZProtectedAbstractRWDataSet = Class(TZAbstractRWDataSet);
 
 {**
   Closes all registered datasets.
 }
-procedure TZAbstractConnection.CloseAllDataSets;
+procedure TZAbstractConnection.CloseAllLinkedComponents;
 var
   I: Integer;
-  Current: TZAbstractRODataset;
+  AComp: TComponent;
 begin
-  for I := 0 to FDatasets.Count - 1 do
-  begin
-    Current := TZAbstractRODataset(FDatasets[I]);
-    try
-      Current.Close;
-      Current.UnPrepare;
-    except
-      // Ignore.
+  for i := FLinkedComponents.Count -1 downto 0 do begin
+    AComp := TComponent(FLinkedComponents[i]);
+    if AComp.InheritsFrom(TZAbstractMemTable) then
+      continue
+    else begin
+      if AComp.InheritsFrom(TZAbstractRODataset) then begin
+        if not TZProtectedAbstractRODataset(AComp).Active or not TZProtectedAbstractRODataset(AComp).TryKeepDataOnDisconnect then try
+          TZAbstractRODataset(AComp).Close;
+          TZAbstractRODataset(AComp).UnPrepare;
+        except {Ignore.} end else if AComp.InheritsFrom(TZAbstractRWDataSet) then begin
+          TZProtectedAbstractRWDataSet(AComp).CachedResultSet.ClearStatementLink;
+          TZProtectedAbstractRWDataSet(AComp).ResultSetMetadata := TZProtectedAbstractRWDataSet(AComp).CachedResultSet.GetMetadata;
+          if TZProtectedAbstractRWDataSet(AComp).Statement <> nil then begin
+            TZProtectedAbstractRWDataSet(AComp).Statement.Close;
+            TZProtectedAbstractRWDataSet(AComp).Statement := nil;
+          end;
+          TZProtectedAbstractRWDataSet(AComp).ResultSetMetadata.SetMetadata(nil);
+          if TZProtectedAbstractRWDataSet(AComp).CachedResolver <> nil then
+            TZProtectedAbstractRWDataSet(AComp).CachedResolver.SetConnection(nil);
+        end;
+      end else if AComp.InheritsFrom(TZSequence) then try
+        TZSequence(AComp).CloseSequence
+      except end else if AComp.InheritsFrom(TZAbstractTransaction) then try
+        if TZAbstractTransaction(AComp).Active then
+          TZProtectedMethodTransaction(AComp).GetIZTransaction.Close;
+      except end else if AComp.InheritsFrom(TAbstractActiveConnectionLinkedComponent) then try
+        if TAbstractActiveConnectionLinkedComponent(AComp).Active then
+          TAbstractActiveConnectionLinkedComponent(AComp).SetActive(False);
+      except end;
     end;
   end;
 end;
@@ -1186,37 +1351,40 @@ end;
   Registers a new dataset object.
   @param DataSet a new dataset to be registered.
 }
-procedure TZAbstractConnection.RegisterDataSet(DataSet: TDataset);
+procedure TZAbstractConnection.RegisterComponent(Value: TComponent);
+var IDX: Integer;
 begin
-  FDatasets.Add(DataSet);
+  if not IsZeosConnectionComponent(Value) then
+    raise EZDatabaseError.Create('Invalid Component');
+  IDX := FLinkedComponents.IndexOf(Value);
+  if IDX = -1 then
+    FLinkedComponents.Add(Pointer(Value));
 end;
 
 {**
   Unregisters a new dataset object.
   @param DataSet a new dataset to be unregistered.
 }
-procedure TZAbstractConnection.UnregisterDataSet(DataSet: TDataset);
+procedure TZAbstractConnection.UnregisterComponent(Value: TComponent);
 begin
-  FDatasets.Remove(DataSet);
+  FLinkedComponents.Remove(Value);
 end;
 
-{**
-  Unregisters all dataset objects.
-}
-procedure TZAbstractConnection.UnregisterAllDataSets;
+procedure TZAbstractConnection.UnregisterAllComponents;
 var
   I: Integer;
-  Current: TZAbstractRODataset;
+  AComp: TComponent;
 begin
-  for I := FDatasets.Count - 1 downto 0 do
-  begin
-    Current := TZAbstractRODataset(FDatasets[I]);
-    FDatasets.Remove(Current);
-    try
-      Current.Connection := nil;
-    except
-      // Ignore.
-    end;
+  for i := FLinkedComponents.Count - 1 downto 0 do begin
+    AComp := TComponent(FLinkedComponents[i]);
+    if AComp.InheritsFrom(TZAbstractRODataset) then
+      TZProtectedAbstractRODataset(AComp).Connection := nil
+    else if AComp.InheritsFrom(TZSequence) then
+      TZSequence(AComp).Connection := nil
+    else if AComp.InheritsFrom(TZAbstractTransaction) then
+      TZAbstractTransaction(AComp).Connection := nil
+    else if AComp.InheritsFrom(TZSQLProcessor) then
+      TZAbstractTransaction(TZSQLProcessor).Connection := nil
   end;
 end;
 
@@ -1228,14 +1396,10 @@ begin
   if not FSqlHourGlass then
     Exit;
 
-  if SqlHourGlassLock = 0 then
-  begin
-    if Assigned(DBScreen) then
-    begin
-      CursorBackup := DBScreen.Cursor;
-      if CursorBackup <> dcrOther then
-        DBScreen.Cursor := dcrSQLWait;
-    end;
+  if (SqlHourGlassLock = 0) and Assigned(DBScreen) then begin
+    CursorBackup := DBScreen.Cursor;
+    if CursorBackup <> dcrOther then
+      DBScreen.Cursor := dcrSQLWait;
   end;
   Inc(SqlHourGlassLock);
 end;
@@ -1352,7 +1516,7 @@ end;
                                        'TEMPORARY INDEX'
   @param List a string list to fill out.
 }
-procedure TZAbstractConnection.GetTableNames(const schemaPattern, tablePattern: string; Types: TStringDynArray; List: TStrings);
+procedure TZAbstractConnection.GetTableNames(const schemaPattern, tablePattern: string; const Types: TStringDynArray; List: TStrings);
 var
   Metadata: IZDatabaseMetadata;
   ResultSet: IZResultSet;
@@ -1368,11 +1532,12 @@ end;
 
 {**
   Fills string list with column names.
+  @param schemaPattern a pattern for schema names.
   @param TablePattern a pattern for table names.
   @param ColumnPattern a pattern for column names.
   @param List a string list to fill out.
 }
-procedure TZAbstractConnection.GetColumnNames(const TablePattern, ColumnPattern: string; List: TStrings);
+procedure TZAbstractConnection.GetColumnNames(const SchemaPattern, TablePattern, ColumnPattern: string; List: TStrings);
 var
   Metadata: IZDatabaseMetadata;
   ResultSet: IZResultSet;
@@ -1380,9 +1545,20 @@ begin
   CheckConnected;
   List.Clear;
   Metadata := DbcConnection.GetMetadata;
-  ResultSet := Metadata.GetColumns('', '', TablePattern, ColumnPattern);
+  ResultSet := Metadata.GetColumns('', SchemaPattern, TablePattern, ColumnPattern);
   while ResultSet.Next do
     List.Add(ResultSet.GetStringByName('COLUMN_NAME'));
+end;
+
+{**
+  Fills string list with column names.
+  @param TablePattern a pattern for table names.
+  @param ColumnPattern a pattern for column names.
+  @param List a string list to fill out.
+}
+procedure TZAbstractConnection.GetColumnNames(const TablePattern, ColumnPattern: string; List: TStrings);
+begin
+ GetColumnNames(FCatalog, TablePattern, ColumnPattern, List);
 end;
 
 {**
@@ -1425,130 +1601,9 @@ begin
   end;
 end;
 
-{**
-  EgonHugeist: Returns a EscapeState detectable String to inform the Tokenizer
-    to do no UTF8Encoding if neccessary
-  @param BinaryString Represents the BinaryString wich has to prepered
-  @Result: A Prepared String like '~<|1023|<~''Binary-data-string(1023 Bytes)''~<|1023|<~
-}
-function TZAbstractConnection.GetBinaryEscapeStringFromString(const BinaryString: RawByteString): String;
-begin
-  CheckConnected;
-
-  if Assigned(FConnection) then
-    Result := FConnection.GetBinaryEscapeString(BinaryString);
-end;
-
-{**
-  EgonHugeist: Returns a BinaryState detectable String to inform the Tokenizer
-    to do no UTF8Encoding if neccessary
-  @param Strem Represents the Stream wich has to prepered
-  @Result: A Prepared String like '~<|1023|<~''Binary-data-string(1023 Char's)''~<|1023|<~
-}
-function TZAbstractConnection.GetBinaryEscapeStringFromStream(const Stream: TStream): String;
-var
-  FBlobSize: Integer;
-  FBlobData: Pointer;
-  TempAnsi: RawByteString;
-begin
-  CheckConnected;
-
-  if Assigned(FConnection) then
-  begin
-    if Assigned(Stream) then
-    begin
-      FBlobSize := Stream.Size;
-      if FBlobSize > 0 then
-      begin
-        GetMem(FBlobData, FBlobSize);
-        Stream.Position := 0;
-        Stream.ReadBuffer(FBlobData^, FBlobSize);
-      end
-      else
-        FBlobData := nil;
-    end
-    else
-    begin
-      FBlobSize := -1;
-      FBlobData := nil;
-    end;
-    if (FBlobSize > 0) and Assigned(FBlobData) then
-      System.SetString(TempAnsi, PAnsiChar(FBlobData), FBlobSize)
-    else
-      TempAnsi := '';
-    if Assigned(FBlobData) then
-      FreeMem(FBlobData);
-
-    Result := FConnection.GetBinaryEscapeString(TempAnsi);
-  end;
-end;
-
-{**
-  EgonHugeist: Returns a BinaryState detectable String to inform the Tokenizer
-    to do no UTF8Encoding if neccessary
-  @param FileNaem Represents the File wich has to prepered
-  @Result: A Prepared String like '~<|1023|<~''Binary-data-string(1023 Char's)''~<|1023|<~
-}
-function TZAbstractConnection.GetBinaryEscapeStringFromFile(const FileName: String): String;
-var
-  FStream: TFileStream;
-begin
-  CheckConnected;
-
-  if FileExists(FileName) then
-  begin
-    FStream := TFileStream.Create(FileName, fmOpenRead);
-    Result := GetBinaryEscapeStringFromStream(FStream);
-    FreeAndNil(FStream);
-  end;
-end;
-
 function TZAbstractConnection.GetURL: String;
 begin
   Result := ConstructURL(FURL.UserName, FURL.Password);
-end;
-
-function TZAbstractConnection.GetAutoEncode: Boolean;
-begin
-  {.$IFDEF UNICODE}
-  //Result := True;
-  {.$ELSE}
-    {$IF defined(MSWINDOWS) or defined(WITH_LCONVENCODING) or defined(FPC_HAS_BUILTIN_WIDESTR_MANAGER)}
-    if Connected then
-    begin
-      Result := DbcConnection.GetConSettings.AutoEncode;
-      FAutoEncode := Result;
-    end
-    else
-      Result := FAutoEncode;
-    {$ELSE}
-    Result := False;
-    {$IFEND}
-  {.$ENDIF}
-end;
-
-procedure TZAbstractConnection.SetAutoEncode(Value: Boolean);
-begin
-  {.$IFNDEF UNICODE}
-    {$IF defined(MSWINDOWS) or defined(WITH_LCONVENCODING) or defined(FPC_HAS_BUILTIN_WIDESTR_MANAGER)}
-    if Value then
-      FURL.Properties.Values['AutoEncodeStrings'] := 'ON'
-    else
-      FURL.Properties.Values['AutoEncodeStrings'] := '';
-
-    if Value <> FAutoEncode then
-    begin
-      FAutoEncode := Value;
-      if Self.Connected then
-      begin
-        Connected := False;
-        Connected := True;
-      end;
-    end;
-    {$ELSE}
-    FURL.Properties.Values['AutoEncodeStrings'] := '';
-    {$IFEND}
-  {.$ENDIF}
 end;
 
 {**
@@ -1567,64 +1622,16 @@ begin
     FConnection.SetUseMetadata(FUseMetadata);
 end;
 
-procedure TZAbstractConnection.SetControlsCodePage(const Value: TZControlsCodePage);
-var NewControlsCodePage: TZControlsCodePage;
-    S: String;
+procedure TZAbstractConnection.SetCharacterFieldType(const Value: TZControlsCodePage);
 begin
-  case Value of
-    cCP_UTF16:  {$IFDEF WITH_WIDEFIELDS}
-                NewControlsCodePage := Value;
-                {$ELSE}
-                NewControlsCodePage := cCP_UTF8;
-                {$ENDIF}
-    cCP_UTF8:   {$IF defined(MSWINDOWS) and defined(UNICODE)}
-                NewControlsCodePage := cCP_UTF16;
-                {$ELSE}
-                NewControlsCodePage := Value;
-                {$IFEND}
-    else        if ZOSCodePage = zCP_UTF8
-                then NewControlsCodePage := cCP_UTF8
-                else NewControlsCodePage := Value;
-  end;
-  if NewControlsCodePage <> FControlsCodePage then begin
-    case NewControlsCodePage of
-      cCP_UTF16:  S := 'CP_UTF16';
-      cCP_UTF8:   S := 'CP_UTF8';
-      else        S := 'GET_ACP';
-    end;
-    Properties.Values['controls_cp'] := S;
-    if Connected then begin
-      Connected := False;
-      Connected := True;
-    end;
-  end;
+  if Value <> FControlsCodePage then
+    FControlsCodePage := Value;
 end;
 
-procedure TZAbstractConnection.CloseAllSequences;
-var
-  I: Integer;
-  Current: TZSequence;
+procedure TZAbstractConnection.SetRawCharacterTransliterateOptions(
+  Value: TZRawCharacterTransliterateOptions);
 begin
-  for I := 0 to FSequences.Count - 1 do
-  begin
-    Current := TZSequence(FSequences[I]);
-    try
-      Current.CloseSequence;
-    except
-      // Ignore.
-    end;
-  end;
-end;
-
-procedure TZAbstractConnection.RegisterSequence(Sequence: TComponent);
-begin
-  FSequences.Add(TZSequence(Sequence));
-end;
-
-procedure TZAbstractConnection.UnregisterSequence(Sequence: TComponent);
-begin
-  if Assigned(FSequences) then
-    FSequences.Remove(TZSequence(Sequence));
+  fRawCharacterTransliterateOptions.Assign(Value);
 end;
 
 {**
@@ -1632,11 +1639,11 @@ end;
   @param SQL the statement to be executed.
   Returns an indication if execution was succesfull.
 }
-function TZAbstractConnection.ExecuteDirect(const SQL : String) : boolean;
-var
-  dummy : Integer;
+function TZAbstractConnection.ExecuteDirect(const SQL: String): boolean;
 begin
-  result:= ExecuteDirect(SQL,dummy{%H-});
+  CheckConnected;
+  DbcConnection.ExecuteImmediat(SQL, lcExecute);
+  Result := True;
 end;
 
 {**
@@ -1657,7 +1664,91 @@ begin
   end;
 end;
 
+{ TZRawCharacterTransliterateOptions }
+constructor TZRawCharacterTransliterateOptions.Create(
+  AOwner: TZAbstractConnection);
+begin
+  FConnection := AOwner;
+  FFields := True;
+end;
+
+function TZRawCharacterTransliterateOptions.GetEncoding: TZW2A2WEncodingSource;
+begin
+  {$IFDEF UNICODE}
+  if FParams
+  then Result := FEncoding
+  else Result := encDB_CP;
+  {$ELSE}
+  Result := FEncoding;
+  {$ENDIF}
+end;
+
+function TZRawCharacterTransliterateOptions.GetRawTransliterateCodePage(
+  Target: TZTransliterationType): Word;
+var Transliterate: Boolean;
+  ConSettings: PZConSettings;
+begin
+  FConnection.CheckConnected;
+  ConSettings := FConnection.FConnection.GetConSettings;
+  if (ConSettings.ClientCodePage.Encoding = ceUTF16) then
+    Transliterate := True
+  else case Target of
+    ttSQL:  Transliterate := {$IFDEF UNICODE}False{$ELSE}FSQL{$ENDIF};
+    ttParam: Transliterate := FParams;
+    else {ttField:} Transliterate := FFields;
+  end;
+  if Transliterate then
+    case GetEncoding of
+      encDefaultSystemCodePage: Result := {$IFDEF WITH_DEFAULTSYSTEMCODEPAGE}DefaultSystemCodePage{$ELSE}{$IFDEF LCL}zCP_UTF8{$ELSE}ZOSCodePage{$ENDIF}{$ENDIF};
+      encDB_CP: if ConSettings.ClientCodePage.Encoding = ceUTF16
+                then Result := {$IFDEF WITH_DEFAULTSYSTEMCODEPAGE}DefaultSystemCodePage{$ELSE}{$IFDEF LCL}zCP_UTF8{$ELSE}ZOSCodePage{$ENDIF}{$ENDIF}
+                else Result := ConSettings.ClientCodePage.CP;
+      else {encUTF8:} Result := zCP_UTF8;
+    end
+  else Result := ConSettings.ClientCodePage.CP;
+end;
+
+function TZRawCharacterTransliterateOptions.GetSQL: Boolean;
+begin
+{$IFNDEF UNICODE}
+  if FConnection.Connected and (FConnection.DbcConnection.GetConSettings.ClientCodePage.Encoding =ceUTF16)
+  then Result := True
+  else Result := FSQL;
+{$ELSE UNICODE}
+  Result := False;
+{$ENDIF UNICODE}
+end;
+
+procedure TZRawCharacterTransliterateOptions.SetEncoding(
+  Value: TZW2A2WEncodingSource);
+begin
+  {$IFDEF UNICODE}
+  if FParams
+  then FEncoding := Value
+  else FEncoding := encDB_CP;
+  {$ENDIF}
+  FEncoding := Value;
+end;
+
+{$IFNDEF UNICODE}
+procedure TZRawCharacterTransliterateOptions.SetSQL(Value: Boolean);
+begin
+  {$IFNDEF UNICODE}
+  FSQL := Value;
+  {$ENDIF}
+end;
+{$ENDIF UNICODE}
+
+{ TZAbstractConnectionLinkedComponent }
+
+procedure TZAbstractConnectionLinkedComponent.Notification(
+  AComponent: TComponent; Operation: TOperation);
+begin
+  inherited Notification(AComponent, Operation);
+  if (Operation = opRemove) and (AComponent = FConnection) then
+    SetConnection(nil);
+end;
+
 initialization
   SqlHourGlassLock := 0;
 end.
-

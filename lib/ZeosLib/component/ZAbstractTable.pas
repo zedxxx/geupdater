@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -61,10 +61,9 @@ uses
 
 type
 
-  {**
-    Abstract dataset component which works with one specified table.
-  }
-  TZAbstractTable = class(TZAbstractDataset)
+  /// <summary>Implements an abstract dataset component which works with one
+  ///  specified table.</summary>
+  TZAbstractTable = class(TZAbstractRWTxnUpdateObjDataSet)
   private
     FTableName: string;
 
@@ -123,7 +122,8 @@ begin
     FTableName := Value;
     if Value <> '' then
       SQL.Text := Format('SELECT * FROM %s', [FTableName])
-    else SQL.Text := '';
+    else
+      SQL.Text := '';
   end;
 end;
 
@@ -137,7 +137,6 @@ begin
 end;
 
 {$IFDEF WITH_IPROVIDER}
-
 {**
   Gets the name of the table.
   @returns the name of this table.

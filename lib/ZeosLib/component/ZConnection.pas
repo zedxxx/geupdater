@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -56,7 +56,7 @@ interface
 {$I ZComponent.inc}
 
 uses
-  SysUtils, Classes,  ZAbstractConnection, ZClasses;
+  SysUtils, Classes, ZAbstractConnection, ZTransaction, ZClasses;
 
 const
   ZEOS_MAJOR_VERSION = ZClasses.ZEOS_MAJOR_VERSION;
@@ -78,6 +78,23 @@ type
     property Protocol: string read GetProtocol write SetProtocol;
     property Catalog: string read FCatalog write FCatalog;
     property LibraryLocation: String read GetLibLocation write SetLibLocation;
+  end;
+
+  TZTransaction = class(TZAbstractTransaction)
+  published
+    property Connection;
+    property BeforeStartTransaction;
+    property AfterStartTransaction;
+    property BeforeCommit;
+    property AfterCommit;
+    property BeforeRollback;
+    property AfterRollback;
+    property TransactIsolationLevel;
+    property AutoCommit;
+    property ReadOnly;
+    property Properties;
+    property ApplyPendingUpdatesOnCommit;
+    property DisposePendingUpdatesOnRollback;
   end;
 
 implementation

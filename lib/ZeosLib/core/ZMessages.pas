@@ -43,7 +43,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -59,44 +59,44 @@ interface
 
 {$I ZCore.inc}
 
-uses ZCompatibility;
-
-procedure loadmessages();
+{$IFDEF FPC}
+uses ZEncoding;
 
 const
 {$IFDEF FRENCH}
-  cCodePage = 1252; {Microsoft Windows Codepage 1252 (ANSI), USASCCI}
+  MsgCodePage = zCP_WIN1252; {Microsoft Windows Codepage 1252 (ANSI), USASCCI}
 {$ELSE !FRENCH}
 {$IFDEF PORTUGUESE}
-  cCodePage = 1252; {Microsoft Windows Codepage 1252 (ANSI), USASCCI}
+  MsgCodePage = zCP_WIN1252; {Microsoft Windows Codepage 1252 (ANSI), USASCCI}
 {$ELSE !PORTUGUESE}
 {$IFDEF DUTCH}
-  cCodePage = 1252; {Microsoft Windows Codepage 1252 (ANSI), USASCCI}
+  MsgCodePage = zCP_WIN1252; {Microsoft Windows Codepage 1252 (ANSI), USASCCI}
 {$ELSE !DUTCH}
 {$IFDEF GERMAN}
-  cCodePage = 1252; {Microsoft Windows Codepage 1252 (ANSI), USASCCI}
+  MsgCodePage = zCP_WIN1252; {Microsoft Windows Codepage 1252 (ANSI), USASCCI}
 {$ELSE !GERMAN}
 {$IFDEF SPANISH}
-  cCodePage = 1252; {Microsoft Windows Codepage 1252 (ANSI), USASCCI}
+  MsgCodePage = zCP_WIN1252; {Microsoft Windows Codepage 1252 (ANSI), USASCCI}
 {$ELSE !SPANISH}
 {$IFDEF ROMANA}
-  cCodePage = 1252; {Microsoft Windows Codepage 1252 (ANSI), USASCCI}
+  MsgCodePage = zCP_WIN1252; {Microsoft Windows Codepage 1252 (ANSI), USASCCI}
 {$ELSE !ROMANA}
 {$IFDEF INDONESIAN}
-  cCodePage = 20127; {US-ASCII (7-bit)}
+  MsgCodePage = zCP_WIN1252; {Microsoft Windows Codepage 1252 (ANSI), USASCCI}
 {$ELSE !INDONESIAN}
 {$IFDEF RUSSIAN}
-  cCodePage = 1251; {Microsoft Windows Codepage 1251 (Cyrl)}
+  MsgCodePage = zCP_WIN1251; {Microsoft Windows Codepage 1251 (Cyrl)}
 {$ELSE !RUSSIAN}
 {$IFDEF CZECH}
-  cCodePage = 1250; {Microsoft Windows Codepage 1250 (East European)}
+  MsgCodePage = zCP_WIN1250; {Microsoft Windows Codepage 1250 (East European)}
 {$ELSE !CZECH}
 {$IFDEF POLISH}
-  cCodePage = 1250; {Microsoft Windows Codepage 1250 (East European)}
+  MsgCodePage = zCP_WIN1250; {Microsoft Windows Codepage 1250 (East European)}
 {$ELSE !POLISH}
-cCodePage = 20127; {US-ASCII (7-bit)}
-{$ENDIF POLISH} // POLISH
-{$ENDIF CZECH} // CZECH
+  {$DEFINE ASCII7_MESSAGES}
+  MsgCodePage = zCP_us_ascii; {US-ASCII (7-bit)}
+{$ENDIF POLISH}
+{$ENDIF CZECH}
 {$ENDIF RUSSIAN}
 {$ENDIF INDONESIAN}
 {$ENDIF ROMANA}
@@ -105,19 +105,377 @@ cCodePage = 20127; {US-ASCII (7-bit)}
 {$ENDIF DUTCH}
 {$ENDIF PORTUGUESE}
 {$ENDIF FRENCH}
+{$ENDIF FPC}
+
+{$IF defined(FPC) and not defined(ASCII7_MESSAGES)) and
+     (defined(WITH_DEFAULTSYSTEMCODEPAGE) or defined(LCL))}
+  {$IFNDEF WITH_RTLCONSTS_SInvalidGuidArray}
+  function SInvalidGuidArray: String;
+  {$ENDIF}
+  {$IFNDEF WITH_SBCDOVERFLOW}
+  function SBcdOverflow: String;
+  {$ENDIF}
+  {$IFNDEF WITH_SInvalidBcdValue}
+  function SInvalidBcdValue: String;
+  {$ENDIF}
+
+  function SSQLError1: String;
+  function SSQLError2: String;
+  function SSQLError3: String;
+  function SSQLError4: String;
+
+  function SListCapacityError: String;
+  function SListCountError: String;
+  function SListIndexError: String;
+
+  function SClonningIsNotSupported: String;
+  function SImmutableOpIsNotAllowed: String;
+  function SStackIsEmpty: String;
+  function SVariableWasNotFound: String;
+  function SFunctionWasNotFound: String;
+  function SInternalError: String;
+  function SSyntaxErrorNear: String;
+  function SSyntaxError: String;
+  function SUnknownSymbol: String;
+  function SUnexpectedExprEnd: String;
+  function SRightBraceExpected: String;
+  function SParametersError: String;
+  function SParamValueExceeded: String;
+  function SExpectedMoreParams: String;
+  function SInvalidVarByteArray: String;
+  function SVariableAlreadyExists: String;
+  function STypesMismatch: String;
+  function SUnsupportedVariantType: String;
+  function SUnsupportedOperation: String;
+
+  function STokenizerIsNotDefined: String;
+  function SLibraryNotFound: String;
+  function SLibraryNotCompatible: String;
+
+  function SCanNotRetrieveResultSetData: String;
+  function SRowBufferIsNotAssigned: String;
+  function SColumnIsNotAccessable: String;
+  function SConvertionIsNotPossible: String;
+  function SCanNotAccessBlobRecord: String;
+  function SRowDataIsNotAvailable: String;
+  function SResolverIsNotSpecified: String;
+  function SResultsetIsAlreadyOpened: String;
+  function SCanNotUpdateEmptyRow: String;
+  function SCanNotUpdateDeletedRow: String;
+  function SCanNotDeleteEmptyRow: String;
+  function SCannotUseCommit: String;
+  function SCannotUseRollBack: String;
+  function SCanNotUpdateComplexQuery: String;
+  function SCanNotUpdateThisQueryType: String;
+  function SDriverWasNotFound: String;
+  function SCanNotConnectToServer: String;
+  function STableIsNotSpecified: String;
+  function SLiveResultSetsAreNotSupported: String;
+  function SInvalidInputParameterCount: String;
+  function SIsolationIsNotSupported: String;
+  function SColumnWasNotFound: String;
+  function SWrongTypeForBlobParameter: String;
+  function SIncorrectConnectionURL: String;
+  function SUnsupportedProtocol: String;
+  function SUnsupportedByDriver   : String;
+
+  function SConnectionIsNotOpened: String;
+  function SConnectionIsOpened: String;
+  function SInvalidOpInAutoCommit: String;
+  function SInvalidOpInNonAutoCommit: String;
+  function SInvalidOpPrepare: String;
+
+  function SConnectionIsNotAssigned: String;
+  function SQueryIsEmpty: String;
+  function SCanNotExecuteMoreQueries: String;
+  function SOperationIsNotAllowed1: String;
+  function SOperationIsNotAllowed2: String;
+  function SOperationIsNotAllowed3: String;
+  function SOperationIsNotAllowed4: String;
+  function SNoMoreRecords: String;
+  function SCanNotOpenResultSet: String;
+  function SCanNotOpenDataSetWhenDestroying: String;
+  function SCircularLink: String;
+  function SBookmarkWasNotFound: String;
+  function SIncorrectSearchFieldsNumber: String;
+  function SInvalidOperationInTrans: String;
+  function SIncorrectSymbol: String;
+  function SIncorrectToken: String;
+  function SIncorrectParamChar: String;
+
+  function SSelectedTransactionIsolation: String;
+  function SDriverNotSupported: String;
+  function SPattern2Long: String;
+  function SDriverNotCapableOutParameters: String;
+  function SStatementIsNotAllowed: String;
+  function SStoredProcIsNotAllowed: String;
+  function SCannotPerformOperation: String;
+  function SInvalidState: String;
+  function SErrorConvertion: String;
+  function SDataTypeDoesNotSupported: String;
+  function SUnsupportedParameterType: String;
+  function SUnsupportedDataType: String;
+  function SErrorConvertionField: String;
+  function SBadOCI: String;
+  function SConnect2AsUser: String;
+  function SConnect2WinAuth: String;
+  function SUnknownError: String;
+  function SFieldNotFound1: String;
+  function SFieldNotFound2: String;
+
+  function SLoginPromptFailure: String;
+
+  function SPropertyQuery: String;
+  function SPropertyTables: String;
+  function SPropertyColumns: String;
+  function SPropertyProcedures: String;
+  function SPropertySequences: String;
+  function SPropertyExecute: String;
+
+  function SFormTest: String;
+  function SButtonClose: String;
+  function SFormEditor: String;
+  function STabSheetSelect: String;
+  function SMenuLoad: String;
+  function SMenuSave: String;
+  function SButtonGenerate: String;
+  function SButtonCheck: String;
+  function SButtonTest: String;
+  function SButtonOk: String;
+  function SButtonCancel: String;
+  function STableAlias: String;
+  function SReplaceSQL: String;
+  function SDialogOpenTitle: String;
+  function SDialogSaveTitle: String;
+  function SSQLEditor: String;
+  function SDatabaseDialog: String;
+
+  function SUpdateSQLNoResult: String;
+  function SUpdateSQLRefreshStatementcount: String;
+
+  function SNotEditing: String;
+  function SFieldTypeMismatch: String;
+  function SFieldSizeMismatch: String;
+
+  function SNeedField: String;
+
+  function SFailedtoInitPrepStmt: String;
+  function SFailedtoPrepareStmt: String;
+  function SFailedToBindAllValues: String;
+  function SAttemptExecOnBadPrep: String;
+  function SBindingFailure: String;
+  function SPreparedStmtExecFailure: String;
+  function SBoundVarStrIndexMissing: String;
+  function SBindVarOutOfRange: String;
+  function SFailedToBindResults: String;
+  function SPreviousResultStillOpen: String;
+
+
+  function SRefreshRowOnlySupportedWithUpdateObject: String;
+  function SMustBeInBrowseMode: String;
+
+  function SUnKnownParamDataType: String;
+  function SFieldReadOnly: String;
+  function SInvalidUpdateCount: String;
+
+  function SBackgroundOperationStillRunning: String;
+{$ELSE}
+procedure loadmessages();
+
+var
+  {$IFNDEF WITH_RTLCONSTS_SInvalidGuidArray}
+  SInvalidGuidArray: String;
+  {$ENDIF}
+  {$IFNDEF WITH_SBCDOVERFLOW}
+  SBcdOverflow: String;
+  {$ENDIF}
+  {$IFNDEF WITH_SInvalidBcdValue}
+  SInvalidBcdValue: String;
+  {$ENDIF}
+
+  SSQLError1: String;
+  SSQLError2: String;
+  SSQLError3: String;
+  SSQLError4: String;
+
+  SListCapacityError: String;
+  SListCountError: String;
+  SListIndexError: String;
+
+  SClonningIsNotSupported: String;
+  SImmutableOpIsNotAllowed: String;
+  SStackIsEmpty: String;
+  SVariableWasNotFound: String;
+  SFunctionWasNotFound: String;
+  SInternalError: String;
+  SSyntaxErrorNear: String;
+  SSyntaxError: String;
+  SUnknownSymbol: String;
+  SUnexpectedExprEnd: String;
+  SRightBraceExpected: String;
+  SParametersError: String;
+  SParamValueExceeded: String;
+  SExpectedMoreParams: String;
+  SInvalidVarByteArray: String;
+  SVariableAlreadyExists: String;
+  STypesMismatch: String;
+  SUnsupportedVariantType: String;
+  SUnsupportedOperation: String;
+
+  STokenizerIsNotDefined: String;
+  SLibraryNotFound: String;
+  SLibraryNotCompatible: String;
+
+  SCanNotRetrieveResultSetData: String;
+  SRowBufferIsNotAssigned: String;
+  SColumnIsNotAccessable: String;
+  SConvertionIsNotPossible: String;
+  SCanNotAccessBlobRecord: String;
+  SRowDataIsNotAvailable: String;
+  SResolverIsNotSpecified: String;
+  SResultsetIsAlreadyOpened: String;
+  SCanNotUpdateEmptyRow: String;
+  SCanNotUpdateDeletedRow: String;
+  SCanNotDeleteEmptyRow: String;
+  SCannotUseCommit: String;
+  SCannotUseRollBack: String;
+  SCanNotUpdateComplexQuery: String;
+  SCanNotUpdateThisQueryType: String;
+  SDriverWasNotFound: String;
+  SCanNotConnectToServer: String;
+  STableIsNotSpecified: String;
+  SLiveResultSetsAreNotSupported: String;
+  SInvalidInputParameterCount: String;
+  SIsolationIsNotSupported: String;
+  SColumnWasNotFound: String;
+  SWrongTypeForBlobParameter: String;
+  SIncorrectConnectionURL: String;
+  SUnsupportedProtocol: String;
+  SUnsupportedByDriver   : String;
+
+  SConnectionIsNotOpened: String;
+  SConnectionIsOpened: String;
+  SInvalidOpInAutoCommit: String;
+  SInvalidOpInNonAutoCommit: String;
+  SInvalidOpPrepare: String;
+
+  SConnectionIsNotAssigned: String;
+  SQueryIsEmpty: String;
+  SCanNotExecuteMoreQueries: String;
+  SOperationIsNotAllowed1: String;
+  SOperationIsNotAllowed2: String;
+  SOperationIsNotAllowed3: String;
+  SOperationIsNotAllowed4: String;
+  SNoMoreRecords: String;
+  SCanNotOpenResultSet: String;
+  SCanNotOpenDataSetWhenDestroying: String;
+  SCircularLink: String;
+  SBookmarkWasNotFound: String;
+  SIncorrectSearchFieldsNumber: String;
+  SInvalidOperationInTrans: String;
+  SIncorrectSymbol: String;
+  SIncorrectToken: String;
+  SIncorrectParamChar: String;
+
+  SSelectedTransactionIsolation: String;
+  SDriverNotSupported: String;
+  SPattern2Long: String;
+  SDriverNotCapableOutParameters: String;
+  SStatementIsNotAllowed: String;
+  SStoredProcIsNotAllowed: String;
+  SCannotPerformOperation: String;
+  SInvalidState: String;
+  SErrorConvertion: String;
+  SDataTypeDoesNotSupported: String;
+  SUnsupportedParameterType: String;
+  SUnsupportedDataType: String;
+  SErrorConvertionField: String;
+  SBadOCI: String;
+  SConnect2AsUser: String;
+  SConnect2WinAuth: String;
+  SUnknownError: String;
+  SFieldNotFound1: String;
+  SFieldNotFound2: String;
+
+  SLoginPromptFailure: String;
+
+  SPropertyQuery: String;
+  SPropertyTables: String;
+  SPropertyColumns: String;
+  SPropertyProcedures: String;
+  SPropertySequences: String;
+  SPropertyExecute: String;
+
+  SFormTest: String;
+  SButtonClose: String;
+  SFormEditor: String;
+  STabSheetSelect: String;
+  SMenuLoad: String;
+  SMenuSave: String;
+  SButtonGenerate: String;
+  SButtonCheck: String;
+  SButtonTest: String;
+  SButtonOk: String;
+  SButtonCancel: String;
+  STableAlias: String;
+  SReplaceSQL: String;
+  SDialogOpenTitle: String;
+  SDialogSaveTitle: String;
+  SSQLEditor: String;
+  SDatabaseDialog: String;
+
+  SUpdateSQLNoResult: String;
+  SUpdateSQLRefreshStatementcount: String;
+  {$IFDEF FPC}
+  SNotEditing: String;
+  SFieldTypeMismatch: String;
+  SFieldSizeMismatch: String;
+  {$ENDIF}
+  SNeedField: String;
+
+  SFailedtoInitPrepStmt: String;
+  SFailedtoPrepareStmt: String;
+  SFailedToBindAllValues: String;
+  SAttemptExecOnBadPrep: String;
+  SBindingFailure: String;
+  SPreparedStmtExecFailure: String;
+  SBoundVarStrIndexMissing: String;
+  SBindVarOutOfRange: String;
+  SFailedToBindResults: String;
+  SPreviousResultStillOpen: String;
+
+
+  SRefreshRowOnlySupportedWithUpdateObject: String;
+  SMustBeInBrowseMode: String;
+
+  SUnKnownParamDataType: String;
+  SFieldReadOnly: String;
+  SInvalidUpdateCount: String;
+
+  SBackgroundOperationStillRunning: String;
+{$IFEND}
+
+implementation
+
+uses ZCompatibility;
 
 resourcestring
-
   {$IFNDEF WITH_RTLCONSTS_SInvalidGuidArray}
-    SInvalidGuidArray = 'Byte-Array or Buffer for GUID must have exact %s Bytes';
+    cInvalidGuidArray = 'Byte-Array or Buffer for GUID must have exact %s Bytes';
+  {$ENDIF}
+  {$IFNDEF WITH_SBCDOVERFLOW}
+    cBcdOverflow = 'BCD-Overflow';
+  {$ENDIF}
+  {$IFNDEF WITH_SInvalidBcdValue}
+    cInvalidBcdValue = '%s is not a valid BCD-Value';
   {$ENDIF}
   cSLibraryNotCompatible = 'Client-Library %s found but could not be loaded. Check compile-target and library compatibility!';
 //--- added by Serge Girard --------------------------------------------------------
 {$IFDEF FRENCH}
   cSSQLError1 = 'Erreur SQL: %s';
   cSSQLError2 = 'Erreur SQL: %s Code: %d';
-  cSSQLError3 = 'Erreur SQL: %s Code: %d SQL: %s';
-  cSSQLError4 = 'Erreur SQL: %s Code: %d Message: %s';
+  cSSQLError3 = 'Erreur SQL: %s '+LineEnding+'Code: %d SQL: %s';
+  cSSQLError4 = 'Erreur SQL: %s '+LineEnding+'Code: %d Message: %s';
 
   cSListCapacityError = 'Capacité de liste hors limite (%d)';
   cSListCountError = 'Compteur de liste (count) hors limite (%d)';
@@ -145,12 +503,6 @@ resourcestring
 
   cSTokenizerIsNotDefined = 'l''objet Tokenizer n''est pas défini';
   cSLibraryNotFound = 'Acune des bibliothèques dynamiques ne peut être trouvée ou chargée: %s !'#10#13'Utilisez TZConnection.LibraryLocation si l''emplacement est incorrect.';
-  cSEncodeDateIsNotSupported = 'Cette version ne supporte pas isc_encode_sql_date';
-  cSEncodeTimeIsNotSupported = 'Cette version ne supporte pas isc_encode_sql_time';
-  cSEncodeTimestampIsNotSupported = 'Cette version ne supporte pas isc_encode_sql_timestamp';
-  cSDecodeDateIsNotSupported = 'Cette version ne supporte pas isc_decode_sql_date';
-  cSDecodeTimeIsNotSupported = 'Cette version ne supporte pas isc_decode_sql_time';
-  cSDecodeTimestampIsNotSupported = 'Cette version ne supporte pas isc_decode_sql_timestamp';
 
   cSCanNotRetrieveResultSetData = 'Ne peut récupérer l''ensemble de données résultant';
   cSRowBufferIsNotAssigned = 'Le buffer de ligne n''est pas assigné';
@@ -180,6 +532,7 @@ resourcestring
   cSUnsupportedByDriver    = 'Le driver d''origine ne supporte pas cette fonctionnalité: [%s]';
 
   cSConnectionIsNotOpened = 'Connexion non encore ouverte';
+  cSConnectionIsOpened = 'Translate: Connection is opened';
   cSInvalidOpInAutoCommit = 'Opération non valide en mode AutoCommit';
   cSInvalidOpInNonAutoCommit = 'Opération non valide si le mode n''est pas AutoCommit';
   cSInvalidOpPrepare = 'Préparer une transaction n''est possible qu''en en démarrant une (Starttransaction) d''abord (!)';
@@ -217,6 +570,7 @@ resourcestring
   cSErrorConvertionField = 'Erreur de conversion pour le champ "%s" vers le type SQL "%s"';
   cSBadOCI = 'Mauvaise version OCI [%s] . Version 8.0.3 ou plus ancienne requise';
   cSConnect2AsUser = 'Connexion à "%s" en tant qu''utilisateur "%s"';
+  cSConnect2WinAuth = 'Translate: Connect to "%s" using windows authentification';
   cSUnknownError = 'Erreur inconnue';
   cSFieldNotFound1 = 'Champ "%s" non trouvé';
   cSFieldNotFound2 = 'Champ %d non trouvé';
@@ -276,18 +630,16 @@ resourcestring
   cSFieldReadOnly        = ' A un champ en lecture seule on ne peut assigner une valeur : %s';
   cSInvalidUpdateCount     = '%d enregistrement(s) mis à jour. Un seul urait du l''être.';
 
-  cSRowBufferWidthExceeded ='La taille du buffer de lignes a été dépassée. Essayez d''utiliser moins ou de plus longues colonnes dans la requête SQL.';
   cSPreviousResultStillOpen = 'L''ensemble de données résultat précédent de cette instruction est encore ouvert';
-
-  csCantFilterOnComputedColumns = 'Translate: Filtering a data set on computed fields and lookup fields is not supported.';
 //--- end added by Serge Girard ------------------------------------
+  cSBackgroundOperationStillRunning = 'Translate: A background operation is still running!';
 {$ELSE !FRENCH}
 // -> ms, 09/05/2005
 {$IFDEF PORTUGUESE}
   cSSQLError1 = 'Erro SQL: %s';
   cSSQLError2 = 'Erro SQL: %s Código: %d';
-  cSSQLError3 = 'Erro SQL: %s Código: %d SQL: %s';
-  cSSQLError4 = 'Erro SQL: %s Código: %d Mensagem: %s';
+  cSSQLError3 = 'Erro SQL: %s '+LineEnding+'Código: %d SQL: %s';
+  cSSQLError4 = 'Erro SQL: %s '+LineEnding+'Código: %d Mensagem: %s';
 
   cSListCapacityError = 'Capacidade da Lista fora do limite (%d)';
   cSListCountError = 'Contagem da Lista fora do limite (%d)';
@@ -315,12 +667,6 @@ resourcestring
 
   cSTokenizerIsNotDefined = 'Sinalizador não definido';
   cSLibraryNotFound = 'Nenhuma biblioteca dinâmica da lista %s foi encontrada';
-  cSEncodeDateIsNotSupported = 'Esta versão não suporta isc_encode_sql_date';
-  cSEncodeTimeIsNotSupported = 'Esta versão não suporta supported isc_encode_sql_time';
-  cSEncodeTimestampIsNotSupported = 'Esta versão não suporta supported isc_encode_sql_timestamp';
-  cSDecodeDateIsNotSupported = 'Esta versão não suporta isc_decode_sql_date';
-  cSDecodeTimeIsNotSupported = 'Esta versão não suporta isc_decode_sql_time';
-  cSDecodeTimestampIsNotSupported = 'Esta versão não suporta isc_decode_sql_timestamp';
 
   cSCanNotRetrieveResultSetData = 'Não foi possível obter os dados do ResultSet';
   cSRowBufferIsNotAssigned = 'Buffer da Linha não atribuído';
@@ -350,6 +696,7 @@ resourcestring
   cSUnsupportedByDriver    = 'O Driver não suporta este recurso nativamente: [%s]';
 
   cSConnectionIsNotOpened = 'Conexão ainda não está aberta.';
+  cSConnectionIsOpened = 'Translate: Connection is opened';
   cSInvalidOpInAutoCommit = 'Operação inválida no modo AutoCommit.';
   cSInvalidOpInNonAutoCommit = 'Operação inválida quando o modo AutoCommit é False.';
   cSInvalidOpPrepare = 'Prepare transaction somente é possível após comandar StartTransaction';
@@ -387,6 +734,7 @@ resourcestring
   cSErrorConvertionField = 'Erro de conversão para do campo "%s" para SQLType "%s"';
   cSBadOCI = 'Versão de OCI incompatível [% s]. Requer 8.0.3 ou mais antigo';
   cSConnect2AsUser = 'Conecte "% s" como usuário "% s"';
+  cSConnect2WinAuth = 'Translate: Connect to "%s" using windows authentification';
   cSUnknownError = 'Erro desconhecido';
   cSFieldNotFound1 = 'Campo "%s" não foi encontrado';
   cSFieldNotFound2 = 'Campo %d não foi encontrado';
@@ -445,16 +793,14 @@ resourcestring
   cSFieldReadOnly        = 'O campo %d é somente leitura e não pôde receber dados';
   cSInvalidUpdateCount   = '%d registro(s) atualizados. Apenas um registro deveria ter sido atualizado.';
 
-  cSRowBufferWidthExceeded ='O tamanho do buffer para linhas (Rows) foi excedido. Tente usar menos ou mais colunas na query SQL';
-
-  csCantFilterOnComputedColumns = 'Translate: Filtering a data set on computed fields and lookup fields is not supported.';
+  cSBackgroundOperationStillRunning = 'Translate: A background operation is still running!';
 {$ELSE}
 
 {$IFDEF DUTCH}
   cSSQLError1 = 'SQL Fout: %s';
   cSSQLError2 = 'SQL Fout: %s Code: %d';
-  cSSQLError3 = 'SQL Fout: %s Code: %d SQL: %s';
-  cSSQLError4 = 'SQL Fout: %s Code: %d Bericht: %s';
+  cSSQLError3 = 'SQL Fout: %s '+LineEnding+'Code: %d SQL: %s';
+  cSSQLError4 = 'SQL Fout: %s '+LineEnding+'Code: %d Bericht: %s';
 
   cSListCapacityError = 'Lijst capaciteit buiten bereik (%d)';
   cSListCountError = 'Lijst aantal buiten bereik (%d)';
@@ -482,12 +828,6 @@ resourcestring
 
   cSTokenizerIsNotDefined = 'Tokenizer is niet gedefinieerd';
   cSLibraryNotFound = 'DLL van de lijst %s werd niet gevonden';
-  cSEncodeDateIsNotSupported = 'Deze versie ondersteunt isc_encode_sql_date niet';
-  cSEncodeTimeIsNotSupported = 'Deze versie ondersteunt isc_encode_sql_time niet';
-  cSEncodeTimestampIsNotSupported = 'Deze versie ondersteunt isc_encode_sql_timestamp niet';
-  cSDecodeDateIsNotSupported = 'Deze versie ondersteunt isc_decode_sql_date niet';
-  cSDecodeTimeIsNotSupported = 'Deze versie ondersteunt isc_decode_sql_time niet';
-  cSDecodeTimestampIsNotSupported = 'Deze versie ondersteunt isc_decode_sql_timestamp niet';
 
   cSCanNotRetrieveResultSetData = 'Kan ResultSet data niet ophalen';
   cSRowBufferIsNotAssigned = 'Row buffer is niet toegekend';
@@ -517,6 +857,7 @@ resourcestring
   cSUnsupportedByDriver    = 'De driver ondersteunt deze functie niet: [%s]';
 
   cSConnectionIsNotOpened = 'Verbinding is niet gemaakt.';
+  cSConnectionIsOpened = 'Translate: Connection is opened';
   cSInvalidOpInAutoCommit = 'Ongeldige operatie in AutoCommit mode.';
   cSInvalidOpInNonAutoCommit = 'Ongeldige operatie in non AutoCommit mode.';
   cSInvalidOpPrepare = 'Transactie voorbereiden is enkel mogelijk bij de eerste aanroep van Starttransaction!';
@@ -554,6 +895,7 @@ resourcestring
   cSErrorConvertionField = 'Conversie fout voor veld "%s" naar SQLType "%s"';
   cSBadOCI = 'Ongeschikte OCI version [%s]. Vereist is 8.0.3 of nieuwer';
   cSConnect2AsUser = 'Verbinden met "%s" als gebruiker "%s"';
+  cSConnect2WinAuth = 'Translate: Connect to "%s" using windows authentification';
   cSUnknownError = 'Onbekende fout';
   cSFieldNotFound1 = 'Veld "%s" niet gevonden';
   cSFieldNotFound2 = 'Veld %d niet gevonden';
@@ -613,9 +955,7 @@ resourcestring
   cSFieldReadOnly        = 'Readonly veld kan geen waarde toegewezen krijgen: %d';
   cSInvalidUpdateCount     = '%d record(s) gewijzigd. Slechts 1 record had gewijzigd mogen zijn.';
 
-  cSRowBufferWidthExceeded ='Rij buffer grootte overschreden. Probeer minder kolommen te gebruiken in je SQL query.';
-
-  csCantFilterOnComputedColumns = 'Translate: Filtering a data set on computed fields and lookup fields is not supported.';
+  cSBackgroundOperationStillRunning = 'Translate: A background operation is still running!';
 {$ELSE}
 // <- ms, 09/05/2005
 
@@ -623,8 +963,8 @@ resourcestring
 {$IFDEF GERMAN}
   cSSQLError1 = 'SQL Fehler: %s';
   cSSQLError2 = 'SQL Fehler: %s Code: %d';
-  cSSQLError3 = 'SQL Fehler: %s Code: %d SQL: %s';
-  cSSQLError4 = 'SQL Fehler: %s Code: %d Meldung: %s';
+  cSSQLError3 = 'SQL Fehler: %s '+LineEnding+'Code: %d SQL: %s';
+  cSSQLError4 = 'SQL Fehler: %s '+LineEnding+'Code: %d Meldung: %s';
 
   cSListCapacityError = 'Die Listenkapazität übersteigt die definierte Grenze (%d)';
   cSListCountError = 'Der Listenzähler ist außerhalb seiner definierten Grenzen (%d)';
@@ -653,12 +993,6 @@ resourcestring
 
   cSTokenizerIsNotDefined = 'Tokenizer wurde nicht definiert';
   cSLibraryNotFound = 'Es wurde keine der in %s gelisteten DLL''s gefunden';
-  cSEncodeDateIsNotSupported = 'Diese Version unterstützt "isc_encode_sql_date" nicht';
-  cSEncodeTimeIsNotSupported = 'Diese Version unterstützt "isc_encode_sql_time" nicht';
-  cSEncodeTimestampIsNotSupported = 'Diese Version unterstützt "isc_encode_sql_timestamp" nicht';
-  cSDecodeDateIsNotSupported = 'Diese Version unterstützt "isc_decode_sql_date" nicht';
-  cSDecodeTimeIsNotSupported = 'Diese Version unterstützt "isc_decode_sql_time" nicht';
-  cSDecodeTimestampIsNotSupported = 'Diese Version unterstützt "isc_decode_sql_timestamp" nicht';
 
   cSCanNotRetrieveResultSetData = 'Die Ergebnismenge kann nicht ermittelt werden';
   cSRowBufferIsNotAssigned = 'Der Zeilen-Buffer ist nicht zugewiesen';
@@ -687,6 +1021,7 @@ resourcestring
   cSUnsupportedProtocol = 'Nicht unterstütztes Protokoll: %s';
 
   cSConnectionIsNotOpened = 'Die Verbindung zur Datenbank ist noch nicht hergestellt';
+  cSConnectionIsOpened = 'Die Verbindung zur Datenbank ist bereits hergestellt';
   cSInvalidOpInAutoCommit = 'Ungültige Operation im AUTOCOMMIT-Modus';
   cSInvalidOpInNonAutoCommit = 'Ungültige Operation außerhalb des AUTOCOMMIT-Modus';
   cSInvalidOpPrepare = 'Transaktion vorzubereiten ist nur beim ersten Aufruf von Starttransaction möglich!';
@@ -724,6 +1059,7 @@ resourcestring
   cSErrorConvertionField = 'Konvertierungsfehler bei Feld "%s" nach SQL-Typ "%s"';
   cSBadOCI = 'Die OCI Version 8.0.3 (oder älter) wird benötigt! Aktuelle Version: %s';
   cSConnect2AsUser = 'Verbinde zu "%s" als User "%s"';
+  cSConnect2WinAuth = 'Verbinde zu "%s" mit Windows-Authentifizierung';
   cSUnknownError = 'Unbekannter Fehler';
   cSFieldNotFound1 = 'Das Feld "%s" wurde nicht gefunden';
   cSFieldNotFound2 = 'Das Feld %d wurde nicht gefunden';
@@ -783,16 +1119,14 @@ resourcestring
   cSFieldReadOnly          = 'Einem "Nur-Lesen" Feld kann kein Wert zugewiesen werden: %d';
   cSInvalidUpdateCount     = '%d Datensätze geändert. Exakt ein Datensatz sollte geändert werden.';
 
-  cSRowBufferWidthExceeded ='Translate: Row buffer width exceeded. Try using fewer or longer columns in SQL query.';
-
-  csCantFilterOnComputedColumns = 'Datasets können nich nach berechneten Feldern und Lookup-Feldern gefiltert werden.';
+  cSBackgroundOperationStillRunning = 'Translate: A background operation is still running!';
 {$ELSE}
   // -> fduenas, 28/06/2005
 {$IFDEF SPANISH} //Spanish translations
   cSSQLError1 = 'Error SQL: %s';
   cSSQLError2 = 'Error SQL: %s Código: %d';
-  cSSQLError3 = 'Error SQL: %s Código: %d SQL: %s';
-  cSSQLError4 = 'Error SQL: %s Código: %d Mensage: %s';
+  cSSQLError3 = 'Error SQL: %s '+LineEnding+'Código: %d SQL: %s';
+  cSSQLError4 = 'Error SQL: %s '+LineEnding+'Código: %d Mensage: %s';
 
   cSListCapacityError = 'List capacity fuera de límites (%d)';
   cSListCountError = 'List count fuera de límites (%d)';
@@ -820,12 +1154,6 @@ resourcestring
 
   cSTokenizerIsNotDefined = 'El objeto Tokenizer no está definido';
   cSLibraryNotFound = 'Ninguna librería dinámica de la lista %s fue encontrada';
-  cSEncodeDateIsNotSupported = 'Esta versión no soporta isc_encode_sql_date';
-  cSEncodeTimeIsNotSupported = 'Esta versión no soporta isc_encode_sql_time';
-  cSEncodeTimestampIsNotSupported = 'Esta versión no soporta isc_encode_sql_timestamp';
-  cSDecodeDateIsNotSupported = 'Esta versión no soporta isc_decode_sql_date';
-  cSDecodeTimeIsNotSupported = 'Esta versión no soporta isc_decode_sql_time';
-  cSDecodeTimestampIsNotSupported = 'Esta versión no soporta isc_decode_sql_timestamp';
 
   cSCanNotRetrieveResultSetData = 'No se pueden obtener datos del Resultset';
   cSRowBufferIsNotAssigned = 'Buffer de línea no asignado';
@@ -855,6 +1183,7 @@ resourcestring
   cSUnsupportedByDriver    = 'Translate: Driver can not support this feature natively: [%s]';
 
   cSConnectionIsNotOpened = 'La conexión no ha sido abierta todavía';
+  cSConnectionIsOpened = 'Translate: Connection is opened';
   cSInvalidOpInAutoCommit = 'Operación inválida en modo AutoCommit';
   cSInvalidOpInNonAutoCommit = 'Operación inválida en modo No-AutoCommit';
   cSInvalidOpPrepare = 'Translate : Prepare transaction only possible on matching first(!) Starttransaction';
@@ -892,6 +1221,7 @@ resourcestring
   cSErrorConvertionField = 'Error de conversión del campo "%s" al Tipo SQL "%s"';
   cSBadOCI = 'Versión de OCI [%s] no aceptable. Se requiere versión 8.0.3 o menor';
   cSConnect2AsUser = 'Conectando a "%s" como usuario "%s"';
+  cSConnect2WinAuth = 'Translate: Connect to "%s" using windows authentification';
   cSUnknownError = 'Error desconocido';
   cSFieldNotFound1 = 'Campo "%s" no encontrado';
   cSFieldNotFound2 = 'Campo %d no encontrado';
@@ -952,17 +1282,15 @@ resourcestring
   cSFieldReadOnly          = 'Translate : Readonly field can''t be assigned a value: %d';
   cSInvalidUpdateCount     = 'Translate : %d record(s) updated. Only one record should have been updated.';
 
-  cSRowBufferWidthExceeded ='Translate: Row buffer width exceeded. Try using fewer or longer columns in SQL query.';
-
-  csCantFilterOnComputedColumns = 'Translate: Filtering a data set on computed fields and lookup fields is not supported.';
+  cSBackgroundOperationStillRunning = 'Translate: A background operation is still running!';
 {$ELSE}
 
 {$IFDEF ROMANA}
 
   SSQLError1 = 'SQL Eroare: %s';
   cSSQLError2 = 'SQL Eroare: %s Cod: %d';
-  cSSQLError3 = 'SQL Eroare: %s Cod: %d SQL: %s';
-  cSSQLError4 = 'SQL Eroare: %s Cod: %d Mesaj: %s';
+  cSSQLError3 = 'SQL Eroare: %s '+LineEnding+'Cod: %d SQL: %s';
+  cSSQLError4 = 'SQL Eroare: %s '+LineEnding+'Cod: %d Mesaj: %s';
 
   cSListCapacityError = 'Capacitatea listei este în afara limitelor (%d)';
   cSListCountError = 'Contorul listei este în afara limitelor (%d)';
@@ -990,12 +1318,6 @@ resourcestring
 
   cSTokenizerIsNotDefined = 'Simbolistica nu este definitã';
   cSLibraryNotFound = 'None of the dynamic libraries can be found: %s';
-  cSEncodeDateIsNotSupported = 'Aceastã versiune nu suportã isc_encode_sql_date';
-  cSEncodeTimeIsNotSupported = 'Aceastã versiune nu suportã isc_encode_sql_time';
-  cSEncodeTimestampIsNotSupported = 'Aceastã versiune nu suportã isc_encode_sql_timestamp';
-  cSDecodeDateIsNotSupported = 'Aceastã versiune nu suportã isc_decode_sql_date';
-  cSDecodeTimeIsNotSupported = 'Aceastã versiune nu suportã isc_decode_sql_time';
-  cSDecodeTimestampIsNotSupported = 'Aceastã versiune nu suportã isc_decode_sql_timestamp';
 
   cSCanNotRetrieveResultSetData = 'Nu pot returna  Resultset data';
   cSRowBufferIsNotAssigned = 'Row buffer nu este asignat';
@@ -1025,6 +1347,7 @@ resourcestring
   cSUnsupportedByDriver    = 'Driver nu poate suporta aceastã facilitate : [%s]';
 
   cSConnectionIsNotOpened = 'Conexiune nu este deschisã incã';
+  cSConnectionIsOpened = 'Translate: Connection is opened';
   cSInvalidOpInAutoCommit = 'Operaþie invalidã în modul AutoCommit';
   cSInvalidOpInNonAutoCommit = 'Operaþie invalidã în modul non AutoCommit ';
   cSInvalidOpPrepare = 'Prepare transaction only possible on matching first(!) Starttransaction';
@@ -1062,6 +1385,7 @@ resourcestring
   cSErrorConvertionField = 'Eroare de conversie pentru câmpul "%s" în TipSQL "%s"';
   cSBadOCI = 'Bad OCI version [%s]. Version 8.0.3 or older is required';
   cSConnect2AsUser = 'Conectare la "%s" ca utlizator "%s"';
+  cSConnect2WinAuth = 'Translate: Connect to "%s" using windows authentification';
   cSUnknownError = 'Eroare necunoscutã';
   cSFieldNotFound1 = 'Câmpul "%s" nu a fost gãsit';
   cSFieldNotFound2 = 'Câmpul %d nu a fost gãsit';
@@ -1119,17 +1443,14 @@ resourcestring
 
   cSUnKnownParamDataType = 'TRANSLATE: Unknown Param.DataType';
 
-  cSRowBufferWidthExceeded ='Translate: Row buffer width exceeded. Try using fewer or longer columns in SQL query.';
-
-  csCantFilterOnComputedColumns = 'Translate: Filtering a data set on computed fields and lookup fields is not supported.';
-
   // <-- added by tohenk
+  cSBackgroundOperationStillRunning = 'Translate: A background operation is still running!';
   {$ELSE}
   {$IFDEF INDONESIAN}
   cSSQLError1 = 'Kesalahan SQL: %s';
   cSSQLError2 = 'Kesalahan SQL: %s Kode: %d';
-  cSSQLError3 = 'Kesalahan SQL: %s Kode: %d SQL: %s';
-  cSSQLError4 = 'Kesalahan SQL: %s Kode: %d Pesan: %s';
+  cSSQLError3 = 'Kesalahan SQL: %s '+LineEnding+'Kode: %d SQL: %s';
+  cSSQLError4 = 'Kesalahan SQL: %s '+LineEnding+'Kode: %d Pesan: %s';
 
   cSListCapacityError = 'Kapasitas List diluar jangkauan (%d)';
   cSListCountError = 'Jumlah List diluar jangkauan (%d)';
@@ -1157,12 +1478,6 @@ resourcestring
 
   cSTokenizerIsNotDefined = 'Tokenizer belum ditentukan';
   cSLibraryNotFound = 'Tidak ada library ditemukan: %s';
-  cSEncodeDateIsNotSupported = 'Versi ini tidak mendukung isc_encode_sql_date';
-  cSEncodeTimeIsNotSupported = 'Versi ini tidak mendukung isc_encode_sql_time';
-  cSEncodeTimestampIsNotSupported = 'Versi ini tidak mendukung isc_encode_sql_timestamp';
-  cSDecodeDateIsNotSupported = 'Versi ini tidak mendukung isc_decode_sql_date';
-  cSDecodeTimeIsNotSupported = 'Versi ini tidak mendukung isc_decode_sql_time';
-  cSDecodeTimestampIsNotSupported = 'Versi ini tidak mendukung isc_decode_sql_timestamp';
 
   cSCanNotRetrieveResultSetData = 'Tidak dapat mengambil data Resultset';
   cSRowBufferIsNotAssigned = 'Row buffer tidak disediakan';
@@ -1192,6 +1507,7 @@ resourcestring
   cSUnsupportedByDriver    = 'Driver tidak mendukung fitur: [%s]';
 
   cSConnectionIsNotOpened = 'Koneksi belum dibuka';
+  cSConnectionIsOpened = 'Translate: Connection is opened';
   cSInvalidOpInAutoCommit = 'Operasi tidak valid pada mode AUTOCOMMIT';
   cSInvalidOpInNonAutoCommit = 'Operasi tidak valid pada mode non AUTOCOMMIT';
   cSInvalidOpPrepare = 'Persiapan transaksi hanya mungkin pada (!) Starttransaction pertama';
@@ -1229,6 +1545,7 @@ resourcestring
   cSErrorConvertionField = 'Kesalahan konversi field "%s" ke Tipe SQL "%s"';
   cSBadOCI = 'OCI version [%s] tidak sah. Dibutuhkan versi 8.0.3 atau terdahulu';
   cSConnect2AsUser = 'Koneksi ke "%s" dengan user "%s"';
+  cSConnect2WinAuth = 'Translate: Connect to "%s" using windows authentification';
   cSUnknownError = 'Kesalahan tidak diketahui';
   cSFieldNotFound1 = 'Field "%s" tidak ada';
   cSFieldNotFound2 = 'Field %d tidak ada';
@@ -1288,17 +1605,15 @@ resourcestring
   cSFieldReadOnly          = 'Field readonly tidak dapat diberikan nilai: %d';
   cSInvalidUpdateCount     = '%d rekord terupdate. Seharusnya hanya satu rekord yang terupdate.';
 
-  cSRowBufferWidthExceeded = 'Lebar buffer baris terlampaui. Coba kurangi atau gunakan kolom yang lebih panjang dalam query SQL.';
-
-  csCantFilterOnComputedColumns = 'Translate: Filtering a data set on computed fields and lookup fields is not supported.';
   // <--- end added by tohenk
   //--- begin added by ORMADA --------------------------------------------------
+  cSBackgroundOperationStillRunning = 'Translate: A background operation is still running!';
 {$ELSE}
 {$IFDEF RUSSIAN}
   cSSQLError1                               = 'Îøèáêà â SQL âûðàæåíèè: %s';
   cSSQLError2                               = 'Îøèáêà â SQL âûðàæåíèè: %s Êîä îøèáêè: %d';
-  cSSQLError3                               = 'Îøèáêà â SQL âûðàæåíèè: %s Êîä îøèáêè: %d SQL: %s';
-  cSSQLError4                               = 'Îøèáêà â SQL âûðàæåíèè: %s Êîä îøèáêè: %d Ñîîáùåíèå: %s';
+  cSSQLError3                               = 'Îøèáêà â SQL âûðàæåíèè: %s '+LineEnding+'Êîä îøèáêè: %d SQL: %s';
+  cSSQLError4                               = 'Îøèáêà â SQL âûðàæåíèè: %s '+LineEnding+'Êîä îøèáêè: %d Ñîîáùåíèå: %s';
 
   cSListCapacityError                       = 'Ðàçìåð ñïèñêà âûøåë çà ãðàíèöû (%d)';
   cSListCountError                          = 'Ñ÷åò÷èê ñïèñêà âûøåë çà ãðàíèöû (%d)';
@@ -1326,12 +1641,6 @@ resourcestring
 
   cSTokenizerIsNotDefined                   = 'Ìåòêà íå îïðåäåëåíà';
   cSLibraryNotFound                         = 'Íå îäíîé äèíàìè÷åñêîé áèáëèîòåêè íå íàéäåíî: %s';
-  cSEncodeDateIsNotSupported                = 'Ýòà âåðñèÿ íå ïîääåðæèâàåò isc_encode_sql_date';
-  cSEncodeTimeIsNotSupported                = 'Ýòà âåðñèÿ íå ïîääåðæèâàåò isc_encode_sql_time';
-  cSEncodeTimestampIsNotSupported           = 'Ýòà âåðñèÿ íå ïîääåðæèâàåò isc_encode_sql_timestamp';
-  cSDecodeDateIsNotSupported                = 'Ýòà âåðñèÿ íå ïîääåðæèâàåò isc_decode_sql_date';
-  cSDecodeTimeIsNotSupported                = 'Ýòà âåðñèÿ íå ïîääåðæèâàåò isc_decode_sql_time';
-  cSDecodeTimestampIsNotSupported           = 'Ýòà âåðñèÿ íå ïîääåðæèâàåò isc_decode_sql_timestamp';
 
   cSCanNotRetrieveResultSetData             = 'Íåâîçìîæíî ïîëó÷èòü íàáîð äàííûõ (Resultset)';
   cSRowBufferIsNotAssigned                  = 'Íå íàçíà÷åí áóôôåð ñòðîêè';
@@ -1361,6 +1670,7 @@ resourcestring
   cSUnsupportedByDriver                     = 'Äðàéâåð íå ïîääåðæèâàåò äàííóþ âîçìîæíîñòü : [%s]';
 
   cSConnectionIsNotOpened                   = 'Ïîäêëþ÷åíèå íå îòêðûòî';
+  cSConnectionIsOpened = 'Translate: Connection is opened';
   cSInvalidOpInAutoCommit                   = 'Íåâåðíàÿ îïåðàöèÿ â ðåæèìå àâòîïîäòâåðæäåíèÿ (AutoCommit)';
   cSInvalidOpInNonAutoCommit                = 'Íåâåðíàÿ îïåðàöèÿ â ðåæèìå ÍÅ àâòîïîäòâåðæäåíèÿ (non AutoCommit)';
   cSInvalidOpPrepare                        = 'Ïîäãîòîâêà òðàíçàíêöèè âîçìîæíà òîëüêî ïðè ïåðâîì èñïîëüçîâàíèè(!) StartTransaction';
@@ -1398,6 +1708,7 @@ resourcestring
   cSErrorConvertionField                    = 'Îøèáêà êîíâåðòàöèè äëÿ ïîëÿ "%s" â SQLType "%s"';
   cSBadOCI                                  = 'Íåâåðíàÿ âåðñèÿ OCI [%s]. Íåîáõîäèìàÿ âåðñèÿ 8.0.3 èëè âûøå';
   cSConnect2AsUser                          = 'Íåâîçìîæíî ïîäêëþ÷èòüñÿ ê "%s" ïîëüçîâàòåëåì "%s"';
+  cSConnect2WinAuth = 'Translate: Connect to "%s" using windows authentification';
   cSUnknownError                            = 'Íåèçâåñòíàÿ îøèáêà';
   cSFieldNotFound1                          = 'Ïîëå "%s" íå íàéäåíî';
   cSFieldNotFound2                          = 'Ïîëå %d íå íàéäåíî';
@@ -1458,17 +1769,15 @@ resourcestring
   cSFieldReadOnly          = 'Translate : Readonly field can''t be assigned a value: %d';
   cSInvalidUpdateCount     = 'Translate : %d record(s) updated. Only one record should have been updated.';
 
-  cSRowBufferWidthExceeded ='Translate: Row buffer width exceeded. Try using fewer or longer columns in SQL query.';
-
-  csCantFilterOnComputedColumns = 'Translate: Filtering a data set on computed fields and lookup fields is not supported.';
+  cSBackgroundOperationStillRunning = 'Translate: A background operation is still running!';
 {$ELSE}
 
 //--- added by Petr Stasiak - pestasoft.com ------------------------------------
 {$IFDEF CZECH}
   cSSQLError1 = 'SQL chyba: %s';
   cSSQLError2 = 'SQL chyba: %s kód: %d';
-  cSSQLError3 = 'SQL chyba: %s kód: %d SQL: %s';
-  cSSQLError4 = 'SQL chyba: %s kód: %d Hlášení: %s';
+  cSSQLError3 = 'SQL chyba: %s '+LineEnding+'kód: %d SQL: %s';
+  cSSQLError4 = 'SQL chyba: %s '+LineEnding+'kód: %d Hlášení: %s';
 
   cSListCapacityError = 'Kapacita seznamu je mimo rozsah (%d)';
   cSListCountError = 'Poèet seznamù je mimo rozsah (%d)';
@@ -1496,12 +1805,6 @@ resourcestring
 
   cSTokenizerIsNotDefined = 'Není definován "Tokenizer"';
   cSLibraryNotFound = 'Neexistuje dll knihovna(y): %s';
-  cSEncodeDateIsNotSupported = 'Tato verze nepodporuje isc_encode_sql_date';
-  cSEncodeTimeIsNotSupported = 'Tato verze nepodporuje isc_encode_sql_time';
-  cSEncodeTimestampIsNotSupported = 'Tato verze nepodporuje isc_encode_sql_timestamp';
-  cSDecodeDateIsNotSupported = 'Tato verze nepodporuje isc_decode_sql_date';
-  cSDecodeTimeIsNotSupported = 'Tato verze nepodporuje isc_decode_sql_time';
-  cSDecodeTimestampIsNotSupported = 'Tato verze nepodporuje isc_decode_sql_timestamp';
 
   cSCanNotRetrieveResultSetData = 'Nelze získat data "Resultset"';
   cSRowBufferIsNotAssigned = 'Není pøiøazen øádkový buffer';
@@ -1531,6 +1834,7 @@ resourcestring
   cSUnsupportedByDriver    = 'Ovladaè nepodporuje tuto vlastnost: [%s]';
 
   cSConnectionIsNotOpened = 'Spojení není otevøeno';
+  cSConnectionIsOpened = 'Translate: Connection is opened';
   cSInvalidOpInAutoCommit = 'Nesprávná operace v módu AutoCommit';
   cSInvalidOpInNonAutoCommit = 'Nesprávná operace v módu NE AutoCommit';
   cSInvalidOpPrepare = '"Prepare" transakce je možné pouze jako první! Starttransaction';
@@ -1568,6 +1872,7 @@ resourcestring
   cSErrorConvertionField = 'Chyba pøevodu sloupce "%s" na SQLTyp "%s"';
   cSBadOCI = 'Špatné verze OCI [%s]. Je vyžadována 8.0.3 nebo starší';
   cSConnect2AsUser = 'Pøipojit k "%s" jako "%s"';
+  cSConnect2WinAuth = 'Translate: Connect to "%s" using windows authentification';
   cSUnknownError = 'Neznámá chyba';
   cSFieldNotFound1 = 'Sloupec "%s" neexistuje';
   cSFieldNotFound2 = 'Sloupec %d neexistuje';
@@ -1628,19 +1933,17 @@ resourcestring
   cSFieldReadOnly        = 'Sloupec pouze pro ètení nemùže být pøiøazen k hodnotì: %d';
   cSInvalidUpdateCount     = '%d záznam(ù) aktualizováno. Pouze jeden záznam byl zmìnìn.';
 
-  cSRowBufferWidthExceeded ='Translate: Row buffer width exceeded. Try using fewer or longer columns in SQL query.';
-
-  csCantFilterOnComputedColumns = 'Translate: Filtering a data set on computed fields and lookup fields is not supported.';
 //--- end added by Petr Stasiak - pestasoft.com ------------------------------------
 
+  cSBackgroundOperationStillRunning = 'Translate: A background operation is still running!';
 {$ELSE}
 
 //--- added by pawelsel --------------------------------------------------------
 {$IFDEF POLISH}
   cSSQLError1 = 'B³¹d SQL: %s';
   cSSQLError2 = 'B³¹d SQL: %s Kod: %d';
-  cSSQLError3 = 'B³¹d SQL: %s Kod: %d SQL: %s';
-  cSSQLError4 = 'B³¹d SQL: %s Kod: %d Komunikat: %s';
+  cSSQLError3 = 'B³¹d SQL: %s '+LineEnding+'Kod: %d SQL: %s';
+  cSSQLError4 = 'B³¹d SQL: %s '+LineEnding+'Kod: %d Komunikat: %s';
 
   cSListCapacityError = 'Przekroczona pojemnoœæ listy (%d)';
   cSListCountError = 'Licznik listy poza zakresem (%d)';
@@ -1668,12 +1971,6 @@ resourcestring
 
   cSTokenizerIsNotDefined = 'Nie zdefiniowano tokenizera';
   cSLibraryNotFound = 'Nie znaleziono ¿adnej z bibliotek dynamicznych: %s';
-  cSEncodeDateIsNotSupported = 'Ta wersja nie obs³uguje isc_encode_sql_date';
-  cSEncodeTimeIsNotSupported = 'Ta wersja nie obs³uguje isc_encode_sql_time';
-  cSEncodeTimestampIsNotSupported = 'Ta wersja nie obs³uguje isc_encode_sql_timestamp';
-  cSDecodeDateIsNotSupported = 'Ta wersja nie obs³uguje isc_decode_sql_date';
-  cSDecodeTimeIsNotSupported = 'Ta wersja nie obs³uguje isc_decode_sql_time';
-  cSDecodeTimestampIsNotSupported = 'Ta wersja nie obs³uguje isc_decode_sql_timestamp';
 
   cSCanNotRetrieveResultSetData = 'Nie mo¿na pobraæ danych wynikowych';
   cSRowBufferIsNotAssigned = 'Nie przypisano bufora wiersza';
@@ -1703,6 +2000,7 @@ resourcestring
   cSUnsupportedByDriver    = 'Sterownik nie obs³uguje tej w³aœciwoœci natywnie: [%s]';
 
   cSConnectionIsNotOpened = 'Jeszcze nie nawi¹zano po³¹czenia';
+  cSConnectionIsOpened = 'Translate: Connection is opened';
   cSInvalidOpInAutoCommit = 'B³êdna operacja w trybie AutoCommit';
   cSInvalidOpInNonAutoCommit = 'B³êdna operacja przy wy³¹czonym AutoCommit';
   cSInvalidOpPrepare = 'Przygotowanie transakcji mo¿liwe jest tylko przy pierwszym(!) Starttransaction';
@@ -1740,6 +2038,7 @@ resourcestring
   cSErrorConvertionField = 'B³¹d konwersji pola "%s" na SQLType "%s"';
   cSBadOCI = 'Z³a wersja OCI [%s]. Wymagana wersja 8.0.3 lub starsza';
   cSConnect2AsUser = 'Po³¹czenie z "%s" jako u¿ytkownik "%s"';
+  cSConnect2WinAuth = 'Translate: Connect to "%s" using windows authentification';
   cSUnknownError = 'Nieznany b³¹d';
   cSFieldNotFound1 = 'Nie znaleziono pola "%s"';
   cSFieldNotFound2 = 'Nie znaleziono pola %d';
@@ -1800,16 +2099,14 @@ resourcestring
   cSFieldReadOnly        = 'Nie mo¿na przypisaæ do pola tylko do odczytu wartoœci: %d';
   cSInvalidUpdateCount     = 'Liczba zaktualizowanych rekordów: %d. tylko jeden rekord powinien byæ zaktualizowany.';
 
-  cSRowBufferWidthExceeded ='Przekroczono rozmiar bufora. Spróbuj u¿yæ mniejszej liczby kolumn lub d³u¿szych kolumn w zapytaniu SQL.';
-
-  csCantFilterOnComputedColumns = 'Translate: Filtering a data set on computed fields and lookup fields is not supported.';
+  cSBackgroundOperationStillRunning = 'Translate: A background operation is still running!';
 
 {$ELSE} // default: ENGLISH
 
   cSSQLError1 = 'SQL Error: %s';
   cSSQLError2 = 'SQL Error: %s Code: %d';
-  cSSQLError3 = 'SQL Error: %s Code: %d SQL: %s';
-  cSSQLError4 = 'SQL Error: %s Code: %d Message: %s';
+  cSSQLError3 = 'SQL Error: %s '+LineEnding+'Code: %d SQL: %s';
+  cSSQLError4 = 'SQL Error: %s '+LineEnding+'Code: %d Message: %s';
 
   cSListCapacityError = 'List capacity out of bounds (%d)';
   cSListCountError = 'List count out of bounds (%d)';
@@ -1837,12 +2134,6 @@ resourcestring
 
   cSTokenizerIsNotDefined = 'Tokenizer is not defined';
   cSLibraryNotFound = 'None of the dynamic libraries can be found or is not loadable: %s !'#10#13'Use TZConnection.LibraryLocation if the location is invalid.';
-  cSEncodeDateIsNotSupported = 'This version does not support isc_encode_sql_date';
-  cSEncodeTimeIsNotSupported = 'This version does not support isc_encode_sql_time';
-  cSEncodeTimestampIsNotSupported = 'This version does not support isc_encode_sql_timestamp';
-  cSDecodeDateIsNotSupported = 'This version does not support isc_decode_sql_date';
-  cSDecodeTimeIsNotSupported = 'This version does not support isc_decode_sql_time';
-  cSDecodeTimestampIsNotSupported = 'This version does not support isc_decode_sql_timestamp';
 
   cSCanNotRetrieveResultSetData = 'Cannot retrieve Resultset data';
   cSRowBufferIsNotAssigned = 'Row buffer is not assigned';
@@ -1872,6 +2163,7 @@ resourcestring
   cSUnsupportedByDriver    = 'Driver can not support this feature natively: [%s]';
 
   cSConnectionIsNotOpened = 'Connection is not opened yet';
+  cSConnectionIsOpened = 'Translate: Connection is opened';
   cSInvalidOpInAutoCommit = 'Invalid operation in AutoCommit mode';
   cSInvalidOpInNonAutoCommit = 'Invalid operation in non AutoCommit mode';
   cSInvalidOpPrepare = 'Prepare transaction only possible on matching first(!) Starttransaction';
@@ -1909,6 +2201,7 @@ resourcestring
   cSErrorConvertionField = 'Conversion error for field "%s" to SQLType "%s"';
   cSBadOCI = 'Bad OCI version [%s]. Version 8.0.3 or older is required';
   cSConnect2AsUser = 'Connect to "%s" as user "%s"';
+  cSConnect2WinAuth = 'Connect to "%s" using windows authentification';
   cSUnknownError = 'Unknown error';
   cSFieldNotFound1 = 'Field "%s" was not found';
   cSFieldNotFound2 = 'Field %d was not found';
@@ -1969,9 +2262,7 @@ resourcestring
   cSFieldReadOnly        = 'Readonly field can''t be assigned a value: %s';
   cSInvalidUpdateCount     = '%d record(s) updated. Only one record should have been updated.';
 
-  cSRowBufferWidthExceeded ='Row buffer width exceeded. Try using fewer or longer columns in SQL query.';
-
-  csCantFilterOnComputedColumns = 'Filtering a data set on computed fields and lookup fields is not supported.';
+  cSBackgroundOperationStillRunning = 'A background operation is still running!';
 
 {$ENDIF} // POLISH
 
@@ -1991,181 +2282,756 @@ resourcestring
 
 {$ENDIF} // PORTUGUESE
 {$ENDIF FRENCH}
-type
-  TMessageToRaw = function(const AMessage: String; Const RawCP: Word): RawByteString;
 
-var
-  MessageCodePage: Word;
-  SSQLError1: String;
-  SSQLError2: String;
-  SSQLError3: String;
-  SSQLError4: String;
+{$IF defined(FPC) and (defined(ZEOSDEBUG) or not defined(ASCII7_MESSAGES)) and
+     (defined(WITH_DEFAULTSYSTEMCODEPAGE) or defined(LCL))}
+function ConvertZMessageToRaw(const Value: String): String;
+begin
+  Result := ZUnicodeToRaw(PRawToUnicode(Pointer(Value), Length(Value), MsgCodePage),
+    {$IFDEF WITH_DEFAULTSYSTEMCODEPAGE}DefaultSystemCodePage{$ELSE}
+        {$IFDEF LCL}zCP_UTF8{$ELSE}zOSCodePage{$ENDIF}{$ENDIF});
+end;
 
-  SListCapacityError: String;
-  SListCountError: String;
-  SListIndexError: String;
+{$IFNDEF WITH_RTLCONSTS_SInvalidGuidArray}
+function SInvalidGuidArray: String;
+begin
+  Result := ConvertZMessageToRaw(cInvalidGuidArray);
+end;
+{$ENDIF}
+{$IFNDEF WITH_SBCDOVERFLOW}
+function SBcdOverflow: String;
+begin
+  Result := ConvertZMessageToRaw(cBcdOverflow);
+end;
+{$ENDIF}
+{$IFNDEF WITH_SInvalidBcdValue}
+function SInvalidBcdValue: String;
+begin
+  Result := ConvertZMessageToRaw(cInvalidBcdValue);
+end;
+{$ENDIF}
 
-  SClonningIsNotSupported: String;
-  SImmutableOpIsNotAllowed: String;
-  SStackIsEmpty: String;
-  SVariableWasNotFound: String;
-  SFunctionWasNotFound: String;
-  SInternalError: String;
-  SSyntaxErrorNear: String;
-  SSyntaxError: String;
-  SUnknownSymbol: String;
-  SUnexpectedExprEnd: String;
-  SRightBraceExpected: String;
-  SParametersError: String;
-  SParamValueExceeded: String;
-  SExpectedMoreParams: String;
-  SInvalidVarByteArray: String;
-  SVariableAlreadyExists: String;
-  STypesMismatch: String;
-  SUnsupportedVariantType: String;
-  SUnsupportedOperation: String;
+function SSQLError1: String;
+begin
+  Result := ConvertZMessageToRaw(cSSQLError1);
+end;
 
-  STokenizerIsNotDefined: String;
-  SLibraryNotFound: String;
-  SLibraryNotCompatible: String;
-  SEncodeDateIsNotSupported: String;
-  SEncodeTimeIsNotSupported: String;
-  SEncodeTimestampIsNotSupported: String;
-  SDecodeDateIsNotSupported: String;
-  SDecodeTimeIsNotSupported: String;
-  SDecodeTimestampIsNotSupported: String;
+function SSQLError2: String;
+begin
+  Result := ConvertZMessageToRaw(cSSQLError2);
+end;
 
-  SCanNotRetrieveResultSetData: String;
-  SRowBufferIsNotAssigned: String;
-  SColumnIsNotAccessable: String;
-  SConvertionIsNotPossible: String;
-  SCanNotAccessBlobRecord: String;
-  SRowDataIsNotAvailable: String;
-  SResolverIsNotSpecified: String;
-  SResultsetIsAlreadyOpened: String;
-  SCanNotUpdateEmptyRow: String;
-  SCanNotUpdateDeletedRow: String;
-  SCanNotDeleteEmptyRow: String;
-  SCannotUseCommit: String;
-  SCannotUseRollBack: String;
-  SCanNotUpdateComplexQuery: String;
-  SCanNotUpdateThisQueryType: String;
-  SDriverWasNotFound: String;
-  SCanNotConnectToServer: String;
-  STableIsNotSpecified: String;
-  SLiveResultSetsAreNotSupported: String;
-  SInvalidInputParameterCount: String;
-  SIsolationIsNotSupported: String;
-  SColumnWasNotFound: String;
-  SWrongTypeForBlobParameter: String;
-  SIncorrectConnectionURL: String;
-  SUnsupportedProtocol: String;
-  SUnsupportedByDriver   : String;
+function SSQLError3: String;
+begin
+  Result := ConvertZMessageToRaw(cSSQLError3);
+end;
 
-  SConnectionIsNotOpened: String;
-  SInvalidOpInAutoCommit: String;
-  SInvalidOpInNonAutoCommit: String;
-  SInvalidOpPrepare: String;
+function SSQLError4: String;
+begin
+  Result := ConvertZMessageToRaw(cSSQLError4);
+end;
 
-  SConnectionIsNotAssigned: String;
-  SQueryIsEmpty: String;
-  SCanNotExecuteMoreQueries: String;
-  SOperationIsNotAllowed1: String;
-  SOperationIsNotAllowed2: String;
-  SOperationIsNotAllowed3: String;
-  SOperationIsNotAllowed4: String;
-  SNoMoreRecords: String;
-  SCanNotOpenResultSet: String;
-  SCanNotOpenDataSetWhenDestroying: String;
-  SCircularLink: String;
-  SBookmarkWasNotFound: String;
-  SIncorrectSearchFieldsNumber: String;
-  SInvalidOperationInTrans: String;
-  SIncorrectSymbol: String;
-  SIncorrectToken: String;
-  SIncorrectParamChar: String;
+function SListCapacityError: String;
+begin
+  Result := ConvertZMessageToRaw(cSListCapacityError);
+end;
 
-  SSelectedTransactionIsolation: String;
-  SDriverNotSupported: String;
-  SPattern2Long: String;
-  SDriverNotCapableOutParameters: String;
-  SStatementIsNotAllowed: String;
-  SStoredProcIsNotAllowed: String;
-  SCannotPerformOperation: String;
-  SInvalidState: String;
-  SErrorConvertion: String;
-  SDataTypeDoesNotSupported: String;
-  SUnsupportedParameterType: String;
-  SUnsupportedDataType: String;
-  SErrorConvertionField: String;
-  SBadOCI: String;
-  SConnect2AsUser: String;
-  SUnknownError: String;
-  SFieldNotFound1: String;
-  SFieldNotFound2: String;
+function SListCountError: String;
+begin
+  Result := ConvertZMessageToRaw(cSListCountError);
+end;
 
-  SLoginPromptFailure: String;
+function SListIndexError: String;
+begin
+  Result := ConvertZMessageToRaw(cSListIndexError);
+end;
 
-  SPropertyQuery: String;
-  SPropertyTables: String;
-  SPropertyColumns: String;
-  SPropertyProcedures: String;
-  SPropertySequences: String;
-  SPropertyExecute: String;
+function SClonningIsNotSupported: String;
+begin
+  Result := ConvertZMessageToRaw(cSClonningIsNotSupported);
+end;
 
-  SFormTest: String;
-  SButtonClose: String;
-  SFormEditor: String;
-  STabSheetSelect: String;
-  SMenuLoad: String;
-  SMenuSave: String;
-  SButtonGenerate: String;
-  SButtonCheck: String;
-  SButtonTest: String;
-  SButtonOk: String;
-  SButtonCancel: String;
-  STableAlias: String;
-  SReplaceSQL: String;
-  SDialogOpenTitle: String;
-  SDialogSaveTitle: String;
-  SSQLEditor: String;
-  SDatabaseDialog: String;
+function SImmutableOpIsNotAllowed: String;
+begin
+  Result := ConvertZMessageToRaw(cSImmutableOpIsNotAllowed);
+end;
 
-  SUpdateSQLNoResult: String;
-  SUpdateSQLRefreshStatementcount: String;
-  {$IFDEF FPC}
-  SNotEditing: String;
-  SFieldTypeMismatch: String;
-  SFieldSizeMismatch: String;
-  {$ENDIF}
-  SNeedField: String;
+function SStackIsEmpty: String;
+begin
+  Result := ConvertZMessageToRaw(cSStackIsEmpty);
+end;
 
-  SFailedtoInitPrepStmt: String;
-  SFailedtoPrepareStmt: String;
-  SFailedToBindAllValues: String;
-  SAttemptExecOnBadPrep: String;
-  SBindingFailure: String;
-  SPreparedStmtExecFailure: String;
-  SBoundVarStrIndexMissing: String;
-  SBindVarOutOfRange: String;
-  SFailedToBindResults: String;
-  SPreviousResultStillOpen: String;
+function SVariableWasNotFound: String;
+begin
+  Result := ConvertZMessageToRaw(cSVariableWasNotFound);
+end;
 
+function SFunctionWasNotFound: String;
+begin
+  Result := ConvertZMessageToRaw(cSFunctionWasNotFound);
+end;
 
-  SRefreshRowOnlySupportedWithUpdateObject: String;
-  SMustBeInBrowseMode: String;
+function SInternalError: String;
+begin
+  Result := ConvertZMessageToRaw(cSInternalError);
+end;
 
-  SUnKnownParamDataType: String;
-  SFieldReadOnly: String;
-  SInvalidUpdateCount: String;
+function SSyntaxErrorNear: String;
+begin
+  Result := ConvertZMessageToRaw(cSSyntaxErrorNear);
+end;
 
-  SRowBufferWidthExceeded: String;
+function SSyntaxError: String;
+begin
+  Result := ConvertZMessageToRaw(cSSyntaxError);
+end;
 
-implementation
+function SUnknownSymbol: String;
+begin
+  Result := ConvertZMessageToRaw(cSUnknownSymbol);
+end;
 
+function SUnexpectedExprEnd: String;
+begin
+  Result := ConvertZMessageToRaw(cSUnexpectedExprEnd);
+end;
+
+function SRightBraceExpected: String;
+begin
+  Result := ConvertZMessageToRaw(cSRightBraceExpected);
+end;
+
+function SParametersError: String;
+begin
+  Result := ConvertZMessageToRaw(cSParametersError);
+end;
+
+function SParamValueExceeded: String;
+begin
+  Result := ConvertZMessageToRaw(cSParamValueExceeded);
+end;
+
+function SExpectedMoreParams: String;
+begin
+  Result := ConvertZMessageToRaw(cSExpectedMoreParams);
+end;
+
+function SInvalidVarByteArray: String;
+begin
+  Result := ConvertZMessageToRaw(cSInvalidVarByteArray);
+end;
+
+function SVariableAlreadyExists: String;
+begin
+  Result := ConvertZMessageToRaw(cSVariableAlreadyExists);
+end;
+
+function STypesMismatch: String;
+begin
+  Result := ConvertZMessageToRaw(cSTypesMismatch);
+end;
+
+function SUnsupportedVariantType: String;
+begin
+  Result := ConvertZMessageToRaw(cSUnsupportedVariantType);
+end;
+
+function SUnsupportedOperation: String;
+begin
+  Result := ConvertZMessageToRaw(cSUnsupportedOperation);
+end;
+
+function STokenizerIsNotDefined: String;
+begin
+  Result := ConvertZMessageToRaw(cSTokenizerIsNotDefined);
+end;
+
+function SLibraryNotFound: String;
+begin
+  Result := ConvertZMessageToRaw(cSLibraryNotFound);
+end;
+
+function SLibraryNotCompatible: String;
+begin
+  Result := ConvertZMessageToRaw(cSLibraryNotCompatible);
+end;
+
+function SCanNotRetrieveResultSetData: String;
+begin
+  Result := ConvertZMessageToRaw(cSCanNotRetrieveResultSetData);
+end;
+
+function SRowBufferIsNotAssigned: String;
+begin
+  Result := ConvertZMessageToRaw(cSRowBufferIsNotAssigned);
+end;
+
+function SColumnIsNotAccessable: String;
+begin
+  Result := ConvertZMessageToRaw(cSColumnIsNotAccessable);
+end;
+
+function SConvertionIsNotPossible: String;
+begin
+  Result := ConvertZMessageToRaw(cSConvertionIsNotPossible);
+end;
+
+function SCanNotAccessBlobRecord: String;
+begin
+  Result := ConvertZMessageToRaw(cSCanNotAccessBlobRecord);
+end;
+
+function SRowDataIsNotAvailable: String;
+begin
+  Result := ConvertZMessageToRaw(cSRowDataIsNotAvailable);
+end;
+
+function SResolverIsNotSpecified: String;
+begin
+  Result := ConvertZMessageToRaw(cSResolverIsNotSpecified);
+end;
+
+function SResultsetIsAlreadyOpened: String;
+begin
+  Result := ConvertZMessageToRaw(cSResultsetIsAlreadyOpened);
+end;
+
+function SCanNotUpdateEmptyRow: String;
+begin
+  Result := ConvertZMessageToRaw(cSCanNotUpdateEmptyRow);
+end;
+
+function SCanNotUpdateDeletedRow: String;
+begin
+  Result := ConvertZMessageToRaw(cSCanNotUpdateDeletedRow);
+end;
+
+function SCanNotDeleteEmptyRow: String;
+begin
+  Result := ConvertZMessageToRaw(cSCanNotDeleteEmptyRow);
+end;
+
+function SCannotUseCommit: String;
+begin
+  Result := ConvertZMessageToRaw(cSCannotUseCommit);
+end;
+
+function SCannotUseRollBack: String;
+begin
+  Result := ConvertZMessageToRaw(cSCannotUseRollBack);
+end;
+
+function SCanNotUpdateComplexQuery: String;
+begin
+  Result := ConvertZMessageToRaw(cSCanNotUpdateComplexQuery);
+end;
+
+function SCanNotUpdateThisQueryType: String;
+begin
+  Result := ConvertZMessageToRaw(cSCanNotUpdateThisQueryType);
+end;
+
+function SDriverWasNotFound: String;
+begin
+  Result := ConvertZMessageToRaw(cSDriverWasNotFound);
+end;
+
+function SCanNotConnectToServer: String;
+begin
+  Result := ConvertZMessageToRaw(cSCanNotConnectToServer);
+end;
+
+function STableIsNotSpecified: String;
+begin
+  Result := ConvertZMessageToRaw(cSTableIsNotSpecified);
+end;
+
+function SLiveResultSetsAreNotSupported: String;
+begin
+  Result := ConvertZMessageToRaw(cSLiveResultSetsAreNotSupported);
+end;
+
+function SInvalidInputParameterCount: String;
+begin
+  Result := ConvertZMessageToRaw(cSInvalidInputParameterCount);
+end;
+
+function SIsolationIsNotSupported: String;
+begin
+  Result := ConvertZMessageToRaw(cSIsolationIsNotSupported);
+end;
+
+function SColumnWasNotFound: String;
+begin
+  Result := ConvertZMessageToRaw(cSColumnWasNotFound);
+end;
+
+function SWrongTypeForBlobParameter: String;
+begin
+  Result := ConvertZMessageToRaw(cSWrongTypeForBlobParameter);
+end;
+
+function SIncorrectConnectionURL: String;
+begin
+  Result := ConvertZMessageToRaw(cSIncorrectConnectionURL);
+end;
+
+function SUnsupportedProtocol: String;
+begin
+  Result := ConvertZMessageToRaw(cSUnsupportedProtocol);
+end;
+
+function SUnsupportedByDriver: String;
+begin
+  Result := ConvertZMessageToRaw(cSUnsupportedByDriver);
+end;
+
+function SConnectionIsNotOpened: String;
+begin
+  Result := ConvertZMessageToRaw(cSConnectionIsNotOpened);
+end;
+
+function SConnectionIsOpened: String;
+begin
+  Result := ConvertZMessageToRaw(cSConnectionIsOpened);
+end;
+
+function SInvalidOpInAutoCommit: String;
+begin
+  Result := ConvertZMessageToRaw(cSInvalidOpInAutoCommit);
+end;
+
+function SInvalidOpInNonAutoCommit: String;
+begin
+  Result := ConvertZMessageToRaw(cSInvalidOpInNonAutoCommit);
+end;
+
+function SInvalidOpPrepare: String;
+begin
+  Result := ConvertZMessageToRaw(cSInvalidOpPrepare);
+end;
+
+function SConnectionIsNotAssigned: String;
+begin
+  Result := ConvertZMessageToRaw(cSConnectionIsNotAssigned);
+end;
+
+function SQueryIsEmpty: String;
+begin
+  Result := ConvertZMessageToRaw(cSQueryIsEmpty);
+end;
+
+function SCanNotExecuteMoreQueries: String;
+begin
+  Result := ConvertZMessageToRaw(cSCanNotExecuteMoreQueries);
+end;
+
+function SOperationIsNotAllowed1: String;
+begin
+  Result := ConvertZMessageToRaw(cSOperationIsNotAllowed1);
+end;
+
+function SOperationIsNotAllowed2: String;
+begin
+  Result := ConvertZMessageToRaw(cSOperationIsNotAllowed2);
+end;
+
+function SOperationIsNotAllowed3: String;
+begin
+  Result := ConvertZMessageToRaw(cSOperationIsNotAllowed3);
+end;
+
+function SOperationIsNotAllowed4: String;
+begin
+  Result := ConvertZMessageToRaw(cSOperationIsNotAllowed4);
+end;
+
+function SNoMoreRecords: String;
+begin
+  Result := ConvertZMessageToRaw(cSNoMoreRecords);
+end;
+
+function SCanNotOpenResultSet: String;
+begin
+  Result := ConvertZMessageToRaw(cSCanNotOpenResultSet);
+end;
+
+function SCanNotOpenDataSetWhenDestroying: String;
+begin
+  Result := ConvertZMessageToRaw(cSCanNotOpenDataSetWhenDestroying);
+end;
+
+function SCircularLink: String;
+begin
+  Result := ConvertZMessageToRaw(cSCircularLink);
+end;
+
+function SBookmarkWasNotFound: String;
+begin
+  Result := ConvertZMessageToRaw(cSBookmarkWasNotFound);
+end;
+
+function SIncorrectSearchFieldsNumber: String;
+begin
+  Result := ConvertZMessageToRaw(cSIncorrectSearchFieldsNumber);
+end;
+
+function SInvalidOperationInTrans: String;
+begin
+  Result := ConvertZMessageToRaw(cSInvalidOperationInTrans);
+end;
+
+function SIncorrectSymbol: String;
+begin
+  Result := ConvertZMessageToRaw(cSIncorrectSymbol);
+end;
+
+function SIncorrectToken: String;
+begin
+  Result := ConvertZMessageToRaw(cSIncorrectToken);
+end;
+
+function SIncorrectParamChar: String;
+begin
+  Result := ConvertZMessageToRaw(cSIncorrectParamChar);
+end;
+
+function SSelectedTransactionIsolation: String;
+begin
+  Result := ConvertZMessageToRaw(cSSelectedTransactionIsolation);
+end;
+
+function SDriverNotSupported: String;
+begin
+  Result := ConvertZMessageToRaw(cSDriverNotSupported);
+end;
+
+function SPattern2Long: String;
+begin
+  Result := ConvertZMessageToRaw(cSPattern2Long);
+end;
+
+function SDriverNotCapableOutParameters: String;
+begin
+  Result := ConvertZMessageToRaw(cSDriverNotCapableOutParameters);
+end;
+
+function SStatementIsNotAllowed: String;
+begin
+  Result := ConvertZMessageToRaw(cSStatementIsNotAllowed);
+end;
+
+function SStoredProcIsNotAllowed: String;
+begin
+  Result := ConvertZMessageToRaw(cSStoredProcIsNotAllowed);
+end;
+
+function SCannotPerformOperation: String;
+begin
+  Result := ConvertZMessageToRaw(cSCannotPerformOperation);
+end;
+
+function SInvalidState: String;
+begin
+  Result := ConvertZMessageToRaw(cSInvalidState);
+end;
+
+function SErrorConvertion: String;
+begin
+  Result := ConvertZMessageToRaw(cSErrorConvertion);
+end;
+
+function SDataTypeDoesNotSupported: String;
+begin
+  Result := ConvertZMessageToRaw(cSDataTypeDoesNotSupported);
+end;
+
+function SUnsupportedParameterType: String;
+begin
+  Result := ConvertZMessageToRaw(cSUnsupportedParameterType);
+end;
+
+function SUnsupportedDataType: String;
+begin
+  Result := ConvertZMessageToRaw(cSUnsupportedDataType);
+end;
+
+function SErrorConvertionField: String;
+begin
+  Result := ConvertZMessageToRaw(cSErrorConvertionField);
+end;
+
+function SBadOCI: String;
+begin
+  Result := ConvertZMessageToRaw(cSBadOCI);
+end;
+
+function SConnect2AsUser: String;
+begin
+  Result := ConvertZMessageToRaw(cSConnect2AsUser);
+end;
+
+function SConnect2WinAuth: String;
+begin
+  Result := ConvertZMessageToRaw(cSConnect2WinAuth);
+end;
+
+function SUnknownError: String;
+begin
+  Result := ConvertZMessageToRaw(cSUnknownError);
+end;
+
+function SFieldNotFound1: String;
+begin
+  Result := ConvertZMessageToRaw(cSFieldNotFound1);
+end;
+
+function SFieldNotFound2: String;
+begin
+  Result := ConvertZMessageToRaw(cSFieldNotFound2);
+end;
+
+function SLoginPromptFailure: String;
+begin
+  Result := ConvertZMessageToRaw(cSLoginPromptFailure);
+end;
+
+function SPropertyQuery: String;
+begin
+  Result := ConvertZMessageToRaw(cSPropertyQuery);
+end;
+
+function SPropertyTables: String;
+begin
+  Result := ConvertZMessageToRaw(cSPropertyTables);
+end;
+
+function SPropertyColumns: String;
+begin
+  Result := ConvertZMessageToRaw(cSPropertyColumns);
+end;
+
+function SPropertyProcedures: String;
+begin
+  Result := ConvertZMessageToRaw(cSPropertyProcedures);
+end;
+
+function SPropertySequences: String;
+begin
+  Result := ConvertZMessageToRaw(cSPropertySequences);
+end;
+
+function SPropertyExecute: String;
+begin
+  Result := ConvertZMessageToRaw(cSPropertyExecute);
+end;
+
+function SFormTest: String;
+begin
+  Result := ConvertZMessageToRaw(cSFormTest);
+end;
+
+function SButtonClose: String;
+begin
+  Result := ConvertZMessageToRaw(cSButtonClose);
+end;
+
+function SFormEditor: String;
+begin
+  Result := ConvertZMessageToRaw(cSFormEditor);
+end;
+
+function STabSheetSelect: String;
+begin
+  Result := ConvertZMessageToRaw(cSTabSheetSelect);
+end;
+
+function SMenuLoad: String;
+begin
+  Result := ConvertZMessageToRaw(cSMenuLoad);
+end;
+
+function SMenuSave: String;
+begin
+  Result := ConvertZMessageToRaw(cSMenuSave);
+end;
+
+function SButtonGenerate: String;
+begin
+  Result := ConvertZMessageToRaw(cSButtonGenerate);
+end;
+
+function SButtonCheck: String;
+begin
+  Result := ConvertZMessageToRaw(cSButtonCheck);
+end;
+
+function SButtonTest: String;
+begin
+  Result := ConvertZMessageToRaw(cSButtonTest);
+end;
+
+function SButtonOk: String;
+begin
+  Result := ConvertZMessageToRaw(cSButtonOk);
+end;
+
+function SButtonCancel: String;
+begin
+  Result := ConvertZMessageToRaw(cSButtonCancel);
+end;
+
+function STableAlias: String;
+begin
+  Result := ConvertZMessageToRaw(cSTableAlias);
+end;
+
+function SReplaceSQL: String;
+begin
+  Result := ConvertZMessageToRaw(cSReplaceSQL);
+end;
+
+function SDialogOpenTitle: String;
+begin
+  Result := ConvertZMessageToRaw(cSDialogOpenTitle);
+end;
+
+function SDialogSaveTitle: String;
+begin
+  Result := ConvertZMessageToRaw(cSDialogSaveTitle);
+end;
+
+function SSQLEditor: String;
+begin
+  Result := ConvertZMessageToRaw(cSSQLEditor);
+end;
+
+function SDatabaseDialog: String;
+begin
+  Result := ConvertZMessageToRaw(cSDatabaseDialog);
+end;
+
+function SUpdateSQLNoResult: String;
+begin
+  Result := ConvertZMessageToRaw(cSUpdateSQLNoResult);
+end;
+
+function SUpdateSQLRefreshStatementcount: String;
+begin
+  Result := ConvertZMessageToRaw(cSUpdateSQLRefreshStatementcount);
+end;
+
+function SNotEditing: String;
+begin
+  Result := ConvertZMessageToRaw(cSNotEditing);
+end;
+
+function SFieldTypeMismatch: String;
+begin
+  Result := ConvertZMessageToRaw(cSFieldTypeMismatch);
+end;
+
+function SFieldSizeMismatch: String;
+begin
+  Result := ConvertZMessageToRaw(cSFieldSizeMismatch);
+end;
+
+function SNeedField: String;
+begin
+  Result := ConvertZMessageToRaw(cSNeedField);
+end;
+
+function SFailedtoInitPrepStmt: String;
+begin
+  Result := ConvertZMessageToRaw(cSFailedtoInitPrepStmt);
+end;
+
+function SFailedtoPrepareStmt: String;
+begin
+  Result := ConvertZMessageToRaw(cSFailedtoPrepareStmt);
+end;
+
+function SFailedToBindAllValues: String;
+begin
+  Result := ConvertZMessageToRaw(cSFailedToBindAllValues);
+end;
+
+function SAttemptExecOnBadPrep: String;
+begin
+  Result := ConvertZMessageToRaw(cSAttemptExecOnBadPrep);
+end;
+
+function SBindingFailure: String;
+begin
+  Result := ConvertZMessageToRaw(cSBindingFailure);
+end;
+
+function SPreparedStmtExecFailure: String;
+begin
+  Result := ConvertZMessageToRaw(cSPreparedStmtExecFailure);
+end;
+
+function SBoundVarStrIndexMissing: String;
+begin
+  Result := ConvertZMessageToRaw(cSBoundVarStrIndexMissing);
+end;
+
+function SBindVarOutOfRange: String;
+begin
+  Result := ConvertZMessageToRaw(cSBindVarOutOfRange);
+end;
+
+function SFailedToBindResults: String;
+begin
+  Result := ConvertZMessageToRaw(cSFailedToBindResults);
+end;
+
+function SPreviousResultStillOpen: String;
+begin
+  Result := ConvertZMessageToRaw(cSPreviousResultStillOpen);
+end;
+
+function SRefreshRowOnlySupportedWithUpdateObject: String;
+begin
+  Result := ConvertZMessageToRaw(cSRefreshRowOnlySupportedWithUpdateObject);
+end;
+
+function SMustBeInBrowseMode: String;
+begin
+  Result := ConvertZMessageToRaw(cSMustBeInBrowseMode);
+end;
+
+function SUnKnownParamDataType: String;
+begin
+  Result := ConvertZMessageToRaw(cSUnKnownParamDataType);
+end;
+
+function SFieldReadOnly: String;
+begin
+  Result := ConvertZMessageToRaw(cSFieldReadOnly);
+end;
+
+function SInvalidUpdateCount: String;
+begin
+  Result := ConvertZMessageToRaw(cSInvalidUpdateCount);
+end;
+
+function SBackgroundOperationStillRunning: String;
+begin
+  Result := ConvertZMessageToRaw(cSBackgroundOperationStillRunning);
+end;
+{$ELSE}
 procedure loadmessages;
 begin
-  MessageCodePage := cCodePage;
+  {$IFNDEF WITH_RTLCONSTS_SInvalidGuidArray}
+  SInvalidGuidArray := cInvalidGuidArray;
+  {$ENDIF}
+  {$IFNDEF WITH_SBCDOVERFLOW}
+  SBcdOverflow := cBcdOverflow;
+  {$ENDIF}
+  {$IFNDEF WITH_SInvalidBcdValue}
+  SInvalidBcdValue := cInvalidBcdValue;
+  {$ENDIF}
 
   SSQLError1 := cSSQLError1;
   SSQLError2 := cSSQLError2;
@@ -2200,12 +3066,6 @@ begin
   STokenizerIsNotDefined := cSTokenizerIsNotDefined;
   SLibraryNotFound := cSLibraryNotFound;
   SLibraryNotCompatible := cSLibraryNotCompatible;
-  SEncodeDateIsNotSupported := cSEncodeDateIsNotSupported;
-  SEncodeTimeIsNotSupported := cSEncodeTimeIsNotSupported;
-  SEncodeTimestampIsNotSupported := cSEncodeTimestampIsNotSupported;
-  SDecodeDateIsNotSupported := cSDecodeDateIsNotSupported;
-  SDecodeTimeIsNotSupported := cSDecodeTimeIsNotSupported;
-  SDecodeTimestampIsNotSupported := cSDecodeTimestampIsNotSupported;
 
   SCanNotRetrieveResultSetData := cSCanNotRetrieveResultSetData;
   SRowBufferIsNotAssigned := cSRowBufferIsNotAssigned;
@@ -2235,6 +3095,7 @@ begin
   SUnsupportedByDriver := cSUnsupportedByDriver;
 
   SConnectionIsNotOpened := cSConnectionIsNotOpened;
+  SConnectionIsOpened := cSConnectionIsOpened;
   SInvalidOpInAutoCommit := cSInvalidOpInAutoCommit;
   SInvalidOpInNonAutoCommit := cSInvalidOpInNonAutoCommit;
   SInvalidOpPrepare := cSInvalidOpPrepare;
@@ -2272,6 +3133,7 @@ begin
   SErrorConvertionField := cSErrorConvertionField;
   SBadOCI := cSBadOCI;
   SConnect2AsUser := cSConnect2AsUser;
+  SConnect2WinAuth := cSConnect2WinAuth;
   SUnknownError := cSUnknownError;
   SFieldNotFound1 := cSFieldNotFound1;
   SFieldNotFound2 := cSFieldNotFound2;
@@ -2330,11 +3192,12 @@ begin
   SFieldReadOnly := cSFieldReadOnly;
   SInvalidUpdateCount := cSInvalidUpdateCount;
 
-  SRowBufferWidthExceeded := cSRowBufferWidthExceeded;
+  SBackgroundOperationStillRunning := cSBackgroundOperationStillRunning;
 end;
 
 initialization
   loadmessages;
+{$IFEND}
 end.
 
 

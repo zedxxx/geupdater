@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -55,7 +55,12 @@ interface
 
 {$I ZParseSql.inc}
 
-{$IFNDEF ZEOS_DISABLE_POSTGRESQL}
+{$IF defined(ZEOS_DISABLE_POSTGRESQL) and defined (ZEOS_DISABLE_OLEDB) and
+ defined (ZEOS_DISABLE_ADO) and defined(ZEOS_DISABLE_ODBC) and defined(ZEOS_DISABLE_PROXY)}
+  {$DEFINE EMPTY_ZPostgreSqlToken}
+{$IFEND}
+
+{$IFNDEF EMPTY_ZPostgreSqlToken}
 
 uses
   Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils,
@@ -68,19 +73,9 @@ type
 
   {** Implements a PostgreSQL-specific quote string state object. }
   TZPostgreSQLQuoteState = class (TZMySQLQuoteState)
-  private
-    { how backslashes in quoted strings are handled
-      True means backslashes are escape characters }
-    FStandardConformingStrings: Boolean;
-  protected
-    function GetModifier(Stream: TStream; FirstChar: Char; ResetPosition: Boolean = True): String;
-    procedure GetQuotedString(Stream: TStream; QuoteChar: Char; EscapeSyntax: Boolean; var Result: String);
-    procedure GetQuotedStringWithModifier(Stream: TStream; FirstChar: Char; var Result: String);
   public
-    function NextToken(Stream: TStream; FirstChar: Char;
+    function NextToken(var SPos: PChar; const NTerm: PChar;
       {%H-}Tokenizer: TZTokenizer): TZToken; override;
-
-    property StandardConformingStrings: Boolean read FStandardConformingStrings write FStandardConformingStrings;
   end;
 
   {**
@@ -89,18 +84,15 @@ type
   }
   TZPostgreSQLCommentState = class (TZGenericSQLCommentState)
   protected
-    procedure GetMultiLineComment(Stream: TStream; var Result: String); override;
+    procedure GetMultiLineComment(var SPos: PChar; const NTerm: PChar); override;
   end;
 
   {** Implements a symbol state object. }
   TZPostgreSQLSymbolState = class (TZSymbolState)
-  private
-    fNumberState: TZNumberState;
   public
-    function NextToken(Stream: TStream; FirstChar: Char;
+    function NextToken(var SPos: PChar; const NTerm: PChar;
       Tokenizer: TZTokenizer): TZToken; override;
     constructor Create;
-    destructor Destroy; override;
   end;
 
   {** Implements a word state object. }
@@ -109,26 +101,23 @@ type
     constructor Create;
   end;
 
-  IZPostgreSQLTokenizer = interface (IZTokenizer)
-    ['{82392175-9065-4048-9974-EE1253B921B4}']
-    procedure SetStandardConformingStrings(const Value: Boolean);
-  end;
-
   {** Implements a default tokenizer object. }
-  TZPostgreSQLTokenizer = class (TZTokenizer, IZPostgreSQLTokenizer)
+  TZPostgreSQLTokenizer = class (TZTokenizer)
   protected
     procedure CreateTokenStates; override;
   public
-    procedure SetStandardConformingStrings(const Value: Boolean);
+    function NormalizeParamToken(const Token: TZToken; out ParamName: String;
+      LookUpList: TStrings; out ParamIndex: Integer;
+      out IngoreParam: Boolean): String; override;
   end;
 
-{$ENDIF ZEOS_DISABLE_POSTGRESQL}
+{$ENDIF EMPTY_ZPostgreSqlToken}
 
 implementation
 
-{$IFNDEF ZEOS_DISABLE_POSTGRESQL}
+{$IFNDEF EMPTY_ZPostgreSqlToken}
 
-uses ZCompatibility{$IFDEF FAST_MOVE}, ZFastCode{$ENDIF};
+uses ZCompatibility, ZFastCode;
 
 const
   NameQuoteChar   = Char('"');
@@ -141,116 +130,45 @@ const
   @return a string with modifier for valid quoted string with modifier
   or empty string otherwise.
 }
-function TZPostgreSQLQuoteState.GetModifier(Stream: TStream;
-  FirstChar: Char; ResetPosition: boolean = True): String;
-var
-  ReadChar: Char;
-  Modifier: string;
-  ReadNum: Integer;
-begin
-  Result := '';
-  if CharInSet(FirstChar, ['E', 'e', 'B', 'b', 'X', 'x', 'U', 'u']) then
-  begin
-    Modifier := FirstChar;
-    ReadNum := Stream.Read(ReadChar{%H-}, SizeOf(Char));
-    if ReadNum = SizeOf(Char) then begin
-      if (UpCase(FirstChar) = 'U') and (ReadChar = '&') then // Check for U& modifier
-      begin
-        Modifier := Modifier + ReadChar;
-        ReadNum := ReadNum + Stream.Read(ReadChar, SizeOf(Char));
-      end;
-      if (ReadChar = SingleQuoteChar) then
-         Result := Modifier;
-      if ResetPosition then
-        Stream.Seek(-ReadNum, soFromCurrent);
-    end;
-  end;
-end;
-
-{**
-  Returns a quoted string token from a reader. This method
-  will collect characters until it sees same QuoteChar,
-  ommitting doubled chars
-
-  @return a quoted string token from a reader
-}
-procedure TZPostgreSQLQuoteState.GetQuotedString(Stream: TStream; QuoteChar: Char;
-  EscapeSyntax: Boolean; var Result: String);
+function TZPostgreSQLQuoteState.NextToken(var SPos: PChar;
+  const NTerm: PChar; Tokenizer: TZTokenizer): TZToken;
 const BackSlash = Char('\');
 var
-  ReadChar: Char;
   LastChar: Char;
   QuoteCount: Integer;
   LastWasEscapeChar: Boolean;
 begin
   LastChar := #0;
-  Result := '';
-  InitBuf(QuoteChar);
+  Result.P := SPos;
+  if SPos^ = NameQuoteChar
+  then Result.TokenType := ttWord
+  else Result.TokenType := ttQuoted;
   QuoteCount := 1;
 
   LastWasEscapeChar := False;
-  while Stream.Read(ReadChar{%H-}, SizeOf(Char)) > 0 do
-  begin
-    if ReadChar = QuoteChar then
-      Inc(QuoteCount, Ord((not EscapeSyntax) or (not LastWasEscapeChar)))
-    else
-      LastWasEscapeChar :=(ReadChar=BackSlash) and (not LastWasEscapeChar); //False; //Kamil Giza comment False;
+  while SPos < NTerm do begin
+    Inc(SPos);
+    if SPos^ = Result.P^
+    then Inc(QuoteCount)
+    else LastWasEscapeChar := (SPos^=BackSlash) and (not LastWasEscapeChar); //False; //Kamil Giza comment False;
 
-    if (LastChar = QuoteChar) and (ReadChar <> QuoteChar) then
+    if (LastChar = Result.P^) and (SPos^ <> Result.P^) then
       if QuoteCount mod 2 = 0 then begin
-        Stream.Seek(-SizeOf(Char), soFromCurrent);
+        Dec(SPos);
         Break;
       end;
-    ToBuf(ReadChar, Result);
-    if (LastChar = BackSlash) and EscapeSyntax then begin
-      LastChar := #0;
+    if (SPos^ = BackSlash) then
+      LastChar := #0
       //LastWasEscapeChar := True; //Kamil Giza add comment
       //Dec(QuoteCount); nope that doesnt' work @all see the tests
-    end else if (LastChar = QuoteChar) and (ReadChar = QuoteChar) then
+    else if (LastChar = Result.P^) and (SPos^ = Result.P^) then
       LastChar := #0
-    else LastChar := ReadChar;
+    else
+      LastChar := SPos^;
   end;
-  FlushBuf(Result);
+   Result.L := SPos-Result.P+1;
 end;
 
-{**
-  Returns a quoted string token with leading modifier from a reader.
-  @return a quoted string token from a reader
-}
-procedure TZPostgreSQLQuoteState.GetQuotedStringWithModifier(Stream: TStream;
-  FirstChar: Char; var Result: String);
-var
-  Modifier: string;
-begin
-  Modifier := GetModifier(Stream, FirstChar, False);
-  if (Modifier <> '') then
-    FirstChar := SingleQuoteChar;
-  GetQuotedString(Stream, FirstChar, (not FStandardConformingStrings and (Modifier = '')) or
-    ((Modifier <> '') and (UpCase(Modifier[1]) = 'E')), Result);
-  if (Modifier <> '') then
-    Result := Modifier + Result;
-end;
-
-{**
-  Return a quoted string token from a reader. This method
-  will collect characters until it sees a match to the
-  character that the tokenizer used to switch to this state.
-
-  @return a quoted string token from a reader
-}
-function TZPostgreSQLQuoteState.NextToken(Stream: TStream;
-  FirstChar: Char; Tokenizer: TZTokenizer): TZToken;
-begin
-  if FirstChar = NameQuoteChar then begin
-    Result.TokenType := ttWord;
-    GetQuotedString(Stream, FirstChar, False, Result.Value);
-  end else begin
-    Result.TokenType := ttQuoted;
-    GetQuotedStringWithModifier(Stream, FirstChar, Result.Value);
-  end;
-end;
-
-{**
 { TZPostgreSQLCommentState }
 
 {**
@@ -258,26 +176,26 @@ end;
   then return the tokenizer's next token.
   @return the tokenizer's next token
 }
-procedure TZPostgreSQLCommentState.GetMultiLineComment(Stream: TStream; var Result: string);
+procedure TZPostgreSQLCommentState.GetMultiLineComment(var SPos: PChar;
+  const NTerm: PChar);
 var
-  ReadChar, LastChar: Char;
+  LastChar: Char;
   NestedLevel: Integer;
 begin
   LastChar := #0;
   NestedLevel := 1;
-  while Stream.Read(ReadChar{%H-}, SizeOf(Char)) > 0 do
-  begin
-    ToBuf(ReadChar, Result);
-    if (LastChar = '*') and (ReadChar = '/') then
+  while SPos < NTerm do begin
+    Inc(SPos);
+    if (LastChar = '*') and (Spos^ = '/') then
     begin
       Dec(NestedLevel);
       if NestedLevel = 0 then
         Break;
     end
     else
-    if (LastChar = '/') and (ReadChar = '*') then
+    if (LastChar = '/') and (Spos^ = '*') then
       Inc(NestedLevel);
-    LastChar := ReadChar;
+    LastChar := SPos^;
   end;
 end;
 
@@ -297,7 +215,59 @@ begin
   Add('~*');
   Add('!~');
   Add('!~*');
-  fNumberState := TZNumberState.Create;
+  Add('::'); //parameter type marker such as 1::BIGINT
+end;
+
+function TZPostgreSQLSymbolState.NextToken(var SPos: PChar; const NTerm: PChar;
+  Tokenizer: TZTokenizer): TZToken;
+var
+  DollarCount, BodyTagLen: Integer;
+  TempTag, ParamTag: PChar;
+begin
+  Result := inherited NextToken(SPos, NTerm, Tokenizer);
+  //detecting Postgre Parameters as one ttWordState:
+  if (Result.P^ = '$') and (SPos < NTerm) then begin
+    //detect body tags as ttQuoted
+    //eg. $body$ .... $body$ or $$ .... $$
+    DollarCount := 1;
+    BodyTagLen := 1;
+    TempTag := nil;
+    while (SPos < NTerm) do begin
+      Inc(SPos);
+      if SPos^ = '$' then begin
+        Inc(DollarCount);
+        if (SPos < NTerm) and (Ord((SPos+1)^) >= Ord('0')) and (Ord((SPos+1)^) <= Ord('9')) then begin //assum we've a syntax like $1 which represents a param
+          ParamTag := SPos;
+          Inc(SPos);
+          while (SPos < NTerm) and (Ord(SPos^) >= Ord('0')) and (Ord(SPos^) <= Ord('9')) do
+            Inc(SPos);
+          if (SPos < NTerm) then
+            if (Ord(SPos^) <= Ord(' ')) then begin
+              //White whitesace found not a body tag!
+              if DollarCount = 1 then begin
+                SPos := ParamTag;
+                Break;
+              end;
+            end else if SPos^ = '$' then
+              Inc(DollarCount);
+        end;
+        if DollarCount = 2 then
+          BodyTagLen := SPos-Result.P
+        else if DollarCount = 3 then
+          TempTag := Spos
+        else if (DollarCount = 4) then
+          if ((Spos - TempTag) = BodyTagLen) and CompareMem(Result.P, TempTag, BodyTagLen*SizeOf(Char)) then begin
+            Result.L := (Spos - Result.P)+1;
+            Result.TokenType := ttQuoted;
+            Exit;
+          end else begin // $body$ .... $1, $2  .... $body$
+            DollarCount := 3;
+            TempTag := Spos;
+          end;
+      end;
+    end;
+    SPos := Result.P + Result.L-1;
+  end;
 end;
 
 { TZPostgreSQLWordState }
@@ -314,16 +284,6 @@ begin
   SetWordChars('0', '9', True);
   SetWordChars('_', '_', True);
   SetWordChars('$', '$', True);
-end;
-
-{**
-  informs the Postgre Tokenizer '\' should be handled as Escape-char
-  @param True means backslashes are quoted strings
-}
-procedure TZPostgreSQLTokenizer.SetStandardConformingStrings(
-  const Value: Boolean);
-begin
-  (QuoteState as TZPostgreSQLQuoteState).StandardConformingStrings := Value;
 end;
 
 {**
@@ -359,65 +319,40 @@ begin
   SetCharacterState('-', '-', CommentState);
 end;
 
-destructor TZPostgreSQLSymbolState.Destroy;
-begin
-  FreeAndNil(FNumberState);
-  inherited;
-end;
-
-function TZPostgreSQLSymbolState.NextToken(Stream: TStream; FirstChar: Char;
-  Tokenizer: TZTokenizer): TZToken;
+function TZPostgreSQLTokenizer.NormalizeParamToken(const Token: TZToken;
+  out ParamName: String; LookUpList: TStrings; out ParamIndex: Integer;
+  out IngoreParam: Boolean): String;
 var
-  NumRead: Integer;
-  ReadChar: Char;
-  Tag, TempTag: string;
-  TagState: integer;
+  P: PChar;
+  C: Cardinal;
+  B: Byte;
 begin
-  Result := inherited NextToken(Stream, FirstChar, Tokenizer);
-  //detecting Postgre Parameters as one ttWordState:
-  if (Result.Value = '$') then begin
-    NumRead := Stream.Read(ReadChar{%H-}, SizeOf(Char));
-    if (NumRead > 0) then begin
-      Stream.Seek(-SizeOf(Char), soFromCurrent);
-      //detect body tags as ttQuoted
-      //eg. $body$ .... $body$ or $$ .... $$
-      TagState := 0;
-      InitBuf(FirstChar);
-      Result.Value := '';
-      NumRead := 0;
-      while Stream.Read(ReadChar{%H-}, SizeOf(Char)) > 0 do begin
-        Inc(NumRead, SizeOf(char));
-        if (TagState = 0) and (ReadChar = ',') then
-          Break;
-
-        if (ReadChar = '$') then begin
-          if (TagState = 0) then begin
-            TagState := 1;
-            FlushBuf(Result.Value);
-            Tag := Result.Value;
-          end else if (TagState = 1) then begin
-            TagState := 2;
-            TempTag := '';
-          end else if (TagState = 2) then
-            if TempTag = Tag
-            then TagState := 3
-            else TempTag := '';
-        end;
-        ToBuf(ReadChar, Result.Value);
-
-        if TagState = 2 then
-          TempTag := TempTag + ReadChar
-        else if TagState = 3 then begin
-          FlushBuf(Result.Value);
-          Result.TokenType := ttQuoted;
-          Exit;
-        end;
-      end;
-      Result.Value := '$';
-      Stream.Seek(-NumRead, soFromCurrent);
-    end;
+  {postgres just understands numerical tokens only at least unti V12}
+  if Token.TokenType = ttInteger then begin
+    System.SetString(ParamName, Token.P, Token.L);
+    System.SetString(Result, nil, Token.L+1);
+    P := Pointer(Result);
+    P^ := '$';
+    Move(Token.P^, (P+1)^, Token.L*SizeOf(Char));
+  end else if (Token.L >= 2) and (Ord(Token.P^) in [Ord(#39), Ord('`'), Ord('"'), Ord('[')])
+    then ParamName := GetQuoteState.DecodeToken(Token, Token.P^)
+    else System.SetString(ParamName, Token.P, Token.L);
+  ParamIndex := LookUpList.IndexOf(ParamName);
+  if ParamIndex = -1 then begin
+    ParamIndex := LookUpList.Add(ParamName);
+    IngoreParam := False;
+  end else IngoreParam := True;
+  if Token.TokenType <> ttInteger then begin
+    C := Cardinal(ParamIndex )+1;
+    B := GetOrdinalDigits(C);
+    SetLength(Result, B+1);
+    P := Pointer(Result);
+    P^ := '$';
+    {$IFDEF UNICODE}IntToUnicode{$ELSE}IntToRaw{$ENDIF}(C, P+1, B);
   end;
 end;
-{$ENDIF ZEOS_DISABLE_POSTGRESQL}
+
+{$ENDIF EMPTY_ZPostgreSqlToken}
+
 end.
 

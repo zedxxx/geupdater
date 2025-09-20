@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -62,8 +62,9 @@ interface
 {$IFNDEF ZEOS_DISABLE_ADO}
 uses
   Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils,
-  ZDbcConnection, ZDbcIntfs, ZCompatibility, ZPlainAdoDriver,
-  ZPlainAdo, ZURL, ZTokenizer;
+  ZCompatibility, ZTokenizer,
+  ZGenericSqlAnalyser, ZPlainAdoDriver, ZPlainAdo,
+  ZDbcConnection, ZDbcIntfs, ZDbcLogging;
 
 type
   {** Implements Ado Database Driver. }
@@ -71,8 +72,6 @@ type
   public
     constructor Create; override;
     function Connect(const Url: TZURL): IZConnection; override;
-    function GetMajorVersion: Integer; override;
-    function GetMinorVersion: Integer; override;
     function GetTokenizer: IZTokenizer; override;
   end;
 
@@ -80,48 +79,159 @@ type
   IZAdoConnection = interface (IZConnection)
     ['{50D1AF76-0174-41CD-B90B-4FB770EFB14F}']
     function GetAdoConnection: ZPlainAdo.Connection;
-    procedure InternalExecuteStatement(const SQL: ZWideString);
+    function GetByteBufferAddress: PByteBuffer;
+    procedure HandleErrorOrWarning(LoggingCategory: TZLoggingCategory;
+      const E: Exception; const Sender: IImmediatelyReleasable;
+      const LogMsg: SQLString);
   end;
 
-  TZServerProvider = (spUnknown, spMSSQL, spMSJet, spOracle, spASE, spASA,
-    spPostgreSQL, spIB_FB, spMySQL, spNexusDB, spSQLite, spDB2, spAS400,
-    spInformix, spCUBRID, spFoxPro);
-
   {** Implements a generic Ado Connection. }
-  TZAdoConnection = class(TZAbstractConnection, IZAdoConnection)
+  TZAdoConnection = class(TZAbstractSingleTxnConnection, IZConnection,
+    IZAdoConnection, IZTransaction)
   private
     fServerProvider: TZServerProvider;
-    procedure ReStartTransactionSupport;
+    FTransactionLevel: Integer;
+    FHostVersion: Integer;
   protected
     FAdoConnection: ZPlainAdo.Connection;
-    function GetAdoConnection: ZPlainAdo.Connection;
-    procedure InternalExecuteStatement(const SQL: ZWideString);
-    procedure StartTransaction;
-    procedure InternalCreate; override;
+    /// <summary>Immediately execute a query and do nothing with the results.</summary>
+    /// <remarks>A new driver needs to implement one of the overloads.</remarks>
+    /// <param>"SQL" a UTF16 encoded query to be executed.</param>
+    /// <param>"LoggingCategory" the LoggingCategory for the Logging listeners.</param>
+    procedure ExecuteImmediat(const SQL: UnicodeString; LoggingCategory: TZLoggingCategory); overload; override;
+    procedure InternalClose; override;
   public
+    function GetAdoConnection: ZPlainAdo.Connection;
+    procedure HandleErrorOrWarning(LoggingCategory: TZLoggingCategory;
+      const E: Exception; const Sender: IImmediatelyReleasable;
+      const LogMsg: SQLString);
+  public
+    procedure AfterConstruction; override;
     destructor Destroy; override;
-
-    function GetBinaryEscapeString(const Value: TBytes): String; overload; override;
-    function GetBinaryEscapeString(const Value: RawByteString): String; overload; override;
-    function CreateRegularStatement(Info: TStrings): IZStatement; override;
-    function CreatePreparedStatement(const SQL: string; Info: TStrings):
-      IZPreparedStatement; override;
-    function CreateCallableStatement(const SQL: string; Info: TStrings):
-      IZCallableStatement; override;
-    function CreateSequence(const Sequence: string; BlockSize: Integer):
-      IZSequence; override;
-
+  public
+    /// <summary>If the current transaction is saved the current savepoint get's
+    ///  released. Otherwise makes all changes made since the previous commit/
+    ///  rollback permanent and releases any database locks currently held by
+    ///  the Connection. This method should be used only when auto-commit mode
+    ///  has been disabled. See setAutoCommit.</summary>
+    procedure Commit;
+    /// <summary>If the current transaction is saved the current savepoint get's
+    ///  rolled back. Otherwise drops all changes made since the previous
+    ///  commit/rollback and releases any database locks currently held by this
+    ///  Connection. This method should be used only when auto-commit has been
+    ///  disabled. See setAutoCommit.</summary>
+    procedure Rollback;
+    /// <summary>Sets this connection's auto-commit mode. If a connection is in
+    ///  auto-commit mode, then all its SQL statements will be executed and
+    ///  committed as individual transactions. Otherwise, its SQL statements are
+    ///  grouped into transactions that are terminated by a call to either the
+    ///  method <c>commit</c> or the method <c>rollback</c>. By default, new
+    ///  connections are in auto-commit mode. The commit occurs when the
+    ///  statement completes or the next execute occurs, whichever comes first.
+    ///  In the case of statements returning a ResultSet, the statement
+    ///  completes when the last row of the ResultSet has been retrieved or the
+    ///  ResultSet has been closed. In advanced cases, a single statement may
+    ///  return multiple results as well as output parameter values. In these
+    ///  cases the commit occurs when all results and output parameter values
+    ///  have been retrieved. It is not recommented setting autoCommit to false
+    ///  because a call to either the method <c>commit</c> or the method
+    ///  <c>rollback</c> will restart the transaction. It's use full only if
+    ///  repeately many opertions are done and no startTransaction is intended
+    ///  to use. If you change mode to true the current Transaction and it's
+    ///  nested SavePoints are committed then.</summary>
+    /// <param>"Value" true enables auto-commit; false disables auto-commit.</param>
     procedure SetAutoCommit(Value: Boolean); override;
+    /// <summary>Attempts to change the transaction isolation level to the one
+    ///  given. The constants defined in the interface <c>Connection</c> are the
+    ///  possible transaction isolation levels. Note: This method cannot be
+    ///  called while in the middle of a transaction.
+    /// <param>"value" one of the TRANSACTION_* isolation values with the
+    ///  exception of TRANSACTION_NONE; some databases may not support other
+    ///  values. See DatabaseInfo.SupportsTransactionIsolationLevel</param>
     procedure SetTransactionIsolation(Level: TZTransactIsolationLevel); override;
-
-    procedure Commit; override;
-    procedure Rollback; override;
+    /// <summary>Starts transaction support or saves the current transaction.
+    ///  If the connection is closed, the connection will be opened.
+    ///  If a transaction is underway a nested transaction or a savepoint will
+    ///  be spawned. While the tranaction(s) is/are underway the AutoCommit
+    ///  property is set to False. Ending up the transaction with a
+    ///  commit/rollback the autocommit property will be restored if changing
+    ///  the autocommit mode was triggered by a starttransaction call.</summary>
+    /// <returns>Returns the current txn-level. 1 means a expicit transaction
+    ///  was started. 2 means the transaction was saved. 3 means the previous
+    ///  savepoint got saved too and so on.</returns>
+    function StartTransaction: Integer;
+    /// <summary>Creates a <c>Statement</c> interface for sending SQL statements
+    ///  to the database. SQL statements without parameters are normally
+    ///  executed using Statement objects. If the same SQL statement
+    ///  is executed many times, it is more efficient to use a
+    ///  <c>PreparedStatement</c> object. Result sets created using the returned
+    ///  <c>Statement</c> interface will by default have forward-only type and
+    ///  read-only concurrency.</summary>
+    /// <param>Info a statement parameters.</param>
+    /// <returns>A new Statement interface</returns>
+    function CreateStatementWithParams(Info: TStrings): IZStatement;
+    /// <summary>Creates a <c>PreparedStatement</c> interface for sending
+    ///  parameterized SQL statements to the database. A SQL statement with
+    ///  or without IN parameters can be pre-compiled and stored in a
+    ///  PreparedStatement object. This object can then be used to efficiently
+    ///  execute this statement multiple times.
+    ///  Note: This method is optimized for handling parametric SQL statements
+    ///  that benefit from precompilation. If the driver supports
+    ///  precompilation, the method <c>prepareStatement</c> will send the
+    ///  statement to the database for precompilation. Some drivers may not
+    ///  support precompilation. In this case, the statement may not be sent to
+    ///  the database until the <c>PreparedStatement</c> is executed. This has
+    ///  no direct effect on users; however, it does affect which method throws
+    ///  certain SQLExceptions. Result sets created using the returned
+    ///  PreparedStatement will have forward-only type and read-only
+    ///  concurrency, by default.</summary>
+    /// <param>"SQL" a SQL statement that may contain one or more '?' IN
+    ///  parameter placeholders.</param>
+    /// <param> Info a statement parameter list.</param>
+    /// <returns> a new PreparedStatement object containing the
+    ///  optional pre-compiled statement</returns>
+    function PrepareStatementWithParams(const SQL: string; Info: TStrings):
+      IZPreparedStatement;
+    /// <summary>Creates a <code>CallableStatement</code> object for calling
+    ///  database stored procedures. The <code>CallableStatement</code> object
+    ///  provides methods for setting up its IN and OUT parameters, and methods
+    ///  for executing the call to a stored procedure. Note: This method is
+    ///  optimized for handling stored procedure call statements. Some drivers
+    ///  may send the call statement to the database when the method
+    ///  <c>prepareCall</c> is done; others may wait until the
+    ///  <c>CallableStatement</c> object is executed. This has no direct effect
+    ///  on users; however, it does affect which method throws certain
+    ///  EZSQLExceptions. Result sets created using the returned
+    ///  IZCallableStatement will have forward-only type and read-only
+    ///  concurrency, by default.</summary>
+    /// <param>"Name" a procedure or function name.</param>
+    /// <param>"Params" a statement parameters list.</param>
+    /// <returns> a new IZCallableStatement interface containing the
+    ///  pre-compiled SQL statement </returns>
+    function PrepareCallWithParams(const Name: string; Params: TStrings):
+      IZCallableStatement;
 
     procedure Open; override;
-    procedure InternalClose; override;
 
+    /// <summary>Sets a catalog name in order to select a subspace of this
+    ///  Connection's database in which to work. If the driver does not support
+    ///  catalogs, it will silently ignore this request.</summary>
+    /// <param>"value" new catalog name to be used.</param>
     procedure SetCatalog(const Catalog: string); override;
     function GetCatalog: string; override;
+
+    function GetHostVersion: Integer; override;
+    /// <summary>Returns the ServicerProvider for this connection. For ODBC
+    ///  the connection must be opened to determine the provider. Otherwise
+    ///  the provider is tested against the driver names</summary>
+    /// <returns>the ServerProvider or spUnknown if not known.</returns>
+    function GetServerProvider: TZServerProvider; override;
+    /// <summary>Creates a generic tokenizer interface.</summary>
+    /// <returns>a created generic tokenizer object.</returns>
+    function GetTokenizer: IZTokenizer;
+    /// <summary>Creates a generic statement analyser object.</summary>
+    /// <returns>a created generic tokenizer object as interface.</returns>
+    function GetStatementAnalyser: IZStatementAnalyser;
   end;
 
 var
@@ -133,9 +243,16 @@ implementation
 {$IFNDEF ZEOS_DISABLE_ADO}
 
 uses
-  Variants, ActiveX, {$IFDEF FPC}ZOleDB{$ELSE}OleDB{$ENDIF},
-  ZDbcUtils, ZDbcLogging, ZAdoToken, ZSysUtils, ZMessages,
-  ZDbcAdoStatement, ZDbcAdoMetadata, ZEncoding, ZDbcAdoUtils;
+  Variants, ActiveX,
+  {$IFDEF WITH_UNIT_NAMESPACES}System.Win.ComObj{$ELSE}ComObj{$ENDIF},
+  ZFastCode,
+  ZPlainOleDBDriver,
+  ZPostgreSqlAnalyser, ZPostgreSqlToken, ZSybaseAnalyser, ZSybaseToken,
+  ZInterbaseAnalyser, ZInterbaseToken, ZMySqlAnalyser, ZMySqlToken,
+  ZOracleAnalyser, ZOracleToken,
+  ZDbcUtils, ZAdoToken, ZSysUtils, ZMessages, ZDbcProperties, ZDbcAdoStatement,
+  ZDbcAdoMetadata, ZEncoding, ZDbcOleDBUtils, ZDbcOleDBMetadata, ZDbcAdoUtils,
+  ZExceptions;
 
 const                                                //adXactUnspecified
   IL: array[TZTransactIsolationLevel] of TOleEnum = (adXactChaos, adXactReadUncommitted, adXactReadCommitted, adXactRepeatableRead, adXactSerializable);
@@ -157,24 +274,6 @@ end;
 function TZAdoDriver.Connect(const Url: TZURL): IZConnection;
 begin
   Result := TZAdoConnection.Create(Url);
-end;
-
-{**
-  Gets the driver's major version number. Initially this should be 1.
-  @return this driver's major version number
-}
-function TZAdoDriver.GetMajorVersion: Integer;
-begin
-  Result := 1;
-end;
-
-{**
-  Gets the driver's minor version number. Initially this should be 0.
-  @return this driver's minor version number
-}
-function TZAdoDriver.GetMinorVersion: Integer;
-begin
-  Result := 0;
 end;
 
 function TZAdoDriver.GetTokenizer: IZTokenizer;
@@ -201,22 +300,35 @@ begin
 end;
 { TZAdoConnection }
 
-procedure TZAdoConnection.InternalCreate;
-begin
-  CoInit;
-  FAdoConnection := CoConnection.Create;
-  Self.FMetadata := TZAdoDatabaseMetadata.Create(Self, URL);
-end;
-
 {**
   Destroys this object and cleanups the memory.
 }
 destructor TZAdoConnection.Destroy;
 begin
-  Close;
-  FAdoConnection := nil;
-  inherited Destroy;
-  CoUninit;
+  try
+    inherited Destroy;
+  finally
+    FAdoConnection := nil;
+    CoUninit;
+  end;
+end;
+
+procedure TZAdoConnection.ExecuteImmediat(const SQL: UnicodeString;
+  LoggingCategory: TZLoggingCategory);
+var
+  RowsAffected: OleVariant;
+begin
+  try
+    FAdoConnection.Execute(SQL, RowsAffected, adExecuteNoRecords);
+    {$IFNDEF UNICODE}FlogMessage := ZUnicodeToRaw(SQL, zCP_UTF8);{$ENDIF}
+    if DriverManager.HasLoggingListener then
+      DriverManager.LogMessage(LoggingCategory, URL.Protocol, {$IFDEF UNICODE}SQL{$ELSE}FlogMessage{$ENDIF});
+  except
+    on E: Exception do begin
+      {$IFNDEF UNICODE}FlogMessage := ZUnicodeToRaw(SQL, zCP_UTF8);{$ENDIF}
+      HandleErrorOrWarning(LoggingCategory, E, Self, {$IFDEF UNICODE}SQL{$ELSE}FlogMessage{$ENDIF});
+    end;
+  end;
 end;
 
 {**
@@ -228,85 +340,19 @@ begin
 end;
 
 {**
-  Executes simple statements internally.
-}
-procedure TZAdoConnection.InternalExecuteStatement(const SQL: ZWideString);
-var
-  RowsAffected: OleVariant;
-begin
-  try
-    FAdoConnection.Execute(SQL, RowsAffected, adExecuteNoRecords);
-    DriverManager.LogMessage(lcExecute, ConSettings^.Protocol, ConSettings^.ConvFuncs.ZUnicodeToRaw(SQL, ZOSCodePage));
-  except
-    on E: Exception do
-    begin
-      DriverManager.LogError(lcExecute, ConSettings^.Protocol, ConSettings^.ConvFuncs.ZUnicodeToRaw(SQL, ZOSCodePage), 0,
-        ConvertEMsgToRaw(E.Message, ConSettings^.ClientCodePage^.CP));
-      raise;
-    end;
-  end;
-end;
-
-{**
-  Starts a transaction support.
-}
-procedure TZAdoConnection.ReStartTransactionSupport;
-begin
-  if Closed then Exit;
-
-  if not (AutoCommit) then
-    StartTransaction;
-end;
-
-{**
   Opens a connection to database server with specified parameters.
 }
 procedure TZAdoConnection.Open;
 var
-  LogMessage: RawByteString;
   ConnectStrings: TStrings;
   DBInitialize: IDBInitialize;
   Command: ZPlainAdo.Command;
   DBCreateCommand: IDBCreateCommand;
   GetDataSource: IGetDataSource;
-  function ProviderNamePrefix2ServerProvider(const ProviderNamePrefix: String): TZServerProvider;
-  type
-    TDriverNameAndServerProvider = record
-      ProviderNamePrefix: String;
-      Provider: TZServerProvider;
-    end;
-  const
-    KnownDriverName2TypeMap: array[0..12] of TDriverNameAndServerProvider = (
-      (ProviderNamePrefix: 'ORAOLEDB';      Provider: spOracle),
-      (ProviderNamePrefix: 'MSDAORA';       Provider: spOracle),
-      (ProviderNamePrefix: 'SQLNCLI';       Provider: spMSSQL),
-      (ProviderNamePrefix: 'SQLOLEDB';      Provider: spMSSQL),
-      (ProviderNamePrefix: 'SSISOLEDB';     Provider: spMSSQL),
-      (ProviderNamePrefix: 'MSDASQL';       Provider: spMSSQL), //??
-      (ProviderNamePrefix: 'MYSQLPROV';     Provider: spMySQL),
-      (ProviderNamePrefix: 'IBMDA400';      Provider: spAS400),
-      (ProviderNamePrefix: 'IFXOLEDBC';     Provider: spInformix),
-      (ProviderNamePrefix: 'MICROSOFT.JET.OLEDB'; Provider: spMSJet),
-      (ProviderNamePrefix: 'IB';            Provider: spIB_FB),
-      (ProviderNamePrefix: 'POSTGRESSQL';   Provider: spPostgreSQL),
-      (ProviderNamePrefix: 'CUBRID';        Provider: spCUBRID)
-      );
-  var
-    I: Integer;
-    ProviderNamePrefixUp: string;
-  begin
-    Result := spMSSQL;
-    ProviderNamePrefixUp := UpperCase(ProviderNamePrefix);
-    for i := low(KnownDriverName2TypeMap) to high(KnownDriverName2TypeMap) do
-      if StartsWith(ProviderNamePrefixUp, KnownDriverName2TypeMap[i].ProviderNamePrefix) then begin
-        Result := KnownDriverName2TypeMap[i].Provider;
-        Break;
-      end;
-  end;
 begin
   if not Closed then Exit;
 
-  LogMessage := 'CONNECT TO "'+ConSettings^.Database+'" AS USER "'+ConSettings^.User+'"';
+  FLogMessage := Format(SConnect2AsUser,  [URL.Database, URL.UserName]);
   try
     if ReadOnly then
       FAdoConnection.Set_Mode(adModeRead)
@@ -314,21 +360,18 @@ begin
       FAdoConnection.Set_Mode(adModeUnknown);
 
     ConnectStrings := SplitString(DataBase, ';');
-    FServerProvider := ProviderNamePrefix2ServerProvider(ConnectStrings.Values['Provider']);
+    FServerProvider := ProviderNamePrefix2ServerProvider(ConnectStrings.Values[ConnProps_Provider]);
     FreeAndNil(ConnectStrings);
 
     FAdoConnection.Open(WideString(Database), WideString(User), WideString(Password), -1{adConnectUnspecified});
     FAdoConnection.Set_CursorLocation(adUseClient);
-    DriverManager.LogMessage(lcConnect, ConSettings^.Protocol, LogMessage);
-    ConSettings^.AutoEncode := {$IFDEF UNICODE}False{$ELSE}True{$ENDIF};
+    if DriverManager.HasLoggingListener then
+      DriverManager.LogMessage(lcConnect, URL.Protocol, FLogMessage);
+    //ConSettings^.AutoEncode := {$IFDEF UNICODE}False{$ELSE}True{$ENDIF};
     CheckCharEncoding('CP_UTF16');
   except
     on E: Exception do
-    begin
-      DriverManager.LogError(lcConnect, ConSettings^.Protocol, LogMessage, 0,
-        ConvertEMsgToRaw(E.Message, ConSettings^.ClientCodePage^.CP));
-      raise;
-    end;
+      HandleErrorOrWarning(lcConnect, E, Self, FlogMessage);
   end;
 
   inherited Open;
@@ -344,17 +387,24 @@ begin
   if not GetMetadata.GetDatabaseInfo.SupportsTransactionIsolationLevel(GetTransactionIsolation) then
     inherited SetTransactionIsolation(GetMetadata.GetDatabaseInfo.GetDefaultTransactionIsolation);
   FAdoConnection.IsolationLevel := IL[GetTransactionIsolation];
-  ReStartTransactionSupport;
+  if not AutoCommit then begin
+    AutoCommit := True;
+    SetAutoCommit(False);
+  end;
 end;
 
-function TZAdoConnection.GetBinaryEscapeString(const Value: TBytes): String;
+function TZAdoConnection.PrepareCallWithParams(const Name: string;
+  Params: TStrings): IZCallableStatement;
 begin
-  Result := GetSQLHexString(PAnsiChar(Value), Length(Value), True);
+  if IsClosed then Open;
+  Result := TZAdoCallableStatement2.Create(Self, Name, Params);
 end;
 
-function TZAdoConnection.GetBinaryEscapeString(const Value: RawByteString): String;
+function TZAdoConnection.PrepareStatementWithParams(const SQL: string;
+  Info: TStrings): IZPreparedStatement;
 begin
-  Result := GetSQLHexString(PAnsiChar(Value), Length(Value), True);
+  if IsClosed then Open;
+  Result := TZAdoPreparedStatement.Create(Self, SQL, Info)
 end;
 
 {**
@@ -371,202 +421,72 @@ end;
   @param Info a statement parameters.
   @return a new Statement object
 }
-function TZAdoConnection.CreateRegularStatement(Info: TStrings): IZStatement;
+function TZAdoConnection.CreateStatementWithParams(Info: TStrings): IZStatement;
 begin
   if IsClosed then Open;
   Result := TZAdoStatement.Create(Self, Info);
 end;
 
-const
-  TZDefaultProviderSequenceClasses: array[TZServerProvider] of TZAbstractSequenceClass = (
-    {spUnknown}   nil,
-    {spMSSQL}     TZMSSQLSequence,
-    {spMSJet}     nil,
-    {spOracle}    TZOracleSequence,
-    {spASE}       nil,
-    {spASA}       TZDotCurrvalNextvalSequence,
-    {spPostgreSQL}TZPostgreSQLSequence,
-    {spIB_FB}     TZFirebird2UpSequence,
-    {spMySQL}     nil,
-    {spNexusDB}   nil,
-    {spSQLite}    nil,
-    {spDB2}       TZDB2Squence,
-    {spAS400}     nil,
-    {spInformix}  TZInformixSquence,
-    {spCUBRID}    TZCubridSquence,
-    {spFoxPro}    nil
-    );
-
-{**
-  Creates a sequence generator object.
-  @param Sequence a name of the sequence generator.
-  @param BlockSize a number of unique keys requested in one trip to SQL server.
-  @returns a created sequence object.
-}
-function TZAdoConnection.CreateSequence(const Sequence: string;
-  BlockSize: Integer): IZSequence;
-begin
-  if TZDefaultProviderSequenceClasses[fServerProvider] <> nil then
-    Result := TZDefaultProviderSequenceClasses[fServerProvider].Create(Self, Sequence, BlockSize)
-  else
-    Result := inherited CreateSequence(Sequence, BlockSize);
-end;
-
-{**
-  Creates a <code>PreparedStatement</code> object for sending
-  parameterized SQL statements to the database.
-
-  A SQL statement with or without IN parameters can be
-  pre-compiled and stored in a PreparedStatement object. This
-  object can then be used to efficiently execute this statement
-  multiple times.
-
-  <P><B>Note:</B> This method is optimized for handling
-  parametric SQL statements that benefit from precompilation. If
-  the driver supports precompilation,
-  the method <code>prepareStatement</code> will send
-  the statement to the database for precompilation. Some drivers
-  may not support precompilation. In this case, the statement may
-  not be sent to the database until the <code>PreparedStatement</code> is
-  executed.  This has no direct effect on users; however, it does
-  affect which method throws certain SQLExceptions.
-
-  Result sets created using the returned PreparedStatement will have
-  forward-only type and read-only concurrency, by default.
-
-  @param sql a SQL statement that may contain one or more '?' IN
-    parameter placeholders
-  @param Info a statement parameters.
-  @return a new PreparedStatement object containing the
-    pre-compiled statement
-}
-function TZAdoConnection.CreatePreparedStatement(
-  const SQL: string; Info: TStrings): IZPreparedStatement;
-begin
-  if IsClosed then Open;
-  if GetMetadata.GetDatabaseInfo.SupportsParameterBinding
-  then Result := TZAdoPreparedStatement.Create(Self, SQL, Info)
-  else Result := TZAdoEmulatedPreparedStatement.Create(Self, SQL, Info)
-end;
-
-{**
-  Creates a <code>CallableStatement</code> object for calling
-  database stored procedures.
-  The <code>CallableStatement</code> object provides
-  methods for setting up its IN and OUT parameters, and
-  methods for executing the call to a stored procedure.
-
-  <P><B>Note:</B> This method is optimized for handling stored
-  procedure call statements. Some drivers may send the call
-  statement to the database when the method <code>prepareCall</code>
-  is done; others
-  may wait until the <code>CallableStatement</code> object
-  is executed. This has no
-  direct effect on users; however, it does affect which method
-  throws certain SQLExceptions.
-
-  Result sets created using the returned CallableStatement will have
-  forward-only type and read-only concurrency, by default.
-
-  @param sql a SQL statement that may contain one or more '?'
-    parameter placeholders. Typically this  statement is a JDBC
-    function call escape string.
-  @param Info a statement parameters.
-  @return a new CallableStatement object containing the
-    pre-compiled SQL statement
-}
-function TZAdoConnection.CreateCallableStatement(const SQL: string; Info: TStrings):
-  IZCallableStatement;
-begin
-  if IsClosed then Open;
-  Result := TZAdoCallableStatement.Create(Self, SQL, Info);
-end;
-
-{**
-  Sets this connection's auto-commit mode.
-  If a connection is in auto-commit mode, then all its SQL
-  statements will be executed and committed as individual
-  transactions.  Otherwise, its SQL statements are grouped into
-  transactions that are terminated by a call to either
-  the method <code>commit</code> or the method <code>rollback</code>.
-  By default, new connections are in auto-commit mode.
-
-  The commit occurs when the statement completes or the next
-  execute occurs, whichever comes first. In the case of
-  statements returning a ResultSet, the statement completes when
-  the last row of the ResultSet has been retrieved or the
-  ResultSet has been closed. In advanced cases, a single
-  statement may return multiple results as well as output
-  parameter values. In these cases the commit occurs when all results and
-  output parameter values have been retrieved.
-
-  @param autoCommit true enables auto-commit; false disables auto-commit.
-}
 procedure TZAdoConnection.SetAutoCommit(Value: Boolean);
 begin
-  if AutoCommit = Value then  Exit;
-  if not Closed and Value then
-  begin
-    if (FAdoConnection.State = adStateOpen) and
-       (GetTransactionIsolation <> tiNone) then
-      begin
+  if Value <> AutoCommit then begin
+    FRestartTransaction := AutoCommit;
+    if Closed
+    then AutoCommit := Value
+    else if Value then begin
+      FSavePoints.Clear;
+      while FTransactionLevel > 0 do begin
         FAdoConnection.CommitTrans;
-        DriverManager.LogMessage(lcExecute, ConSettings^.Protocol, 'COMMIT');
+        Dec(FTransactionLevel);
       end;
+      if DriverManager.HasLoggingListener then
+        DriverManager.LogMessage(lcTransaction, URL.Protocol, 'COMMIT');
+      AutoCommit := True;
+    end else
+      StartTransaction;
   end;
-  inherited;
-  ReStartTransactionSupport;
 end;
 
-{**
-  Attempts to change the transaction isolation level to the one given.
-  The constants defined in the interface <code>Connection</code>
-  are the possible transaction isolation levels.
-
-  <P><B>Note:</B> This method cannot be called while
-  in the middle of a transaction.
-
-  @param level one of the TRANSACTION_* isolation values with the
-    exception of TRANSACTION_NONE; some databases may not support other values
-  @see DatabaseMetaData#supportsTransactionIsolationLevel
-}
 procedure TZAdoConnection.SetTransactionIsolation(
   Level: TZTransactIsolationLevel);
 begin
-  if GetTransactionIsolation = Level then Exit;
-
-  if not Closed and not AutoCommit and (GetTransactionIsolation <> tiNone) then
-  begin
-    FAdoConnection.CommitTrans;
-    DriverManager.LogMessage(lcExecute, ConSettings^.Protocol, 'COMMIT');
-  end;
-
-  inherited;
-
-  if not Closed then
+  if TransactIsolationLevel = Level then Exit;
+  if not Closed then begin
     FAdoConnection.IsolationLevel := IL[Level];
-
-  RestartTransactionSupport;
+    if not AutoCommit then
+      StartTransaction;
+  end;
+  TransactIsolationLevel := Level;
 end;
 
-{**
-  Starts a new transaction. Used internally.
-}
-procedure TZAdoConnection.StartTransaction;
-var
-  LogMessage: RawByteString;
+function TZAdoConnection.StartTransaction: Integer;
+var S: String;
+{$IFNDEF UNICODE}
+LogMessage: UnicodeString;
+{$ENDIF}
 begin
-  LogMessage := 'BEGIN TRANSACTION';
-  try
-    FAdoConnection.BeginTrans;
-    DriverManager.LogMessage(lcExecute, ConSettings^.Protocol, LogMessage);
+  if Closed then
+    Open;
+  AutoCommit := False;
+  FLogMessage := 'START TRANSACTION';
+  if FTransactionLevel = 0 then try
+    FTransactionLevel := FAdoConnection.BeginTrans;
+    if DriverManager.HasLoggingListener then
+      DriverManager.LogMessage(lcTransaction, URL.Protocol, FLogMessage);
+    Result := FTransactionLevel;
   except
-    on E: Exception do
-    begin
-      DriverManager.LogError(lcExecute, ConSettings^.Protocol, LogMessage, 0,
-       ConvertEMsgToRaw(E.Message, ConSettings^.ClientCodePage^.CP));
-      raise;
+    on E: Exception do begin
+      HandleErrorOrWarning(lcTransaction, E, Self, FLogMessage);
+      Result := 0; //Satisfy compiler
     end;
+  end else begin
+    if cSavePointSyntaxW[fServerProvider][spqtSavePoint] = '' then
+      raise EZUnsupportedException.Create(SUnsupportedOperation);
+    S := 'SP'+{$IFDEF UNICODE}IntToUnicode{$ELSE}IntToRaw{$ENDIF}(NativeUint(Self))+'_'+{$IFDEF UNICODE}IntToUnicode{$ELSE}IntToRaw{$ENDIF}(FSavePoints.Count);
+    {$IFDEF UNICODE}FLogMessage{$ELSE}LogMessage{$ENDIF} :=
+      cSavePointSyntaxW[fServerProvider][spqtSavePoint]+{$IFNDEF UNICODE}Ascii7ToUnicodeString{$ENDIF}(S);
+    ExecuteImmediat({$IFDEF UNICODE}FLogMessage{$ELSE}LogMessage{$ENDIF}, lcTransaction);
+    Result := FSavePoints.Add(S)+2;
   end;
 end;
 
@@ -577,24 +497,46 @@ end;
   used only when auto-commit mode has been disabled.
   @see #setAutoCommit
 }
-procedure TZAdoConnection.Commit;
-var
-  LogMessage: RawByteString;
+procedure TZAdoConnection.AfterConstruction;
 begin
-  LogMessage := 'COMMIT';
-  if not (AutoCommit or (GetTransactionIsolation = tiNone)) then
-  try
+  CoInit;
+  FAdoConnection := CoConnection.Create;
+  FMetadata := TZAdoDatabaseMetadata.Create(Self, URL);
+  fHostVersion := -1;
+  inherited AfterConstruction;
+end;
+
+procedure TZAdoConnection.Commit;
+var S: UnicodeString;
+  Cnt: Integer;
+begin
+  if Closed then
+    raise EZSQLException.Create(SConnectionIsNotOpened);
+  if AutoCommit then
+    raise EZSQLException.Create(SInvalidOpInAutoCommit);
+  if Closed then Exit;
+  Cnt := FSavePoints.Count;
+  if Cnt > 0 then begin
+    S := cSavePointSyntaxW[fServerProvider][spqtCommit];
+    if S <> '' then begin
+      S := S+{$IFNDEF UNICODE}Ascii7ToUnicodeString{$ENDIF}(FSavePoints[FSavePoints.Count-1]);
+      if fServerProvider = spMSSQL then
+        S := '"'+S+'"';
+      ExecuteImmediat(S, lcTransaction);
+    end;
+    FSavePoints.Delete(FSavePoints.Count-1);
+  end else try
     FAdoConnection.CommitTrans;
-    DriverManager.LogMessage(lcExecute, ConSettings^.Protocol, LogMessage);
-    StartTransaction;
+    if DriverManager.HasLoggingListener then
+      DriverManager.LogMessage(lcTransaction, URL.Protocol, sCommitMsg);
+    FTransactionLevel := 0;
+    AutoCommit := True;
   except
     on E: Exception do
-    begin
-      DriverManager.LogError(lcExecute, ConSettings^.Protocol, LogMessage, 0,
-       ConvertEMsgToRaw(E.Message, ConSettings^.ClientCodePage^.CP));
-      raise;
-    end;
+      HandleErrorOrWarning(lcTransaction, E, Self, sCommitMsg);
   end;
+  if (Cnt = 0) and FRestartTransaction then
+    StartTransaction;
 end;
 
 {**
@@ -605,23 +547,31 @@ end;
   @see #setAutoCommit
 }
 procedure TZAdoConnection.Rollback;
-var
-  LogMessage: RawbyteString;
+var S: UnicodeString;
+  Cnt: Integer;
 begin
-  LogMessage := 'ROLLBACK';
-  if not (AutoCommit or (GetTransactionIsolation = tiNone)) then
-  try
+  if AutoCommit then
+    raise EZSQLException.Create(SInvalidOpInAutoCommit);
+  Cnt := FSavePoints.Count;
+  if Cnt > 0 then begin
+    S := cSavePointSyntaxW[fServerProvider][spqtRollback];
+    if S <> '' then begin
+      S := S+UnicodeString(FSavePoints[FSavePoints.Count-1]);
+      ExecuteImmediat(S, lcTransaction);
+    end;
+    FSavePoints.Delete(FSavePoints.Count-1);
+  end else try
     FAdoConnection.RollbackTrans;
-    DriverManager.LogMessage(lcExecute, ConSettings^.Protocol, LogMessage);
-    StartTransaction;
+    if DriverManager.HasLoggingListener then
+      DriverManager.LogMessage(lcTransaction, URL.Protocol, sRollbackMsg);
+    FTransactionLevel := 0;
+    AutoCommit := True;
   except
     on E: Exception do
-    begin
-      DriverManager.LogError(lcExecute, ConSettings^.Protocol, LogMessage, 0,
-       ConvertEMsgToRaw(E.Message, ConSettings^.ClientCodePage^.CP));
-      raise;
-    end;
+      HandleErrorOrWarning(lcTransaction, E, Self, sRollbackMsg);
   end;
+  if (Cnt = 0) and FRestartTransaction then
+    StartTransaction;
 end;
 
 {**
@@ -634,52 +584,45 @@ end;
   Connection.
 }
 procedure TZAdoConnection.InternalClose;
-var
-  LogMessage: RawByteString;
+var LogMessage: SQLString;
 begin
   if Closed or (not Assigned(PlainDriver)) then
     Exit;
 
-  SetAutoCommit(True);
+  LogMessage := 'CLOSE CONNECTION TO "'+URL.Database+'"';
+  FSavePoints.Clear;
+  if not AutoCommit then begin
+    AutoCommit := not FRestartTransaction;
+    FTransactionLevel := 0;
+    try
+      FAdoConnection.RollbackTrans;
+    except end;
+  end;
   try
-    LogMessage := 'CLOSE CONNECTION TO "'+ConSettings^.Database+'"';
     if FAdoConnection.State = adStateOpen then
       FAdoConnection.Close;
 //      FAdoConnection := nil;
-    DriverManager.LogMessage(lcExecute, ConSettings^.Protocol, LogMessage);
+    if DriverManager.HasLoggingListener then
+      DriverManager.LogMessage(lcDisconnect, URL.Protocol, LogMessage);
   except
-    on E: Exception do begin
-      DriverManager.LogError(lcExecute, ConSettings^.Protocol, LogMessage, 0,
-       ConvertEMsgToRaw(E.Message, ConSettings^.ClientCodePage^.CP));
-      raise;
-    end;
+    on E: Exception do
+      HandleErrorOrWarning(lcDisconnect, E, Self, LogMessage);
   end;
 end;
 
-{**
-  Sets a catalog name in order to select
-  a subspace of this Connection's database in which to work.
-  If the driver does not support catalogs, it will
-  silently ignore this request.
-}
 procedure TZAdoConnection.SetCatalog(const Catalog: string);
-var
-  LogMessage: RawByteString;
 begin
   if Closed then Exit;
 
-  LogMessage := 'SET CATALOG '+ConSettings^.ConvFuncs.ZStringToRaw(Catalog, ConSettings^.CTRL_CP, ConSettings^.ClientCodePage^.CP);
+  FLogMessage := 'SET CATALOG '+Catalog;
   try
     if Catalog <> '' then //see https://sourceforge.net/p/zeoslib/tickets/117/
       FAdoConnection.DefaultDatabase := WideString(Catalog);
-    DriverManager.LogMessage(lcExecute, ConSettings^.Protocol, LogMessage);
+    if DriverManager.HasLoggingListener then
+      DriverManager.LogMessage(lcOther, URL.Protocol, FLogMessage);
   except
     on E: Exception do
-    begin
-      DriverManager.LogError(lcExecute, ConSettings^.Protocol, LogMessage, 0,
-       ConvertEMsgToRaw(E.Message, ConSettings^.ClientCodePage^.CP));
-      raise;
-    end;
+      HandleErrorOrWarning(lcOther, E, Self, FLogMessage);
   end;
 end;
 
@@ -690,6 +633,82 @@ end;
 function TZAdoConnection.GetCatalog: string;
 begin
   Result := String(FAdoConnection.DefaultDatabase);
+end;
+
+{**
+  Gets the host's full version number. Initially this should be 0.
+  The format of the version returned must be XYYYZZZ where
+   X   = Major version
+   YYY = Minor version
+   ZZZ = Sub version
+  @return this server's full version number
+}
+function TZAdoConnection.GetHostVersion: Integer;
+  procedure DetermineProductVersion;
+  var ProductVersion: String;
+  begin
+    ProductVersion := GetMetadata.GetDatabaseInfo.GetDatabaseProductVersion;
+    fHostVersion := SQLServerProductToHostVersion(ProductVersion);
+  end;
+begin
+  if (fHostVersion = -1) then
+    DetermineProductVersion;
+  Result := fHostVersion;
+end;
+
+function TZAdoConnection.GetServerProvider: TZServerProvider;
+begin
+  Result := fServerProvider;
+end;
+
+function TZAdoConnection.GetStatementAnalyser: IZStatementAnalyser;
+begin
+  case FServerProvider of
+    //spUnknown, spMSSQL, spMSJet,
+    spOracle: Result := TZOracleStatementAnalyser.Create;
+    spMSSQL, spASE, spASA: Result := TZSybaseStatementAnalyser.Create;
+    spPostgreSQL: Result := TZPostgreSQLStatementAnalyser.Create;
+    spIB_FB: Result := TZInterbaseStatementAnalyser.Create;
+    spMySQL: Result := TZMySQLStatementAnalyser.Create;
+    //spNexusDB, spSQLite, spDB2, spAS400,
+    //spInformix, spCUBRID, spFoxPro
+    else Result := TZGenericStatementAnalyser.Create;
+  end;
+end;
+
+function TZAdoConnection.GetTokenizer: IZTokenizer;
+begin
+  case FServerProvider of
+    //spUnknown, spMSJet,
+    spOracle: Result := TZOracleTokenizer.Create;
+    spMSSQL, spASE, spASA: Result := TZSybaseTokenizer.Create;
+    spPostgreSQL: Result := TZPostgreSQLTokenizer.Create;
+    spIB_FB: Result := TZInterbaseTokenizer.Create;
+    spMySQL: Result := TZMySQLTokenizer.Create;
+    //spNexusDB, spSQLite, spDB2, spAS400,
+    //spInformix, spCUBRID, spFoxPro
+    else Result := TZAdoSQLTokenizer.Create;
+  end;
+end;
+
+procedure TZAdoConnection.HandleErrorOrWarning(
+  LoggingCategory: TZLoggingCategory; const E: Exception;
+  const Sender: IImmediatelyReleasable; const LogMsg: SQLString);
+var FormatStr, ErrorString: String;
+begin
+  if E is EOleException then with E as EOleException do begin
+    if DriverManager.HasLoggingListener then
+      LogError(LoggingCategory, ErrorCode, Sender, LogMsg, Message);
+    if AddLogMsgToExceptionOrWarningMsg and (LogMsg <> '') then
+      if LoggingCategory in [lcExecute, lcPrepStmt, lcExecPrepStmt]
+      then FormatStr := SSQLError3
+      else FormatStr := SSQLError4
+    else FormatStr := SSQLError2;
+    if AddLogMsgToExceptionOrWarningMsg and (LogMsg <> '')
+    then ErrorString := Format(FormatStr, [Message, ErrorCode, LogMsg])
+    else ErrorString := Format(FormatStr, [Message, ErrorCode]);
+    raise EZSQLException.CreateWithCode(ErrorCode, ErrorString);
+  end else raise Exception(E.ClassType).Create(E.Message);
 end;
 
 initialization

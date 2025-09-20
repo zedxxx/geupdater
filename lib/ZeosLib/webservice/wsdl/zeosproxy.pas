@@ -2,7 +2,7 @@
 This unit has been produced by ws_helper.
   Input unit name : "zeosproxy".
   This unit name  : "zeosproxy".
-  Date            : "12.01.2020 21:27:15".
+  Date            : "15.12.2023 17:53:32".
 }
 unit zeosproxy;
 {$IFDEF FPC}
@@ -19,6 +19,24 @@ const
 
 type
 
+  StringArray = class;
+
+  StringArray = class(TBaseSimpleTypeArrayRemotable)
+  private
+    FData : array of UnicodeString;
+  private
+    function GetItem(AIndex: Integer): UnicodeString;
+    procedure SetItem(AIndex: Integer; const AValue: UnicodeString);
+  protected
+    function GetLength():Integer;override;
+    procedure SaveItem(AStore : IFormatterBase;const AName : String;const AIndex : Integer);override;
+    procedure LoadItem(AStore : IFormatterBase;const AIndex : Integer);override;
+  public
+    class function GetItemTypeInfo():PTypeInfo;override;
+    procedure SetLength(const ANewSize : Integer);override;
+    procedure Assign(Source: TPersistent); override;
+    property Item[AIndex:Integer] : UnicodeString read GetItem write SetItem; default;
+  end;
 
   IZeosProxy = interface(IInvokable)
     ['{DD0144C6-0CD5-483C-A8D9-28A00BAD1C75}']
@@ -153,12 +171,83 @@ type
     function GetCharacterSets(
       const  ConnectionID : UnicodeString
     ):UnicodeString;
+    function StartTransaction(
+      const  ConnectionID : UnicodeString
+    ):integer;
+    function GetPublicKeys():string;
   end;
 
   procedure Register_zeosproxy_ServiceMetadata();
 
 Implementation
 uses metadata_repository, record_rtti, wst_types;
+
+{ StringArray }
+
+function StringArray.GetItem(AIndex: Integer): UnicodeString;
+begin
+  CheckIndex(AIndex);
+  Result := FData[AIndex];
+end;
+
+procedure StringArray.SetItem(AIndex: Integer;const AValue: UnicodeString);
+begin
+  CheckIndex(AIndex);
+  FData[AIndex] := AValue;
+end;
+
+function StringArray.GetLength(): Integer;
+begin
+  Result := System.Length(FData);
+end;
+
+procedure StringArray.SaveItem(AStore: IFormatterBase;const AName: String; const AIndex: Integer);
+begin
+  AStore.Put('_item',TypeInfo(UnicodeString),FData[AIndex]);
+end;
+
+procedure StringArray.LoadItem(AStore: IFormatterBase;const AIndex: Integer);
+var
+  sName : string;
+begin
+  sName := '_item';
+  AStore.Get(TypeInfo(UnicodeString),sName,FData[AIndex]);
+end;
+
+class function StringArray.GetItemTypeInfo(): PTypeInfo;
+begin
+  Result := TypeInfo(UnicodeString);
+end;
+
+procedure StringArray.SetLength(const ANewSize: Integer);
+var
+  i : Integer;
+begin
+  if ( ANewSize < 0 ) then
+    i := 0
+  else
+    i := ANewSize;
+  System.SetLength(FData,i);
+end;
+
+procedure StringArray.Assign(Source: TPersistent);
+var
+  src : StringArray;
+  i, c : Integer;
+begin
+  if Assigned(Source) and Source.InheritsFrom(StringArray) then begin
+    src := StringArray(Source);
+    c := src.Length;
+    Self.SetLength(c);
+    if ( c > 0 ) then begin
+      for i := 0 to Pred(c) do begin
+        Self[i] := src[i];
+      end;
+    end;
+  end else begin
+    inherited Assign(Source);
+  end;
+end;
 
 
 procedure Register_zeosproxy_ServiceMetadata();
@@ -851,6 +940,62 @@ begin
     'FORMAT_OutputEncodingStyle',
     'literal'
   );
+  mm.SetOperationCustomData(
+    sUNIT_NAME,
+    'IZeosProxy',
+    'StartTransaction',
+    '_E_N_',
+    'StartTransaction'
+  );
+  mm.SetOperationCustomData(
+    sUNIT_NAME,
+    'IZeosProxy',
+    'StartTransaction',
+    'TRANSPORT_soapAction',
+    ''
+  );
+  mm.SetOperationCustomData(
+    sUNIT_NAME,
+    'IZeosProxy',
+    'StartTransaction',
+    'FORMAT_Input_EncodingStyle',
+    'literal'
+  );
+  mm.SetOperationCustomData(
+    sUNIT_NAME,
+    'IZeosProxy',
+    'StartTransaction',
+    'FORMAT_OutputEncodingStyle',
+    'literal'
+  );
+  mm.SetOperationCustomData(
+    sUNIT_NAME,
+    'IZeosProxy',
+    'GetPublicKeys',
+    '_E_N_',
+    'GetPublicKeys'
+  );
+  mm.SetOperationCustomData(
+    sUNIT_NAME,
+    'IZeosProxy',
+    'GetPublicKeys',
+    'TRANSPORT_soapAction',
+    ''
+  );
+  mm.SetOperationCustomData(
+    sUNIT_NAME,
+    'IZeosProxy',
+    'GetPublicKeys',
+    'FORMAT_Input_EncodingStyle',
+    'literal'
+  );
+  mm.SetOperationCustomData(
+    sUNIT_NAME,
+    'IZeosProxy',
+    'GetPublicKeys',
+    'FORMAT_OutputEncodingStyle',
+    'literal'
+  );
 end;
 
 
@@ -859,6 +1004,7 @@ var
 initialization
   typeRegistryInstance := GetTypeRegistry();
 
+  typeRegistryInstance.Register(sNAME_SPACE,TypeInfo(StringArray),'StringArray');
 
 
 

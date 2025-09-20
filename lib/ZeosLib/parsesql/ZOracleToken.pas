@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -55,7 +55,12 @@ interface
 
 {$I ZParseSql.inc}
 
-{$IFNDEF ZEOS_DISABLE_ORACLE}
+{$IF defined(ZEOS_DISABLE_ORACLE) and defined(ZEOS_DISABLE_ADO) and
+     defined(ZEOS_DISABLE_OLEDB) and defined(ZEOS_DISABLE_ODBC) and defined(ZEOS_DISABLE_PROXY)}
+  {$DEFINE EMPTY_ZOracleToken}
+{$IFEND}
+
+{$IFNDEF EMPTY_ZOracleToken}
 uses
   Classes, ZTokenizer, ZGenericSqlToken;
 
@@ -89,13 +94,17 @@ type
   TZOracleTokenizer = class (TZTokenizer)
   protected
     procedure CreateTokenStates; override;
+  public
+    function NormalizeParamToken(const Token: TZToken; out ParamName: String;
+      LookUpList: TStrings; out ParamIndex: Integer;
+      out IngoreParam: Boolean): String; override;
   end;
 
-{$ENDIF ZEOS_DISABLE_ORACLE}
+{$ENDIF EMPTY_ZOracleToken}
 
 implementation
 
-{$IFNDEF ZEOS_DISABLE_ORACLE}
+{$IFNDEF EMPTY_ZOracleToken}
 
 { TZOracleSymbolState }
 
@@ -110,6 +119,7 @@ begin
   Add('<>');
   Add('!=');
   Add('||');
+  //Add(':=');
 end;
 
 { TZOracleWordState }
@@ -164,7 +174,25 @@ begin
   SetCharacterState('-', '-', CommentState);
 end;
 
-{$ENDIF ZEOS_DISABLE_ORACLE}
+function TZOracleTokenizer.NormalizeParamToken(const Token: TZToken;
+  out ParamName: String; LookUpList: TStrings; out ParamIndex: Integer;
+  out IngoreParam: Boolean): String;
+var P: PChar;
+begin
+  if (Token.L >= 2) and (Ord(Token.P^) in [Ord(#39), Ord('`'), Ord('"'), Ord('[')])
+  then ParamName := GetQuoteState.DecodeToken(Token, Token.P^)
+  else System.SetString(ParamName, Token.P, Token.L);
+  System.SetString(Result, nil, Token.L+1);
+  P := Pointer(Result);
+  P^ := ':';
+  Move(Token.P^, (P+1)^, Token.L*SizeOf(Char));
+  ParamIndex := LookUpList.IndexOf(ParamName);
+  if ParamIndex < 0 then
+    ParamIndex := LookUpList.Add(ParamName);
+  IngoreParam := False;
+end;
+
+{$ENDIF EMPTY_ZOracleToken}
 
 end.
 

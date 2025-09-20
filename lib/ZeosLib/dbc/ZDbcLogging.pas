@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -61,7 +61,7 @@ type
 
   {** Defines a time or the message. }
   TZLoggingCategory = (lcConnect, lcDisconnect, lcTransaction, lcExecute, lcOther,
-    lcPrepStmt, lcBindPrepStmt, lcExecPrepStmt, lcUnprepStmt);
+    lcPrepStmt, lcBindPrepStmt, lcExecPrepStmt, lcUnprepStmt, lcFetch, lcFetchDone);
 
   {** Defines a object for logging event. }
   TZLoggingEvent = class;
@@ -69,37 +69,39 @@ type
   {** Defines an interface to format logging events. }
   IZLoggingFormatter = interface (IZInterface)
 //    ['{53559F5F-AC22-4DDC-B2EA-45D21ADDD2D5}']
-    function Format(LoggingEvent: TZLoggingEvent) : RawByteString;
+    function Format(LoggingEvent: TZLoggingEvent) : String;
   end;
 
   { TZLoggingFormatter }
   {** Defines a object for logging event. }
   TZLoggingFormatter = class (TInterfacedObject, IZLoggingFormatter)
   public
-    function Format(LoggingEvent: TZLoggingEvent) : RawByteString; virtual;
+    function Format(LoggingEvent: TZLoggingEvent) : SQLString; virtual;
   end;
 
   {** Defines a object for logging event. }
   TZLoggingEvent = class (TObject)
   private
     FCategory: TZLoggingCategory;
-    FProtocol: RawByteString;
-    FMessage: RawByteString;
-    FErrorCode: Integer;
-    FError: RawByteString;
-    FTimestamp: TDateTime;
+    FProtocol: String;
+    FMessage: SQLString;
+    FErrorCodeOrAffectedRows: Integer;
+    FError: SQLString;
+    FTimestamp, FTimeStampStart: TDateTime;
   public
-    constructor Create(Category: TZLoggingCategory; const Protocol: RawByteString;
-      const Msg: RawByteString; ErrorCode: Integer; const Error: RawByteString);
+    constructor Create(Category: TZLoggingCategory; const Protocol: String;
+      const Msg: SQLString; ErrorCodeOrAffectedRows: Integer; const Error: SQLString;
+      TimeStampStart: TDateTime = 0);
 
-    function AsString(const LoggingFormatter: IZLoggingFormatter = nil): RawByteString;
+    function AsString(const LoggingFormatter: IZLoggingFormatter = nil): String;
 
     property Category: TZLoggingCategory read FCategory;
-    property Protocol: RawByteString read FProtocol;
-    property Message: RawByteString read FMessage;
-    property ErrorCode: Integer read FErrorCode;
-    property Error: RawByteString read FError;
+    property Protocol: String read FProtocol;
+    property Message: SQLString read FMessage;
+    property ErrorCodeOrAffectedRows: Integer read FErrorCodeOrAffectedRows write FErrorCodeOrAffectedRows;
+    property Error: SQLString read FError;
     property Timestamp: TDateTime read FTimestamp;
+    property TimeStampStart: TDateTime read FTimeStampStart;
   end;
 
   {** Defines an interface to accept logging events. }
@@ -121,45 +123,61 @@ uses {$IFDEF WITH_UNITANSISTRINGS}AnsiStrings, {$ENDIF}
 
 var DefaultLoggingFormatter: TZLoggingFormatter;
 
-{$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}
-procedure ToBuff(const Value: String; var Buf: TRawBuff; var Result: RawByteString); overload;
-begin
-  ZDbcUtils.ToBuff(UnicodeStringToAscii7(Value), Buf, Result);
-end;
-{$ENDIF}
 { TZLoggingFormatter }
 
-function TZLoggingFormatter.Format(LoggingEvent: TZLoggingEvent): RawByteString;
-var Buf: TRawBuff;
+function TZLoggingFormatter.Format(LoggingEvent: TZLoggingEvent): SQLString;
+var SQLWriter: TZSQLStringWriter;
 begin
-  Result := {$IFDEF UNICODE}UnicodeStringToAscii7{$ENDIF}(FormatDateTime('yyyy-mm-dd hh:mm:ss', LoggingEvent.Timestamp));
-  Buf.Pos := 0;
-  ToBuff(' cat: ', Buf, Result);
-  case LoggingEvent.Category of
-    lcConnect: ToBuff('Connect', Buf, Result);
-    lcDisconnect: ToBuff('Disconnect', Buf, Result);
-    lcTransaction: ToBuff('Transaction', Buf, Result);
-    lcExecute: ToBuff('Execute', Buf, Result);
-    lcPrepStmt: ToBuff('Prepare', Buf, Result);
-    lcBindPrepStmt: ToBuff('Bind prepared', Buf, Result);
-    lcExecPrepStmt: ToBuff('Execute prepared', Buf, Result);
-    lcUnprepStmt: ToBuff('Unprepare prepared', Buf, Result);
-  else
-    ToBuff('Other', Buf, Result);
+  Result := EmptyRaw;
+  SQLWriter := TZSQLStringWriter.Create(100+Length(LoggingEvent.Message)+Length(LoggingEvent.Error));
+  try
+    SQLWriter.AddDateTime(LoggingEvent.Timestamp, 'yyyy-mm-dd hh:mm:ss.fff', Result);
+    SQLWriter.AddText(' cat: ', Result);
+    case LoggingEvent.Category of
+      lcConnect: SQLWriter.AddText('Connect', Result);
+      lcDisconnect: SQLWriter.AddText('Disconnect', Result);
+      lcTransaction: SQLWriter.AddText('Transaction', Result);
+      lcExecute: SQLWriter.AddText('Execute', Result);
+      lcPrepStmt: SQLWriter.AddText('Prepare', Result);
+      lcBindPrepStmt: SQLWriter.AddText('Bind prepared', Result);
+      lcExecPrepStmt: SQLWriter.AddText('Execute prepared', Result);
+      lcUnprepStmt: SQLWriter.AddText('Unprepare prepared', Result);
+      lcFetch: SQLWriter.AddText('Fetch ', Result);
+      lcFetchDone: SQLWriter.AddText('Fetch complete', Result);
+    else
+      SQLWriter.AddText('Other', Result);
+    end;
+    if LoggingEvent.Protocol <> '' then begin
+      SQLWriter.AddText(', proto: ', Result);
+      SQLWriter.AddText(LoggingEvent.Protocol, Result);
+    end;
+    SQLWriter.AddText(', msg: ', Result);
+    SQLWriter.AddText(LoggingEvent.Message, Result);
+    if (LoggingEvent.ErrorCodeOrAffectedRows <> -1) and (LoggingEvent.Error = '') and
+       ((LoggingEvent.Category = lcExecPrepStmt) or
+        (LoggingEvent.Category = lcExecute) or
+        (LoggingEvent.Category = lcFetchDone) ) then begin
+      if LoggingEvent.Category = lcFetchDone
+      then SQLWriter.AddText(', fetched row(s): ', Result)
+      else SQLWriter.AddText(', affected row(s): ', Result);
+      SQLWriter.AddOrd(LoggingEvent.ErrorCodeOrAffectedRows, Result);
+    end;
+    if (LoggingEvent.TimeStampStart <> 0) and (
+        (LoggingEvent.Category = lcExecPrepStmt) or
+        (LoggingEvent.Category = lcExecute)) then begin
+      SQLWriter.AddText(', elapsed time: ', Result);
+      SQLWriter.AddDateTime(LoggingEvent.Timestamp-LoggingEvent.TimeStampStart, DefTimeFormatMsecs, Result);
+    end;
+    if (LoggingEvent.Error <> EmptyRaw) then begin
+      SQLWriter.AddText(', errcode: ', Result);
+      SQLWriter.AddOrd(LoggingEvent.ErrorCodeOrAffectedRows, Result);
+      SQLWriter.AddText(', error: ', Result);
+      SQLWriter.AddText(LoggingEvent.Error, Result);
+    end;
+    SQLWriter.Finalize(Result);
+  finally
+    FreeAndNil(SQLWriter);
   end;
-  if LoggingEvent.Protocol <> EmptyRaw then begin
-    ToBuff(', proto: ', Buf, Result);
-    ToBuff(LoggingEvent.Protocol, Buf, Result);
-  end;
-  ToBuff(', msg: ', Buf, Result);
-  ToBuff(LoggingEvent.Message, Buf, Result);
-  if (LoggingEvent.ErrorCode <> 0) or (LoggingEvent.Error <> EmptyRaw) then begin
-    ToBuff(', errcode: ', Buf, Result);
-    ToBuff(IntToRaw(LoggingEvent.ErrorCode), Buf, Result);
-    ToBuff(', error: ', Buf, Result);
-    ToBuff(LoggingEvent.Error, Buf, Result);
-  end;
-  FlushBuff(Buf, Result);
 end;
 
 { TZLoggingEvent }
@@ -172,21 +190,23 @@ end;
   @param Error an error message.
 }
 constructor TZLoggingEvent.Create(Category: TZLoggingCategory;
-  const Protocol: RawByteString; const Msg: RawByteString; ErrorCode: Integer; const Error: RawByteString);
+  const Protocol: String; const Msg: SQLString; ErrorCodeOrAffectedRows: Integer;
+  const Error: SQLString; TimeStampStart: TDateTime = 0);
 begin
   FCategory := Category;
   FProtocol := Protocol;
   FMessage := Msg;
-  FErrorCode := ErrorCode;
+  FErrorCodeOrAffectedRows := ErrorCodeOrAffectedRows;
   FError := Error;
-  FTimestamp := Now;
+  FTimestamp := now;
+  FTimeStampStart := TimeStampStart;
 end;
 
 {**
   Gets a string representation for this event.
   @returns a string representation.
 }
-function TZLoggingEvent.AsString(const LoggingFormatter: IZLoggingFormatter = nil): RawByteString;
+function TZLoggingEvent.AsString(const LoggingFormatter: IZLoggingFormatter = nil): String;
 begin
   If Assigned(LoggingFormatter) then
     Result := LoggingFormatter.Format(Self)

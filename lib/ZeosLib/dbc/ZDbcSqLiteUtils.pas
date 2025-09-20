@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -58,31 +58,19 @@ interface
 {$IFNDEF ZEOS_DISABLE_SQLITE} //if set we have an empty unit
 uses
   Classes, SysUtils,
-  ZSysUtils, ZDbcIntfs, ZPlainSqLiteDriver, ZDbcLogging, ZCompatibility;
+  ZSysUtils, ZDbcIntfs, ZDbcLogging, ZCompatibility;
 
 {**
   Convert string SQLite field type to SQLType
   @param string field type value
   @param Precision the column precision or size
   @param Decimals the column position after decimal point
+  @param SQLiteIntAffinity the column position after decimal point
   @result the SQLType field type value
 }
 function ConvertSQLiteTypeToSQLType(var TypeName: RawByteString;
   UndefinedVarcharAsStringLength: Integer; out Precision: Integer;
-  out Decimals: Integer; CtrlsCPType: TZControlsCodePage): TZSQLType;
-
-{**
-  Checks for possible sql errors.
-  @param PlainDriver a SQLite plain driver.
-  @param ErrorCode an error code.
-  @param ErrorMessage an error message.
-  @param LogCategory a logging category.
-  @param LogMessage a logging message.
-}
-procedure CheckSQLiteError(const PlainDriver: IZSQLitePlainDriver;
-  Handle: PSqlite; ErrorCode: Integer; LogCategory: TZLoggingCategory;
-  const LogMessage: RawByteString; ConSettings: PZConSettings;
-  ExtendedErrorMessage: Boolean);
+  out Decimals: Integer; SQLiteIntAffinity: Boolean = False): TZSQLType;
 
 {**
   Decodes a SQLite Version Value and Encodes it to a Zeos SQL Version format:
@@ -98,7 +86,7 @@ implementation
 {$IFNDEF ZEOS_DISABLE_SQLITE} //if set we have an empty unit
 
 uses {$IFDEF WITH_UNITANSISTRINGS}AnsiStrings, {$ENDIF}
-  ZMessages, ZFastCode, ZClasses;
+  ZMessages, ZFastCode, ZDbcUtils;
 
 {**
   Convert string SQLite field type to SQLType
@@ -109,7 +97,7 @@ uses {$IFDEF WITH_UNITANSISTRINGS}AnsiStrings, {$ENDIF}
 }
 function ConvertSQLiteTypeToSQLType(var TypeName: RawByteString;
   UndefinedVarcharAsStringLength: Integer; out Precision: Integer;
-  out Decimals: Integer; CtrlsCPType: TZControlsCodePage): TZSQLType;
+  out Decimals: Integer; SQLiteIntAffinity: Boolean = False): TZSQLType;
 var
   pBL, pBR, pC: Integer;
   P: PAnsiChar;
@@ -143,19 +131,26 @@ begin
     Result := stString
   else if StartsWith(TypeName, {$IFDEF UNICODE}RawByteString{$ENDIF}('BOOL')) then
     Result := stBoolean
-  else if ZFastCode.Pos({$IFDEF UNICODE}RawByteString{$ENDIF}('INT'), TypeName) > 0 then begin
-    if StartsWith(TypeName, {$IFDEF UNICODE}RawByteString{$ENDIF}('TINY')) then
-      Result := stShort
-    else if StartsWith(TypeName, {$IFDEF UNICODE}RawByteString{$ENDIF}('SMALL')) then
-      Result := stSmall
-    else if StartsWith(TypeName, {$IFDEF UNICODE}RawByteString{$ENDIF}('BIG')) or
-             (TypeName = 'INTEGER') then //http://www.sqlite.org/autoinc.html
+  else if ZFastCode.Pos({$IFDEF UNICODE}RawByteString{$ENDIF}('INT'), TypeName) > 0 then
+    (* EH: This is a hack to use integer affinity for Currency type ranges *)
+    if (Decimals > 0) and (Decimals <= 4) and (Precision >= Decimals) and (Precision <= zDbcUtils.sAlignCurrencyScale2Precision[Decimals]) then
+      Result := stCurrency
+    else if SQLiteIntAffinity then
       Result := stLong
-    else //includes 'INT' / 'MEDIUMINT'
-      Result := stInteger;
-    if PosEx({$IFDEF UNICODE}RawByteString{$ENDIF}('UNSIGEND'), TypeName) > 0 then
-      Result := TZSQLType(Ord(Result)-1);
-  end else if StartsWith(TypeName, {$IFDEF UNICODE}RawByteString{$ENDIF}('REAL')) then
+    else begin
+      if StartsWith(TypeName, {$IFDEF UNICODE}RawByteString{$ENDIF}('TINY')) or StartsWith(TypeName, {$IFDEF UNICODE}RawByteString{$ENDIF}('INT8')) then
+        Result := stShort
+      else if StartsWith(TypeName, {$IFDEF UNICODE}RawByteString{$ENDIF}('SMALL')) or StartsWith(TypeName, {$IFDEF UNICODE}RawByteString{$ENDIF}('INT16'))  then
+        Result := stSmall
+      else if StartsWith(TypeName, {$IFDEF UNICODE}RawByteString{$ENDIF}('BIG')) or
+               (TypeName = 'INTEGER') then //http://www.sqlite.org/autoinc.html
+        Result := stLong
+      else //includes 'INT' / 'MEDIUMINT' /INT32
+        Result := stInteger;
+      if PosEx({$IFDEF UNICODE}RawByteString{$ENDIF}('UNSIGEND'), TypeName) > 0 then
+        Result := TZSQLType(Ord(stLongWord)-1);
+    end
+  else if StartsWith(TypeName, {$IFDEF UNICODE}RawByteString{$ENDIF}('REAL')) then
     Result := stDouble
   else if StartsWith(TypeName, {$IFDEF UNICODE}RawByteString{$ENDIF}('FLOAT')) then
     Result := stDouble
@@ -187,10 +182,10 @@ begin
   else if ZFastCode.Pos({$IFDEF UNICODE}RawByteString{$ENDIF}('CLOB'), TypeName) > 0 then
     Result := stAsciiStream
   else if ZFastCode.Pos({$IFDEF UNICODE}RawByteString{$ENDIF}('TEXT'), TypeName) > 0 then
-    Result := stAsciiStream;
-
+    Result := stAsciiStream
+  else if ZFastCode.Pos({$IFDEF UNICODE}RawByteString{$ENDIF}('GUID'), TypeName) > 0 then
+    Result := stGUID;
   if (Result = stInteger) and (Precision <> 0) then
-  begin
     if Precision <= 2 then
       Result := stByte
     else if Precision <= 4 then
@@ -199,51 +194,13 @@ begin
       Result := stInteger
     else
       Result := stLong;
-  end;
 
   if (Result = stString) and (Precision = 0) then
     if (UndefinedVarcharAsStringLength = 0) then
       Result := stAsciiStream
     else
       Precision := UndefinedVarcharAsStringLength;
-
-  if ( CtrlsCPType = cCP_UTF16 ) then
-    case Result of
-      stString:  Result := stUnicodeString;
-      stAsciiStream: Result := stUnicodeStream;
-    end;
 end;
-
-{**
-  Checks for possible sql errors.
-  @param PlainDriver a SQLite plain driver.
-  @param ErrorCode an error code.
-  @param ErrorMessage an error message.
-  @param LogCategory a logging category.
-  @param LogMessage a logging message.
-}
-procedure CheckSQLiteError(const PlainDriver: IZSQLitePlainDriver;
-  Handle: PSqlite; ErrorCode: Integer; LogCategory: TZLoggingCategory;
-  const LogMessage: RawByteString; ConSettings: PZConSettings;
-  ExtendedErrorMessage: Boolean);
-var
-  ErrorStr, ErrorMsg: RawByteString;
-begin
-  if not (ErrorCode in [SQLITE_OK, SQLITE_ROW, SQLITE_DONE]) then begin
-    ErrorMsg := '';
-    ErrorStr := PLainDriver.ErrorString(Handle, ErrorCode);
-    if ExtendedErrorMessage then
-      ErrorMsg := PLainDriver.ErrorMessage(Handle);
-    if ErrorMsg <> '' then
-      ErrorStr := 'Error: '+ErrorStr+LineEnding+'Message: '+ErrorMsg;
-    DriverManager.LogError(LogCategory, ConSettings^.Protocol, LogMessage,
-      ErrorCode, ErrorStr);
-    raise EZSQLException.CreateWithCode(ErrorCode, Format(SSQLError1,
-      [ConSettings.ConvFuncs.ZRawToString(ErrorStr, ConSettings^.ClientCodePage^.CP, ConSettings^.CTRL_CP)]));
-  end;
-end;
-
-
 
 {**
   Decodes a SQLite Version Value and Encodes it to a Zeos SQL Version format:

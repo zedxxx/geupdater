@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -68,11 +68,39 @@ uses
   SysUtils;
 
 type
+  {$IF not declared(TDate)}
+  TDate                = TDateTime;
+  {$IFEND}
+  {$IF not declared(TTime)}
+  TTime                = TDateTime;
+  {$IFEND}
   {$IF not declared(UInt64)}
   UInt64                = QWord;
   {$IFEND}
   {$IF not declared(PUInt64)}
   PUInt64               = {$IFDEF FPC}PQWord{$ELSE}^UInt64{$ENDIF};
+  {$IFEND}
+  {$IF not declared(UInt128)}
+  UInt128                = packed record
+    {$IFNDEF ENDIAN_BIG}hi,lo{$ELSE}lo, hi{$ENDIF}: UInt64;
+  end;
+  {$IFEND}
+  {$IF not declared(PUInt128)}
+  PUInt128 = ^UInt128;
+  {$IFEND}
+  {$IF not declared(Int128)}
+  Int128                = packed record
+    {$IFNDEF ENDIAN_BIG}
+    hi: Int64;
+    lo: UInt64;
+    {$ELSE}
+    lo: UInt64;
+    hi: Int64;
+    {$ENDIF}
+  end;
+  {$IFEND}
+  {$IF not declared(PInt128)}
+  PInt128 = ^Int128;
   {$IFEND}
   {$IF not declared(PPLongWord)}
   PPLongWord            = ^PLongWord;
@@ -87,14 +115,21 @@ type
   {$IF not declared(PNativeUInt)} //since FPC2.7 this type is declared too avoid inconsitent builds
   PNativeUInt           = ^NativeUInt;
   {$IFEND}
+  {$IF not declared(PNativeInt)} //since FPC2.6.4 this type is declared too avoid inconsitent builds
+  PNativeInt           = ^NativeInt;
+  {$IFEND}
 {$ELSE}
   {$IFNDEF HAVE_TRUE_NATIVE_TYPES}  //introduced since D2007 but "stable" since XE2
   NativeInt             = Integer;
+  PNativeInt            = ^NativeInt;
   NativeUInt            = LongWord;
   PNativeUInt           = ^NativeUInt;
   PWord                 = ^Word; // M.A.
   {$ENDIF}
 {$ENDIF}
+  {$IF not declared(PLongBool)}
+  PLongBool = ^LongBool;
+  {$IFEND}
 
   UInt                  = LongWord;
   PUInt                 = ^UInt;
@@ -120,20 +155,23 @@ type
   PInt64Rec = ^Int64Rec;
   {$IFEND}
 {$IFDEF FPC}
-{$IFDEF WITH_RAWBYTESTRING}
-Type
-  PAnsiRec = ^TAnsiRec;
-  TAnsiRec = Record
-    CodePage    : TSystemCodePage;
-    ElementSize : Word;
-{$ifdef CPU64}
-    { align fields  }
-    Dummy       : DWord;
-{$endif CPU64}
-    Ref         : SizeInt;
-    Len         : SizeInt;
-  end;
-  {$ENDIF}
+
+//2021-11-24:
+//Removed because we should not rely on implementation details. They are
+//bound to change sooner or later. See https://sourceforge.net/p/zeoslib/tickets/538/
+//{$IFDEF WITH_RAWBYTESTRING}
+//  PAnsiRec = ^TAnsiRec;
+//  TAnsiRec = Record
+//    CodePage    : TSystemCodePage;
+//    ElementSize : Word;
+//{$ifdef CPU64}
+//    { align fields  }
+//    Dummy       : DWord;
+//{$endif CPU64}
+//    Ref         : SizeInt;
+//    Len         : SizeInt;
+//  end;
+//{$ENDIF}
   {@-16 : Code page indicator.
   @-12 : Character size (2 bytes)
   @-8  : SizeInt for reference count;
@@ -145,7 +183,10 @@ const
   StringLenOffSet             = SizeOf(SizeInt){PAnsiRec/PUnicodeRec.Len};
   StringRefCntOffSet          = SizeOf(SizeInt){PAnsiRec/PUnicodeRec.Ref}+SizeOf(SizeInt){PAnsiRec/PUnicodeRec.Len};
   {$IFDEF WITH_RAWBYTESTRING}
-  AnsiFirstOff                = SizeOf(TAnsiRec);
+  //2021-11-24:
+  //Removed because we should not rely on implementation details. They are
+  //bound to change sooner or later. See https://sourceforge.net/p/zeoslib/tickets/538/
+  //AnsiFirstOff                = SizeOf(TAnsiRec);
   {$ENDIF}
   {$ELSE} //system.pas
 const
@@ -162,12 +203,68 @@ const
   FirstStringIndex = {$IFDEF ZERO_BASED_STRINGS}0{$ELSE}1{$ENDIF}; //Str[i] fe.
 
 type
+  /// <author>EgonHugeist</summary>
+  /// <summary>Defines a reference of a Zeos Character ref record</summary>
   PZCharRec = ^TZCharRec;
+  /// <author>EgonHugeist</summary>
+  /// <summary>Defines a Zeos Character ref record</summary>
   TZCharRec = Record
     Len: Cardinal; //Length of String
     P: Pointer;    //Allocated Mem of String including #0 terminator
     CP: Word;      //CodePage of the String
   end;
+
+  /// <author>EgonHugeist</summary>
+  /// <summary>Defines a reference of a Zeos Timestamp record</summary>
+  PZTimeStamp = ^TZTimeStamp;
+  /// <author>EgonHugeist</summary>
+  /// <summary>Defines a Zeos Timestamp record</summary>
+  TZTimeStamp = packed record //keep it packed !! -> clear/copy
+    Year: Word;
+    Month: Word;
+    Day: Word;
+    Hour: Word;
+    Minute: Word;
+    Second: Word;
+    Fractions: Cardinal; //NanoSeconds
+    TimeZoneHour: SmallInt;
+    TimeZoneMinute:Word;
+    IsNegative: WordBool; //MySQL allows negative timestamp values
+  end;
+  /// <author>EgonHugeist</summary>
+  /// <summary>Defines an array Zeos Timestamp records</summary>
+  TZTimeStampDynArray = array of TZTimeStamp;
+
+  /// <author>EgonHugeist</summary>
+  /// <summary>Defines a reference of a Zeos Date record</summary>
+  PZDate = ^TZDate;
+  /// <author>EgonHugeist</summary>
+  /// <summary>Defines a Zeos Date record</summary>
+  TZDate = packed record //keep it packed !!
+    Year: Word;
+    Month: Word;
+    Day: Word;
+    IsNegative: WordBool; //MySQL allows negative date values
+  end;
+  /// <author>EgonHugeist</summary>
+  /// <summary>Defines an array Zeos Date records</summary>
+  TZDateDynArray = array of TZDate;
+
+  /// <author>EgonHugeist</summary>
+  /// <summary>Defines a reference of a Zeos Time record</summary>
+  PZTime = ^TZTime;
+  /// <author>EgonHugeist</summary>
+  /// <summary>Defines a Zeos Time record</summary>
+  TZTime = packed Record //keep it packed !!
+    Hour: Word;
+    Minute: Word;
+    Second: Word;
+    Fractions: Cardinal; //NanoSeconds
+    IsNegative: WordBool; //MySQL allows negative time values
+  end;
+  /// <author>EgonHugeist</summary>
+  /// <summary>Defines an array Zeos Time records</summary>
+  TZTimeDynArray = array of TZTime;
 
   {$IF NOT DECLARED(TBytes)}
   TBytes = TByteDynArray;
@@ -199,8 +296,11 @@ const
   DefDateFormatMDY = 'MM/DD/YYYY';
   DefTimeFormat = 'HH:NN:SS';
   DefTimeFormatMsecs = 'HH:NN:SS.ZZZ';
-  DefDateTimeFormat = DefDateFormatDMY + ' ' + DefTimeFormat;
-  DefDateTimeFormatMsecs = DefDateFormatDMY + ' ' + DefTimeFormatMsecs;
+  DefDateTimeFormatDMY = DefDateFormatDMY + ' ' + DefTimeFormat;
+  DefDateTimeFormatYMD = DefDateFormatYMD + ' ' + DefTimeFormat;
+  DefDateTimeFormatMDY = DefDateFormatMDY + ' ' + DefTimeFormat;
+  DefDateTimeFormatMsecsDMY = DefDateFormatDMY + ' ' + DefTimeFormatMsecs;
+  DefDateTimeFormatMsecsYMD = DefDateFormatYMD + ' ' + DefTimeFormatMsecs;
   DefDateTimeFormatMsecsMDY = DefDateFormatYMD + ' ' + DefTimeFormatMsecs;
 
 {$IF NOT DECLARED(LineEnding)} // FPC-style constant, declare for Delphi
@@ -254,6 +354,16 @@ type
     RawByteString = AnsiString;
     {$ENDIF}
   {$ENDIF}
+  {$IF not declared(PRawByteString)}
+    PRawByteString = ^RawByteString;
+  {$IFEND}
+
+
+  {$If not declared(UnicodeString)}
+  UnicodeString = WideString;
+  {$IFEND}
+
+  SQLString = {$IFDEF UNICODE}UnicodeString{$ELSE}RawByteString{$ENDIF};
 
   ZWideString = {$IFDEF PWIDECHAR_IS_PUNICODECHAR}UnicodeString{$ELSE}WideString{$ENDIF};
 
@@ -315,7 +425,7 @@ type
   TRawByteStringDynArray  = array of RawByteString;
   {$IFEND}
   {$IF not declared(TUnicodeStringDynArray)}
-  TUnicodeStringDynArray  = array of ZWideString;
+  TUnicodeStringDynArray  = array of UnicodeString;
   {$IFEND}
   {$IF not declared(TStringDynArray)}
   TStringDynArray  = array of String;
@@ -335,34 +445,6 @@ type
   TZCharRecDynArray = array of TZCharRec;
 
 type
-  {declare move or converter functions for the String Types}
-  {$IFNDEF NO_ANSISTRING}
-  TZAnsiToRaw = function (const Src: AnsiString; const RawCP: Word): RawByteString;
-  TZRawToAnsi = function (const Src: RawByteString; const RawCP: Word): AnsiString;
-  TZAnsiToUTF8 = function (const Src: AnsiString): UTF8String;
-  TZUTF8ToAnsi = function (const Src: UTF8String): AnsiString;
-  TZAnsiToString = function (const Src: AnsiString; const StringCP: Word): String;
-  TZStringToAnsi = function (const Src: String; const StringCP: Word): AnsiString;
-  {$ENDIF}
-  {$IFNDEF NO_UTF8STRING}
-  TPRawToUTF8 = function(const Src: PAnsiChar; Len: NativeUInt; const RawCP: Word): UTF8String;
-  TZRawToUTF8 = function (const Src: RawByteString; const CP: Word): UTF8String;
-  TZUTF8ToRaw = function (const Src: UTF8String; const CP: Word): RawByteString;
-  TZUTF8ToString = function (const Src: UTF8String; const StringCP: Word): String;
-  TZStringToUTF8 = function (const Src: String; const StringCP: Word): UTF8String;
-  {$ENDIF}
-  TZRawToString = function (const Src: RawByteString; const RawCP, StringCP: Word): String;
-  TZStringToRaw = function (const Src: String; const StringCP, RawCP: Word): RawByteString;
-  TZRawToUnicode = function (const S: RawByteString; const CP: Word): ZWideString;
-  TZUnicodeToRaw = function (const US: ZWideString; CP: Word): RawByteString;
-  TZUnicodeToString = function (const Src: ZWideString; const StringCP: Word): String;
-  TZStringToUnicode = function (const Src: String; const StringCP: Word): ZWideString;
-  TPRawToString = function (Src: PAnsiChar; Len: LengthInt; const RawCP, StringCP: Word): String;
-  TPUnicodeToString = function (Src: PWideChar; CodePoints: NativeUInt; const StringCP: Word): String;
-
-  {** Defines the Target Ansi codepages for the Controls }
-  TZControlsCodePage = ({$IFDEF UNICODE}cCP_UTF16, cCP_UTF8, cGET_ACP{$ELSE}{$IFDEF FPC}cCP_UTF8, cCP_UTF16, cGET_ACP{$ELSE}cGET_ACP, cCP_UTF8, cCP_UTF16{$ENDIF}{$ENDIF});
-
   TZCharEncoding = (
     ceDefault,  //Internal switch for the two Functions below do not use it as a CodePage-declaration!
     ceAnsi,     //Base Ansi-String: prefered CodePage
@@ -383,74 +465,6 @@ type
     IsStringFieldCPConsistent: Boolean; //Is the current client characterset codepage consistent for all codepages?
   end;
 
-  TConvertEncodingFunctions = record
-    {$IFNDEF NO_ANSISTRING}
-    ZAnsiToUTF8: TZAnsiToUTF8;
-    ZUTF8ToAnsi: TZUTF8ToAnsi;
-    ZRawToAnsi: TZRawToAnsi;
-    ZAnsiToString: TZAnsiToString;
-    ZStringToAnsi: TZStringToAnsi;
-    ZAnsiToRaw: TZAnsiToRaw;
-    {$ENDIF}
-    {$IFNDEF NO_UTF8STRING}
-    ZUTF8ToString: TZUTF8ToString;
-    ZStringToUTF8: TZStringToUTF8;
-    ZRawToUTF8: TZRawToUTF8;
-    ZUTF8ToRaw: TZUTF8ToRaw;
-    ZPRawToUTF8: TPRawToUTF8;
-    {$ENDIF}
-    ZStringToRaw: TZStringToRaw;
-    ZRawToString: TZRawToString;
-    ZUnicodeToRaw: TZUnicodeToRaw;
-    ZRawToUnicode: TZRawToUnicode;
-    ZUnicodeToString: TZUnicodeToString;
-    ZStringToUnicode: TZStringToUnicode;
-    ZPRawToString: TPRawToString;
-    ZPUnicodeToString: TPUnicodeToString;
-  end;
-
-  TZFormatSettings = Record
-    DateFormat: String;
-    DateFormatLen: Byte;
-    TimeFormat: String;
-    TimeFormatLen: Byte;
-    DateTimeFormat: String;
-    DateTimeFormatLen: Byte;
-  End;
-
-  PZConSettings = ^TZConSettings;
-  TZConSettings = record
-    AutoEncode: Boolean;        //Check Encoding and or convert string with FromCP ToCP
-    CPType: TZControlsCodePage; //the CP-Settings type the controls do expect
-    CTRL_CP: Word;              //Target CP of string conversion (CP_ACP/CP_UPF8)
-    ConvFuncs: TConvertEncodingFunctions; //a rec for the Convert functions used by the objects
-    ClientCodePage: PZCodePage; //The codepage informations of the current characterset
-    DisplayFormatSettings: TZFormatSettings;
-    ReadFormatSettings: TZFormatSettings;
-    WriteFormatSettings: TZFormatSettings;
-    {$IFDEF WITH_LCONVENCODING}
-    PlainConvertFunc: TConvertEncodingFunction;
-    DbcConvertFunc: TConvertEncodingFunction;
-    {$ENDIF}
-    DataBaseSettings: Pointer;
-    Protocol, Database, User: RawByteString;
-  end;
-
-  TZCodePagedObject = Class(TInterfacedObject)
-  private
-    FConSettings: PZConSettings;
-  protected
-    procedure SetConSettingsFromInfo(Info: TStrings);
-    property ConSettings: PZConSettings read FConSettings write FConSettings;
-  public
-    function GetConSettings: PZConSettings;
-  end;
-
-  {$IFDEF WITH_LCONVENCODING}
-  function NoConvert(const s: string): string;
-  {$ENDIF}
-
-
 {$IFNDEF WITH_CHARINSET}
 function CharInSet(const C: AnsiChar; const CharSet: TSysCharSet): Boolean; overload; {$IFDEF WITH_INLINE}Inline;{$ENDIF}
 function CharInSet(const C: WideChar; const CharSet: TSysCharSet): Boolean; overload; {$IFDEF WITH_INLINE}Inline;{$ENDIF}
@@ -459,11 +473,11 @@ function CharInSet(const C: Word; const CharSet: TSysCharSet): Boolean; overload
 
 {$IF not Declared(UTF8ToString)}
 {$DEFINE ZUTF8ToString}
-function UTF8ToString(const s: RawByteString): ZWideString;
+function UTF8ToString(const s: RawByteString): UnicodeString;
 {$IFEND}
 
 function Hash(const S : RawByteString) : LongWord; overload;
-function Hash(const Key : ZWideString) : Cardinal; overload;
+function Hash(const Key : UnicodeString) : Cardinal; overload;
 
 {$IFNDEF NO_ANSISTRING}
 procedure ZSetString(const Src: PAnsiChar; const Len: Cardinal; var Dest: {$IFDEF UNICODE}AnsiString{$ELSE}String{$ENDIF}); overload; {$IFDEF WITH_INLINE}Inline;{$ENDIF}
@@ -471,7 +485,7 @@ procedure ZSetString(const Src: PAnsiChar; const Len: Cardinal; var Dest: {$IFDE
 {$IFNDEF NO_UTF8STRING}
 procedure ZSetString(const Src: PAnsiChar; const Len: Cardinal; var Dest: UTF8String); overload; {$IFDEF WITH_INLINE}Inline;{$ENDIF}
 {$ENDIF}
-procedure ZSetString(Src: PAnsiChar; const Len: LengthInt; var Dest: ZWideString); overload; //{$IFDEF WITH_INLINE}Inline;{$ENDIF}
+procedure ZSetString(Src: PAnsiChar; const Len: LengthInt; var Dest: UnicodeString); overload; //{$IFDEF WITH_INLINE}Inline;{$ENDIF}
 {$IF defined (WITH_RAWBYTESTRING) or defined(WITH_TBYTES_AS_RAWBYTESTRING)}
 procedure ZSetString(const Src: PAnsiChar; const Len: Cardinal; var Dest: RawByteString); overload; {$IFDEF WITH_INLINE}Inline;{$ENDIF}
 {$IFEND}
@@ -495,136 +509,24 @@ function ReturnAddress: Pointer;
 function align(addr: NativeUInt; alignment: NativeUInt) : NativeUInt; inline;
 {$IFEND}
 
-var
-  {$IFDEF FPC}
-    {$PUSH}
-    {$WARN 3177 off : Some fields coming after "$1" were not initialized}
-    {$WARN 3175 off : Some fields coming before "$1" were not initialized}
-  {$ENDIF}
-  ClientCodePageDummy: TZCodepage =
-    (CharWidth: 1; Encoding: ceAnsi; CP: $ffff);
-
-  ConSettingsDummy: TZConSettings =
-    (AutoEncode: False;
-      CPType: {$IFDEF DELPHI}{$IFDEF UNICODE}cCP_UTF16{$ELSE}cGET_ACP{$ENDIF}{$ELSE}cCP_UTF8{$ENDIF};
-      ClientCodePage: @ClientCodePageDummy;
-      DisplayFormatSettings:
-          (DateFormat: DefDateFormatDMY;
-          DateFormatLen: Length(DefDateFormatDMY);
-          TimeFormat: DefTimeFormatMsecs;
-          TimeFormatLen: Length(DefTimeFormatMsecs);
-          DateTimeFormat: DefDateTimeFormat;
-          DateTimeFormatLen: Length(DefDateTimeFormat));
-      ReadFormatSettings:
-          (DateFormat: DefDateFormatDMY;
-          DateFormatLen: Length(DefDateFormatDMY);
-          TimeFormat: DefTimeFormatMsecs;
-          TimeFormatLen: Length(DefTimeFormatMsecs);
-          DateTimeFormat: DefDateTimeFormatMsecs;
-          DateTimeFormatLen: Length(DefDateTimeFormatMsecs));
-      WriteFormatSettings:
-          (DateFormat: DefDateFormatDMY;
-          DateFormatLen: Length(DefDateFormatDMY);
-          TimeFormat: DefTimeFormatMsecs;
-          TimeFormatLen: Length(DefTimeFormatMsecs);
-          DateTimeFormat: DefDateTimeFormatMsecs;
-          DateTimeFormatLen: Length(DefDateTimeFormatMsecs));
-      {$IFDEF WITH_LCONVENCODING}
-      PlainConvertFunc: @NoConvert;
-      DbcConvertFunc: @NoConvert;
-      {$ENDIF}
-    );
-  {$IFDEF FPC} {$POP} {$ENDIF}
-
 const
   PEmptyUnicodeString: PWideChar = '';
   PEmptyAnsiString: PAnsiChar = '';
   EmptyRaw = {$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}nil{$ELSE}RawByteString(''){$ENDIF};
+  bInitZeroBCD: array[0..3] of Byte = ($01,$00,$00,$00); //endian save
+  CodePageDummy: TZCodepage =
+    (Name: ''; ID: 0; CharWidth: 1; Encoding: ceAnsi; CP: $ffff; ZAlias: ''; IsStringFieldCPConsistent: False);
+
 var
   ZOSCodePage: Word;
   ZOSCodePageMaxCharSize: Word;
+  ZInitZeroBCD: Cardinal absolute bInitZeroBCD;
 
 implementation
 
 {$IFDEF FAST_MOVE}
 uses ZFastCode;
 {$ENDIF}
-
-function TZCodePagedObject.GetConSettings: PZConSettings;
-begin
-  Result := FConSettings;
-end;
-
-procedure TZCodePagedObject.SetConSettingsFromInfo(Info: TStrings);
-var S: String;
-begin
-  if Assigned(Info) and Assigned(FConSettings) then begin
-    {$IF defined(MSWINDOWS) or defined(FPC_HAS_BUILTIN_WIDESTR_MANAGER) or defined(WITH_LCONVENCODING) or defined(UNICODE)}
-    S := Info.Values['AutoEncodeStrings'];
-    S := Uppercase(S);
-    //EH: Using StrToBoolEx by adding ZSysUtils to the uses clause
-    //leads to inline Warnings with some Delphi's.
-    //As long this Object (my mistake) is part of core
-    //(Should be dbc same like IZClientVariantManagaer and TZURL)
-    //and is defined in ZCompatibility we do the boolean evaluation by hand
-    ConSettings.AutoEncode := (S <> '') and ((S = 'ON') or (S = 'TRUE') or (S = 'YES') or (StrToIntDef(S,0)<>0)); //compatibitity Option for existing Applications;
-    {$ELSE}
-    ConSettings.AutoEncode := False;
-    {$IFEND}
-    S := Info.Values['controls_cp'];
-    S := UpperCase(S);
-    {$IF defined(Delphi) and defined(UNICODE) and defined(MSWINDOWS)}
-    ConSettings.CTRL_CP := DefaultSystemCodePage;
-    if Info.Values['controls_cp'] = 'GET_ACP'
-    then ConSettings.CPType := cGET_ACP
-    else ConSettings.CPType := cCP_UTF16;
-    {$ELSE}
-    if Info.Values['controls_cp'] = 'GET_ACP' then begin
-      ConSettings.CPType := cGET_ACP;
-      ConSettings.CTRL_CP := ZOSCodePage;
-    end else if Info.Values['controls_cp'] = 'CP_UTF8' then begin
-      ConSettings.CPType := cCP_UTF8;
-      ConSettings.CTRL_CP := 65001;
-    end else if Info.Values['controls_cp'] = 'CP_UTF16' then begin
-      {$IFDEF WITH_WIDEFIELDS}
-      ConSettings.CPType := cCP_UTF16;
-        {$IFDEF WITH_DEFAULTSYSTEMCODEPAGE}
-        ConSettings.CTRL_CP := DefaultSystemCodePage;
-        {$ELSE}
-        ConSettings.CTRL_CP := ZOSCodePage;
-        {$ENDIF}
-      {$ELSE}
-      ConSettings.CPType := cCP_UTF8;
-      ConSettings.CTRL_CP := 65001;
-      {$ENDIF}
-    end else begin // nothing was found set defaults
-      {$IFDEF LCL}
-      ConSettings.CPType := cCP_UTF8;
-      ConSettings.CTRL_CP := 65001;
-      {$ELSE}
-        {$IFDEF UNICODE}
-        ConSettings.CPType := cCP_UTF16;
-        {$ELSE}
-        ConSettings.CPType := cGET_ACP;
-        {$ENDIF}
-        {$IFDEF WITH_DEFAULTSYSTEMCODEPAGE}
-        ConSettings.CTRL_CP := DefaultSystemCodePage;
-        {$ELSE}
-        ConSettings.CTRL_CP := ZOSCodePage;
-        {$ENDIF}
-      {$ENDIF}
-    end;
-    {$IFEND}
-  end;
-end;
-
-{$IFDEF WITH_LCONVENCODING}
-function NoConvert(const s: string): string;
-begin
-  Result := S;
-end;
-{$ENDIF}
-
 
 {$IFDEF UNIX}
   {$IFDEF FPC}
@@ -648,7 +550,7 @@ end;
 {$Q-}
 {$R-}
 
-function Hash(const key: ZWideString): Cardinal;
+function Hash(const key: UnicodeString): Cardinal;
 var
   I: integer;
 begin
@@ -659,28 +561,6 @@ begin
     Result := Result xor Cardinal(key[I]);
   end;
 end; { Hash }
-
-(*function Hash(const S: RawByteString): Cardinal; //perform the FPC used ELF Hash algorithm -> pretty slow(byte hashed) but tiny
-Var
-  thehash,g,I : LongWord;
-begin
-  thehash:=0;
-  For I:=1 to Length(S) do { 0 terminated }
-  begin
-    thehash:=thehash shl 4;
-    inc(theHash,Ord(S[i]));
-    g:=thehash and $f0000000;;
-    if g<>0 then
-    begin
-      thehash:=thehash xor (g shr 24);
-      thehash:=thehash xor g;
-    end;
-  end;
-  If theHash=0 then
-     Result := $ffffffff
-   else
-     Result :=TheHash;
-end;*)
 
 { ported from http://stofl.org/questions/3690608/simple-string-hashing-function}
 //perform a MurmurHash2 algorithm by Austin Appleby loads faster (4Byte aligned)
@@ -801,7 +681,7 @@ end;
 {$ENDIF}
 
 {$IFDEF  ZUTF8ToString}
-function UTF8ToString(const s: RawByteString): ZWideString;
+function UTF8ToString(const s: RawByteString): UnicodeString;
 begin
   Result := UTF8Decode(s);
 end;
@@ -856,8 +736,8 @@ begin
 end;
 {$ENDIF}
 
-//EgonHugeist: my fast ByteToWord shift without encoding maps and/or alloc a ZWideString
-procedure ZSetString(Src: PAnsiChar; const Len: LengthInt; var Dest: ZWideString); overload;
+//EgonHugeist: my fast ByteToWord shift without encoding maps and/or alloc a UnicodeString
+procedure ZSetString(Src: PAnsiChar; const Len: LengthInt; var Dest: UnicodeString); overload;
 var
   PEnd: PAnsiChar;
   PW: PWideChar;
@@ -939,12 +819,16 @@ begin
       SetLength(Dest, Len);
       if Src <> nil then {$IFDEF FAST_MOVE}ZFastCode{$ELSE}System{$ENDIF}.Move(Src^, Pointer(Dest)^, Len);
     end;
-    {$IFDEF FPC}
-    PAnsiRec(pointer(Dest)-AnsiFirstOff)^.CodePage := CP;
-    {$ELSE}
+    //Removed because we should not rely on implementation details. They are
+    //bound to change sooner or later. See https://sourceforge.net/p/zeoslib/tickets/538/
+    //SetCodePage should do the same.
+    //{$IFDEF FPC}
+    //PAnsiRec(pointer(Dest)-AnsiFirstOff)^.CodePage := CP;
+    SetCodePage(Dest, CP, False);
+    //{$ELSE}
     //System.SetCodePage(Dest, CP, False); is not inlined on FPC and the code inside is alreade executed her
-    {%H-}PWord(NativeUInt(Dest) - CodePageOffSet)^ := CP;
-    {$ENDIF}
+    //{%H-}PWord(NativeUInt(Dest) - CodePageOffSet)^ := CP;
+    //{$ENDIF}
   end;
 end;
 {$ENDIF}
@@ -977,6 +861,7 @@ begin
   for I := Low(Vals) to High(Vals) do
     if Pointer(Vals[i]) <> nil then
       Inc(L, Length(Vals[i]){$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}-1{$ENDIF});
+  {$IFDEF FPC}Result := '';{$ENDIF}
   SetLength(Result, L{$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}+1{$ENDIF});
   P := Pointer(Result);
   AnsiChar((P+L)^) := AnsiChar(#0);
@@ -1011,9 +896,4 @@ function ReturnAddress: Pointer;
 {$ENDIF}
 {$ENDIF ZReturnAddress}
 
-initialization
-  case ConSettingsDummy.CPType of
-    cCP_UTF16, cGET_ACP: ConSettingsDummy.CTRL_CP := ZOSCodePage;
-    cCP_UTF8: ConSettingsDummy.CTRL_CP := 65001;
-  end;
 end.

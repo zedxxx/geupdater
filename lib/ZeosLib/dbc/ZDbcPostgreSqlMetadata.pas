@@ -40,7 +40,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -63,16 +63,16 @@ uses
   ZSelectSchema, ZPlainPostgreSqlDriver;
 
 type
-  {** Implements a PostgreSQL Case Sensitive/Unsensitive identifier convertor. }
-  TZPostgreSQLIdentifierConvertor = class (TZDefaultIdentifierConvertor)
+  {** Implements a PostgreSQL Case Sensitive/Unsensitive identifier converter. }
+  TZPostgreSQLIdentifierConverter = class (TZDefaultIdentifierConverter)
   protected
     function IsSpecialCase(const Value: string): Boolean; override;
   public
     function IsQuoted(const Value: string): Boolean; override;
-    function Quote(const Value: string): string; override;
-    function ExtractQuote(const Value: string): string; override; 
-  end; 
- 
+    function Quote(const Value: string; Qualifier: TZIdentifierQualifier = iqUnspecified): string; override;
+    function ExtractQuote(const Value: string): string; override;
+  end;
+
   {**
     Database information interface for PostgreSQL. Adds some PostgreSQL-specific
      methods to IZDatabaseInfo.
@@ -94,12 +94,13 @@ type
 //    function UncachedGetUDTs(const Catalog: string; const SchemaPattern: string;
 //      const TypeNamePattern: string; const Types: TIntegerDynArray): IZResultSet; override;
   public
-    constructor Create(const Metadata: TZAbstractDatabaseMetadata);
-    destructor Destroy; override;
-
     // database/driver/server info:
+    /// <summary>What's the name of this database product?</summary>
+    /// <returns>database product name</returns>
     function GetDatabaseProductName: string; override;
     function GetDatabaseProductVersion: string; override;
+    /// <summary>What's the name of this ZDBC driver?
+    /// <returns>ZDBC driver name</returns>
     function GetDriverName: string; override;
 //    function GetDriverVersion: string; override; -> Same as parent
     function GetDriverMajorVersion: Integer; override;
@@ -119,7 +120,6 @@ type
 //    function SupportsConvert: Boolean; override; -> Not implemented
 //    function SupportsConvertForTypes(FromType: TZSQLType; ToType: TZSQLType):
 //      Boolean; override; -> Not implemented
-//    function SupportsTableCorrelationNames: Boolean; override; -> Not implemented
 //    function SupportsDifferentTableCorrelationNames: Boolean; override; -> Not implemented
     function SupportsExpressionsInOrderBy: Boolean; override;
     function SupportsOrderByUnrelated: Boolean; override;
@@ -174,6 +174,7 @@ type
     function SupportsResultSetConcurrency(const _Type: TZResultSetType;
       const Concurrency: TZResultSetConcurrency): Boolean; override;
 //    function SupportsBatchUpdates: Boolean; override; -> Not implemented
+    function SupportsArrayBindings: Boolean; override;
 
     // maxima:
     function GetMaxBinaryLiteralLength: Integer; override;
@@ -255,7 +256,7 @@ type
 
     // (technobot) should any of these be moved to TZPostgreSQLDatabaseInfo?:
     function GetPostgreSQLType(Oid: OID): string;
-    function GetSQLTypeByOid(Oid: OID): TZSQLType;
+    function GetSQLTypeByOid(Oid: OID; AttTypMod: Integer): TZSQLType;
     function GetSQLTypeByName(const TypeName: string): TZSQLType;
     function TableTypeSQLExpression(const TableType: string; UseSchemas: Boolean):
       string;
@@ -271,12 +272,138 @@ type
     function UncachedGetTableTypes: IZResultSet; override;
     function UncachedGetColumns(const Catalog: string; const SchemaPattern: string;
       const TableNamePattern: string; const ColumnNamePattern: string): IZResultSet; override;
+    /// <summary>Gets a description of the access rights for each table
+    ///  available in a catalog from a cache. Note that a table privilege
+    ///  applies to one or more columns in the table. It would be wrong to
+    ///  assume that this priviledge applies to all columns (this may be true
+    ///  for some systems but is not true for all.)
+    ///
+    ///  Only privileges matching the schema and table name
+    ///  criteria are returned. They are ordered by TABLE_SCHEM,
+    ///  TABLE_NAME, and PRIVILEGE.
+    ///
+    ///  Each privilige description has the following columns:
+    ///  <c>TABLE_CAT</c> String => table catalog (may be null)
+    ///  <c>TABLE_SCHEM</c> String => table schema (may be null)
+    ///  <c>TABLE_NAME</c> String => table name
+    ///  <c>GRANTOR</c> => grantor of access (may be null)
+    ///  <c>GRANTEE</c> String => grantee of access
+    ///  <c>PRIVILEGE</c> String => name of access (SELECT,
+    ///      INSERT, UPDATE, REFRENCES, ...)
+    ///  <c>IS_GRANTABLE</c> String => "YES" if grantee is permitted
+    ///   to grant to others; "NO" if not; null if unknown</summary>
+    ///
+    /// <param>"Catalog" a catalog name; "" means drop catalog name from the
+    ///  selection criteria</param>
+    /// <param>"SchemaPattern" a schema name pattern; "" means drop schema from
+    ///  the selection criteria</param>
+    /// <param>"TableNamePattern" a table name pattern</param>
+    /// <returns><c>ResultSet</c> - each row is a table privilege description</returns>
+    /// <remarks>see GetSearchStringEscape</remarks>
     function UncachedGetTablePrivileges(const Catalog: string; const SchemaPattern: string;
       const TableNamePattern: string): IZResultSet; override;
+    /// <summary>Gets a description of the access rights for a table's columns.
+    ///
+    ///  Only privileges matching the column name criteria are
+    ///  returned. They are ordered by COLUMN_NAME and PRIVILEGE.
+    ///
+    ///  Each privilige description has the following columns:
+ 	  ///  <c>TABLE_CAT</c> String => table catalog (may be null)
+ 	  ///  <c>TABLE_SCHEM</c> String => table schema (may be null)
+ 	  ///  <c>TABLE_NAME</c> String => table name
+ 	  ///  <c>COLUMN_NAME</c> String => column name
+ 	  ///  <c>GRANTOR</c> => grantor of access (may be null)
+ 	  ///  <c>GRANTEE</c> String => grantee of access
+ 	  ///  <c>PRIVILEGE</c> String => name of access (SELECT,
+    ///     INSERT, UPDATE, REFRENCES, ...)
+ 	  ///  <c>IS_GRANTABLE</c> String => "YES" if grantee is permitted
+    ///   to grant to others; "NO" if not; null if unknown</summary>
+    /// <param>"Catalog" a catalog name; An empty catalog means drop catalog
+    ///  name from the selection criteria</param>
+    /// <param>"schema" a schema name; An empty schema means drop schema
+    ///  name from the selection criteria</param>
+    /// <param>"table" a table name; An empty table means drop table
+    ///  name from the selection criteria</param>
+    /// <param>"ColumnNamePattern" a column name pattern</param>
+    /// <returns><c>ResultSet</c> - each row is a privilege description</returns>
+    /// <remarks>see GetSearchStringEscape</remarks>
     function UncachedGetColumnPrivileges(const Catalog: string; const Schema: string;
       const Table: string; const ColumnNamePattern: string): IZResultSet; override;
+    /// <summary>Gets a description of a table's primary key columns. They
+    ///  are ordered by COLUMN_NAME.
+    ///  Each primary key column description has the following columns:
+ 	  ///  <c>TABLE_CAT</c> String => table catalog (may be null)
+ 	  ///  <c>TABLE_SCHEM</c> String => table schema (may be null)
+ 	  ///  <c>TABLE_NAME</c> String => table name
+ 	  ///  <c>COLUMN_NAME</c> String => column name
+ 	  ///  <c>KEY_SEQ</c> short => sequence number within primary key
+ 	  ///  <c>PK_NAME</c> String => primary key name (may be null)</summary>
+    /// <param>"Catalog" a catalog name; An empty catalog means drop catalog
+    ///  name from the selection criteria</param>
+    /// <param>"schema" a schema name; An empty schema means drop schema
+    ///  name from the selection criteria</param>
+    /// <param>"table" a table name; An empty table means drop table
+    ///  name from the selection criteria</param>
+    /// <returns><c>ResultSet</c> - each row is a primary key column description</returns>
+    /// <remarks>see GetSearchStringEscape</remarks>
     function UncachedGetPrimaryKeys(const {%H-}Catalog: string; const Schema: string;
       const Table: string): IZResultSet; override;
+    /// <summary>Gets a description of the primary key columns that are
+    ///  referenced by a table's foreign key columns (the primary keys
+    ///  imported by a table).  They are ordered by PKTABLE_CAT,
+    ///  PKTABLE_SCHEM, PKTABLE_NAME, and KEY_SEQ.
+    ///  Each primary key column description has the following columns:
+    ///  <c>PKTABLE_CAT</c> String => primary key table catalog
+    ///       being imported (may be null)
+    ///  <c>PKTABLE_SCHEM</c> String => primary key table schema
+    ///       being imported (may be null)
+    ///  <c>PKTABLE_NAME</c> String => primary key table name
+    ///       being imported
+    ///  <c>PKCOLUMN_NAME</c> String => primary key column name
+    ///       being imported
+    ///  <c>FKTABLE_CAT</c> String => foreign key table catalog (may be null)
+    ///  <c>FKTABLE_SCHEM</c> String => foreign key table schema (may be null)
+    ///  <c>FKTABLE_NAME</c> String => foreign key table name
+    ///  <c>FKCOLUMN_NAME</c> String => foreign key column name
+    ///  <c>KEY_SEQ</c> short => sequence number within foreign key
+    ///  <c>UPDATE_RULE</c> short => What happens to
+    ///        foreign key when primary is updated:
+    ///        importedNoAction - do not allow update of primary
+    ///                key if it has been imported
+    ///        importedKeyCascade - change imported key to agree
+    ///                with primary key update
+    ///        importedKeySetNull - change imported key to NULL if
+    ///                its primary key has been updated
+    ///        importedKeySetDefault - change imported key to default values
+    ///                if its primary key has been updated
+    ///        importedKeyRestrict - same as importedKeyNoAction
+    ///                                  (for ODBC 2.x compatibility)
+    ///  <c>DELETE_RULE</c> short => What happens to
+    ///       the foreign key when primary is deleted.
+    ///        importedKeyNoAction - do not allow delete of primary
+    ///                key if it has been imported
+    ///        importedKeyCascade - delete rows that import a deleted key
+    ///       importedKeySetNull - change imported key to NULL if
+    ///                its primary key has been deleted
+    ///        importedKeyRestrict - same as importedKeyNoAction
+    ///                                  (for ODBC 2.x compatibility)
+    ///        importedKeySetDefault - change imported key to default if
+    ///                its primary key has been deleted
+    ///  <c>FK_NAME</c> String => foreign key name (may be null)
+    ///  <c>PK_NAME</c> String => primary key name (may be null)
+    ///  <c>DEFERRABILITY</c> short => can the evaluation of foreign key
+    ///       constraints be deferred until commit
+    ///        importedKeyInitiallyDeferred - see SQL92 for definition
+    ///        importedKeyInitiallyImmediate - see SQL92 for definition
+    ///        importedKeyNotDeferrable - see SQL92 for definition</summary>
+    /// <param>"Catalog" a catalog name; An empty catalog means drop catalog
+    ///  name from the selection criteria</param>
+    /// <param>"schema" a schema name; An empty schema means drop schema
+    ///  name from the selection criteria</param>
+    /// <param>"table" a table name; An empty table means drop table
+    ///  name from the selection criteria</param>
+    /// <returns><c>ResultSet</c> - each row is imported key column description</returns>
+    /// <remarks>see GetSearchStringEscape;GetExportedKeys</remarks>
     function UncachedGetImportedKeys(const Catalog: string; const Schema: string;
       const Table: string): IZResultSet; override;
     function UncachedGetExportedKeys(const Catalog: string; const Schema: string;
@@ -288,6 +415,30 @@ type
       Unique: Boolean; {%H-}Approximate: Boolean): IZResultSet; override;
      function UncachedGetSequences(const Catalog: string; const SchemaPattern: string;
       const SequenceNamePattern: string): IZResultSet; override;
+    /// <summary>Gets a description of the stored procedures available in a
+    ///  catalog. This method needs to be implemented per driver.
+    ///  Only procedure descriptions matching the schema and procedure name
+    ///  criteria are returned. They are ordered by
+    ///  PROCEDURE_SCHEM, and PROCEDURE_NAME.
+    ///  Each procedure description has the the following columns:
+    ///  <c>PROCEDURE_CAT</c> String => procedure catalog (may be null)
+    ///  <c>PROCEDURE_SCHEM</c> String => procedure schema (may be null)
+    ///  <c>PROCEDURE_NAME</c> String => procedure name
+    ///  <c>PROCEDURE_OVERLOAD</c> => a overload indicator (may be null)
+    ///  <c>RESERVED1</c> => for future use
+    ///  <c>RESERVED2</c> => for future use
+    ///  <c>REMARKS</c> String => explanatory comment on the procedure
+    ///  <c>PROCEDURE_TYPE</c> short => kind of procedure:
+    ///   procedureResultUnknown - May return a result
+    ///   procedureNoResult - Does not return a result
+    ///   procedureReturnsResult - Returns a result</summary>
+    /// <param>"Catalog" a catalog name; "" means drop catalog name from the
+    ///  selection criteria</param>
+    /// <param>"SchemaPattern" a schema name pattern; "" means drop schema
+    ///  pattern from the selection criteria</param>
+    /// <param>"ProcedureNamePattern" a procedure name pattern</param>
+    /// <returns><c>ResultSet</c> - each row is a procedure description.</returns>
+    /// <remarks>see getSearchStringEscape</remarks>
     function UncachedGetProcedures(const {%H-}Catalog: string; const SchemaPattern: string;
       const ProcedureNamePattern: string): IZResultSet; override;
     function UncachedGetProcedureColumns(const Catalog: string; const SchemaPattern: string;
@@ -299,8 +450,7 @@ type
     function UncachedGetCharacterSets: IZResultSet; override; //EgonHugeist
 
   public
-    destructor Destroy; override;
-    function GetIdentifierConvertor: IZIdentifierConvertor; override;
+    function GetIdentifierConverter: IZIdentifierConverter; override;
     procedure ClearCache; override;
  end;
 
@@ -310,34 +460,13 @@ implementation
 
 uses
   //Math,
-  ZFastCode, ZMessages, ZSysUtils, ZDbcPostgreSql;
+  ZFastCode, ZMessages, ZSysUtils, ZDbcPostgreSql, ZExceptions;
 
 { TZPostgreSQLDatabaseInfo }
-
-{**
-  Constructs this object.
-  @param Metadata the interface of the correpsonding database metadata object
-}
-constructor TZPostgreSQLDatabaseInfo.Create(const Metadata: TZAbstractDatabaseMetadata);
-begin
-  inherited;
-end;
-
-{**
-  Destroys this object and cleanups the memory.
-}
-destructor TZPostgreSQLDatabaseInfo.Destroy;
-begin
-  inherited;
-end;
 
 //----------------------------------------------------------------------
 // First, a variety of minor information about the target database.
 
-{**
-  What's the name of this database product?
-  @return database product name
-}
 function TZPostgreSQLDatabaseInfo.GetDatabaseProductName: string;
 begin
   Result := 'PostgreSQL';
@@ -352,10 +481,6 @@ begin
   Result := '';
 end;
 
-{**
-  What's the name of this JDBC driver?
-  @return JDBC driver name
-}
 function TZPostgreSQLDatabaseInfo.GetDriverName: string;
 begin
   Result := 'Zeos Database Connectivity Driver for PostgreSQL';
@@ -756,6 +881,11 @@ end;
   Can a catalog name be used in a data manipulation statement?
   @return <code>true</code> if so; <code>false</code> otherwise
 }
+function TZPostgreSQLDatabaseInfo.SupportsArrayBindings: Boolean;
+begin
+  Result := HasMinimumServerVersion(9, 2);
+end;
+
 function TZPostgreSQLDatabaseInfo.SupportsCatalogsInDataManipulation: Boolean;
 begin
   Result := False;
@@ -1298,7 +1428,7 @@ begin
   with Metadata.GetConnection.CreateStatement.ExecuteQuery(SQL) do
   begin
     if not Next then
-      raise Exception.Create(SUnknownError); //CHANGE IT!
+      raise EZSQLException.Create(SUnknownError); //CHANGE IT!
     Result := GetInt(FirstDbcIndex);
     Close;
   end;
@@ -1319,7 +1449,7 @@ begin
   with Metadata.GetConnection.CreateStatement.ExecuteQuery(SQL) do
   begin
     if not Next then
-      raise Exception.Create(SUnknownError); //CHANGE IT!
+      raise EZSQLException.Create(SUnknownError); //CHANGE IT!
     Result := GetIntByName('typlen');
     Close;
   end;
@@ -1328,14 +1458,6 @@ end;
 
 { TZPostgreSQLDatabaseMetadata }
 
-
-{**
-  Destroys this object and cleanups the memory.
-}
-destructor TZPostgreSQLDatabaseMetadata.Destroy;
-begin
-  inherited Destroy;
-end;
 
 {**
   Constructs a database information object and returns the interface to it. Used
@@ -1386,39 +1508,6 @@ begin
     Result := ikNotDeferrable; //impossible!
 end;
 
-{**
-  Gets a description of the stored procedures available in a
-  catalog.
-
-  <P>Only procedure descriptions matching the schema and
-  procedure name criteria are returned.  They are ordered by
-  PROCEDURE_SCHEM, and PROCEDURE_NAME.
-
-  <P>Each procedure description has the the following columns:
-   <OL>
- 	<LI><B>PROCEDURE_CAT</B> String => procedure catalog (may be null)
- 	<LI><B>PROCEDURE_SCHEM</B> String => procedure schema (may be null)
- 	<LI><B>PROCEDURE_NAME</B> String => procedure name
-   <LI> reserved for future use
-   <LI> reserved for future use
-   <LI> reserved for future use
- 	<LI><B>REMARKS</B> String => explanatory comment on the procedure
- 	<LI><B>PROCEDURE_TYPE</B> short => kind of procedure:
-       <UL>
-       <LI> procedureResultUnknown - May return a result
-       <LI> procedureNoResult - Does not return a result
-       <LI> procedureReturnsResult - Returns a result
-       </UL>
-   </OL>
-
-  @param catalog a catalog name; "" retrieves those without a
-  catalog; null means drop catalog name from the selection criteria
-  @param schemaPattern a schema name pattern; "" retrieves those
-  without a schema
-  @param procedureNamePattern a procedure name pattern
-  @return <code>ResultSet</code> - each row is a procedure description
-  @see #getSearchStringEscape
-}
 function TZPostgreSQLDatabaseMetadata.UncachedGetProcedures(const Catalog: string;
   const SchemaPattern: string; const ProcedureNamePattern: string): IZResultSet;
 var
@@ -1431,10 +1520,9 @@ begin
       SQL := 'SELECT NULL AS PROCEDURE_CAT, n.nspname AS PROCEDURE_SCHEM,'
         + ' p.proname AS PROCEDURE_NAME, NULL AS RESERVED1, NULL AS RESERVED2,'
         + ' NULL AS RESERVED3, d.description AS REMARKS, ';
-      if HasMinimumServerVersion(11, 0) then
-        SQL := SQL+ 'case when p.prokind = ''p'' then '+ZFastCode.IntToStr(Ord(ProcedureNoResult))+ ' else '+ZFastCode.IntToStr(Ord(ProcedureReturnsResult))+ ' end'
-      else
-        SQL := SQL+ ZFastCode.IntToStr(Ord(ProcedureReturnsResult));
+      if HasMinimumServerVersion(11, 0)
+      then SQL := SQL+ 'case when p.prokind = ''p'' then '+ZFastCode.IntToStr(Ord(ProcedureNoResult))+ ' else '+ZFastCode.IntToStr(Ord(ProcedureReturnsResult))+ ' end'
+      else SQL := SQL+ ZFastCode.IntToStr(Ord(ProcedureReturnsResult));
       SQL := SQL + ' AS PROCEDURE_TYPE '
         + ' FROM pg_catalog.pg_namespace n, pg_catalog.pg_proc p  '
         + ' LEFT JOIN pg_catalog.pg_description d ON (p.oid=d.objoid) '
@@ -1569,8 +1657,8 @@ begin
   Ver73Up := Ver80Up or (GetDatabaseInfo as IZPostgreDBInfo).HasMinimumServerVersion(7, 3);
   if Ver80Up then
   begin
-    SQL := 'SELECT n.nspname,p.proname,p.prorettype,p.proargtypes,t.typtype,'
-      + 'p.proallargtypes,p.proargnames,p.proargmodes,t.typrelid '
+    SQL := 'SELECT n.nspname,p.proname,p.prorettype,p.proargtypes::text as proargtypes,t.typtype,'
+      + 'p.proallargtypes::text as proallargtypes,p.proargnames::text as proargnames,p.proargmodes::text as proargmodes,t.typrelid '
       + 'FROM pg_catalog.pg_proc p, pg_catalog.pg_namespace n, pg_catalog.pg_type t '
       + 'WHERE p.pronamespace=n.oid AND p.prorettype=t.oid';
     if SchemaPattern <> '' then
@@ -1582,7 +1670,7 @@ begin
   else
   if Ver73Up then
   begin
-    SQL := 'SELECT n.nspname,p.proname,p.prorettype,p.proargtypes,t.typtype,'
+    SQL := 'SELECT n.nspname,p.proname,p.prorettype,p.proargtypes::text as proargtypes,t.typtype,'
       + 'NULL AS proallargtypes,NULL AS proargnames,NULL AS proargnames,t.typrelid '
       + 'FROM pg_catalog.pg_proc p, pg_catalog.pg_namespace n,'
       + ' pg_catalog.pg_type t WHERE p.pronamespace=n.oid AND p.prorettype=t.oid';
@@ -1594,7 +1682,7 @@ begin
   end
   else
   begin
-    SQL := 'SELECT NULL AS nspname,p.proname,p.prorettype,p.proargtypes,'
+    SQL := 'SELECT NULL AS nspname,p.proname,p.prorettype,p.proargtypes::text as proargtypes,'
       + ' NULL AS proallargtypes,NULL AS proargnames,NULL AS proargnames,t.typtype,t.typrelid'
       + ' FROM pg_proc p, pg_type t'
       + ' WHERE p.prorettype=t.oid';
@@ -1658,7 +1746,7 @@ begin
 
           InsertProcedureColumnRow(Result, GetStringByName('nspname'),
             GetStringByName('proname'), ColumnName, ColumnType,
-            Ord(GetSQLTypeByOid(ArgOid)), GetPostgreSQLType(ArgOid),
+            Ord(GetSQLTypeByOid(ArgOid, -1)), GetPostgreSQLType(ArgOid),
             Ord(ntNullableUnknown));
         end;
 
@@ -1675,14 +1763,14 @@ begin
             ColumnTypeOid := ColumnsRS.GetUIntByName('atttypid');
             InsertProcedureColumnRow(Result, GetStringByName('nspname'),
               GetStringByName('proname'), ColumnsRS.GetStringByName('attname'),
-              Ord(pctResultSet), Ord(GetSQLTypeByOid(ColumnTypeOid)),
+              Ord(pctReturn), Ord(GetSQLTypeByOid(ColumnTypeOid, -1)),
               GetPostgreSQLType(ColumnTypeOid), Ord(ntNullableUnknown));
           end;
           ColumnsRS.Close;
         end else if (ReturnTypeType <> 'p') then // Single non-pseudotype return value
           InsertProcedureColumnRow(Result, GetStringByName('nspname'),
             GetStringByName('proname'), 'returnValue', Ord(pctReturn),
-            Ord(GetSQLTypeByOid(ReturnType)), GetPostgreSQLType(ReturnType),
+            Ord(GetSQLTypeByOid(ReturnType, -1)), GetPostgreSQLType(ReturnType),
             Ord(ntNullableUnknown));
       end;
       Close;
@@ -1831,8 +1919,8 @@ begin
       + ' c.relname AS TABLE_NAME, ' + TableType + ' AS TABLE_TYPE,'
       + ' NULL AS REMARKS FROM pg_class c WHERE true ';
   end;
-
   if (Pointer(Types) = nil) then begin
+    {$IFDEF WITH_VAR_INIT_WARNING}LTypes := nil;{$ENDIF}
     SetLength(LTypes, 3);
     // SetLength(LTypes, 6);
     LTypes[0] := 'TABLE';
@@ -2052,34 +2140,6 @@ begin
     ColumnNamePattern, '');
 end;
 
-{**
-  Gets a description of the access rights for a table's columns.
-
-  <P>Only privileges matching the column name criteria are
-  returned.  They are ordered by COLUMN_NAME and PRIVILEGE.
-
-  <P>Each privilige description has the following columns:
-   <OL>
- 	<LI><B>TABLE_CAT</B> String => table catalog (may be null)
- 	<LI><B>TABLE_SCHEM</B> String => table schema (may be null)
- 	<LI><B>TABLE_NAME</B> String => table name
- 	<LI><B>COLUMN_NAME</B> String => column name
- 	<LI><B>GRANTOR</B> => grantor of access (may be null)
- 	<LI><B>GRANTEE</B> String => grantee of access
- 	<LI><B>PRIVILEGE</B> String => name of access (SELECT,
-       INSERT, UPDATE, REFRENCES, ...)
- 	<LI><B>IS_GRANTABLE</B> String => "YES" if grantee is permitted
-       to grant to others; "NO" if not; null if unknown
-   </OL>
-
-  @param catalog a catalog name; "" retrieves those without a
-  catalog; null means drop catalog name from the selection criteria
-  @param schema a schema name; "" retrieves those without a schema
-  @param table a table name
-  @param columnNamePattern a column name pattern
-  @return <code>ResultSet</code> - each row is a column privilege description
-  @see #getSearchStringEscape
-}
 function TZPostgreSQLDatabaseMetadata.UncachedGetColumnPrivileges(const Catalog: string;
   const Schema: string; const Table: string; const ColumnNamePattern: string): IZResultSet;
 var
@@ -2166,38 +2226,6 @@ begin
   end;
 end;
 
-{**
-  Gets a description of the access rights for each table available
-  in a catalog. Note that a table privilege applies to one or
-  more columns in the table. It would be wrong to assume that
-  this priviledge applies to all columns (this may be true for
-  some systems but is not true for all.)
-
-  <P>Only privileges matching the schema and table name
-  criteria are returned.  They are ordered by TABLE_SCHEM,
-  TABLE_NAME, and PRIVILEGE.
-
-  <P>Each privilige description has the following columns:
-   <OL>
- 	<LI><B>TABLE_CAT</B> String => table catalog (may be null)
- 	<LI><B>TABLE_SCHEM</B> String => table schema (may be null)
- 	<LI><B>TABLE_NAME</B> String => table name
- 	<LI><B>GRANTOR</B> => grantor of access (may be null)
- 	<LI><B>GRANTEE</B> String => grantee of access
- 	<LI><B>PRIVILEGE</B> String => name of access (SELECT,
-       INSERT, UPDATE, REFRENCES, ...)
- 	<LI><B>IS_GRANTABLE</B> String => "YES" if grantee is permitted
-       to grant to others; "NO" if not; null if unknown
-   </OL>
-
-  @param catalog a catalog name; "" retrieves those without a
-  catalog; null means drop catalog name from the selection criteria
-  @param schemaPattern a schema name pattern; "" retrieves those
-  without a schema
-  @param tableNamePattern a table name pattern
-  @return <code>ResultSet</code> - each row is a table privilege description
-  @see #getSearchStringEscape
-}
 function TZPostgreSQLDatabaseMetadata.UncachedGetTablePrivileges(const Catalog: string;
   const SchemaPattern: string; const TableNamePattern: string): IZResultSet;
 var
@@ -2226,9 +2254,9 @@ begin
       + ' FROM pg_class c, pg_user u WHERE u.usesysid = c.relowner '
       + ' AND c.relkind = ''r'' ';
   end;
-
-  SQL := SQL + ' AND ' + TableNameCondition
-    + ' ORDER BY nspname, relname';
+  if TableNameCondition <> '' then
+    SQL := SQL + ' AND ' + TableNameCondition;
+  SQL := SQL + ' ORDER BY nspname, relname';
 
   Permissions := TStringList.Create;
   PermissionsExp := TStringList.Create;
@@ -2251,7 +2279,7 @@ begin
             Continue;
           Grantee := PermissionsExp.Strings[0];
           if Grantee = '' then
-          Grantee := 'PUBLIC';
+            Grantee := 'PUBLIC';
           Privileges := PermissionsExp.Strings[1];
           for J := 1 to Length(Privileges) do
           begin
@@ -2325,28 +2353,6 @@ begin
     Result.InsertRow;
 end;
 
-{**
-  Gets a description of a table's primary key columns.  They
-  are ordered by COLUMN_NAME.
-
-  <P>Each primary key column description has the following columns:
-   <OL>
- 	<LI><B>TABLE_CAT</B> String => table catalog (may be null)
- 	<LI><B>TABLE_SCHEM</B> String => table schema (may be null)
- 	<LI><B>TABLE_NAME</B> String => table name
- 	<LI><B>COLUMN_NAME</B> String => column name
- 	<LI><B>KEY_SEQ</B> short => sequence number within primary key
- 	<LI><B>PK_NAME</B> String => primary key name (may be null)
-   </OL>
-
-  @param catalog a catalog name; "" retrieves those without a
-  catalog; null means drop catalog name from the selection criteria
-  @param schema a schema name; "" retrieves those
-  without a schema
-  @param table a table name
-  @return <code>ResultSet</code> - each row is a primary key column description
-  @exception SQLException if a database access error occurs
-}
 function TZPostgreSQLDatabaseMetadata.UncachedGetPrimaryKeys(const Catalog: string;
   const Schema: string; const Table: string): IZResultSet;
 var
@@ -2384,73 +2390,6 @@ begin
     ConstructVirtualResultSet(PrimaryKeyColumnsDynArray));
 end;
 
-{**
-  Gets a description of the primary key columns that are
-  referenced by a table's foreign key columns (the primary keys
-  imported by a table).  They are ordered by PKTABLE_CAT,
-  PKTABLE_SCHEM, PKTABLE_NAME, and KEY_SEQ.
-
-  <P>Each primary key column description has the following columns:
-   <OL>
- 	<LI><B>PKTABLE_CAT</B> String => primary key table catalog
-       being imported (may be null)
- 	<LI><B>PKTABLE_SCHEM</B> String => primary key table schema
-       being imported (may be null)
- 	<LI><B>PKTABLE_NAME</B> String => primary key table name
-       being imported
- 	<LI><B>PKCOLUMN_NAME</B> String => primary key column name
-       being imported
- 	<LI><B>FKTABLE_CAT</B> String => foreign key table catalog (may be null)
- 	<LI><B>FKTABLE_SCHEM</B> String => foreign key table schema (may be null)
- 	<LI><B>FKTABLE_NAME</B> String => foreign key table name
- 	<LI><B>FKCOLUMN_NAME</B> String => foreign key column name
- 	<LI><B>KEY_SEQ</B> short => sequence number within foreign key
- 	<LI><B>UPDATE_RULE</B> short => What happens to
-        foreign key when primary is updated:
-       <UL>
-       <LI> importedNoAction - do not allow update of primary
-                key if it has been imported
-       <LI> importedKeyCascade - change imported key to agree
-                with primary key update
-       <LI> importedKeySetNull - change imported key to NULL if
-                its primary key has been updated
-       <LI> importedKeySetDefault - change imported key to default values
-                if its primary key has been updated
-       <LI> importedKeyRestrict - same as importedKeyNoAction
-                                  (for ODBC 2.x compatibility)
-       </UL>
- 	<LI><B>DELETE_RULE</B> short => What happens to
-       the foreign key when primary is deleted.
-       <UL>
-       <LI> importedKeyNoAction - do not allow delete of primary
-                key if it has been imported
-       <LI> importedKeyCascade - delete rows that import a deleted key
-       <LI> importedKeySetNull - change imported key to NULL if
-                its primary key has been deleted
-       <LI> importedKeyRestrict - same as importedKeyNoAction
-                                  (for ODBC 2.x compatibility)
-       <LI> importedKeySetDefault - change imported key to default if
-                its primary key has been deleted
-       </UL>
- 	<LI><B>FK_NAME</B> String => foreign key name (may be null)
- 	<LI><B>PK_NAME</B> String => primary key name (may be null)
- 	<LI><B>DEFERRABILITY</B> short => can the evaluation of foreign key
-       constraints be deferred until commit
-       <UL>
-       <LI> importedKeyInitiallyDeferred - see SQL92 for definition
-       <LI> importedKeyInitiallyImmediate - see SQL92 for definition
-       <LI> importedKeyNotDeferrable - see SQL92 for definition
-       </UL>
-   </OL>
-
-  @param catalog a catalog name; "" retrieves those without a
-  catalog; null means drop catalog name from the selection criteria
-  @param schema a schema name; "" retrieves those
-  without a schema
-  @param table a table name
-  @return <code>ResultSet</code> - each row is a primary key column description
-  @see #getExportedKeys
-}
 function TZPostgreSQLDatabaseMetadata.UncachedGetImportedKeys(const Catalog: string;
   const Schema: string; const Table: string): IZResultSet;
 const
@@ -2476,6 +2415,7 @@ begin
   CatalogCondition := ConstructNameCondition(Catalog,'kcu.table_catalog');
   SchemaCondition := ConstructNameCondition(Schema,'kcu.constraint_schema');
   TableNameCondition := ConstructNameCondition(Table,'kcu.table_name');
+  {$IFDEF WITH_VAR_INIT_WARNING}Len := 0;{$ENDIF}
   if (GetDatabaseInfo as IZPostgreDBInfo).HasMinimumServerVersion(7, 4) then
   begin
     Result:=inherited UncachedGetImportedKeys(Catalog, Schema, Table);
@@ -2511,19 +2451,19 @@ begin
       while Next do
       begin
         Result.MoveToInsertRow;
-        //Result.UpdatePAnsiChar(ImportedKeyColPKTableCatalogIndex, GetPAnsiChar(tc_constraint_catalog_Index, Len), @Len);
-        Result.UpdatePAnsiChar(ImportedKeyColPKTableSchemaIndex, GetPAnsiChar(tc_constraint_schema_Index, Len), @Len);
-        Result.UpdatePAnsiChar(ImportedKeyColPKTableNameIndex, GetPAnsiChar(ccu_table_name_Index, Len), @Len);
-        Result.UpdatePAnsiChar(ImportedKeyColPKColumnNameIndex, GetPAnsiChar(ccu_column_name_Index, Len), @Len);
-        //Result.UpdatePAnsiChar(ImportedKeyColFKTableCatalogIndex, GetPAnsiChar(kcu_table_catalog_Index, Len), @Len);
-        Result.UpdatePAnsiChar(ImportedKeyColFKTableSchemaIndex, GetPAnsiChar(kcu_constraint_schema_Index, Len), @Len);
-        Result.UpdatePAnsiChar(ImportedKeyColFKTableNameIndex, GetPAnsiChar(kcu_table_name_Index, Len), @Len);
-        Result.UpdatePAnsiChar(ImportedKeyColFKColumnNameIndex, GetPAnsiChar(kcu_column_name_Index, Len), @Len);
+        //Result.UpdatePAnsiChar(ImportedKeyColPKTableCatalogIndex, GetPAnsiChar(tc_constraint_catalog_Index, Len), Len);
+        Result.UpdatePAnsiChar(ImportedKeyColPKTableSchemaIndex, GetPAnsiChar(tc_constraint_schema_Index, Len), Len);
+        Result.UpdatePAnsiChar(ImportedKeyColPKTableNameIndex, GetPAnsiChar(ccu_table_name_Index, Len), Len);
+        Result.UpdatePAnsiChar(ImportedKeyColPKColumnNameIndex, GetPAnsiChar(ccu_column_name_Index, Len), Len);
+        //Result.UpdatePAnsiChar(ImportedKeyColFKTableCatalogIndex, GetPAnsiChar(kcu_table_catalog_Index, Len), Len);
+        Result.UpdatePAnsiChar(ImportedKeyColFKTableSchemaIndex, GetPAnsiChar(kcu_constraint_schema_Index, Len), Len);
+        Result.UpdatePAnsiChar(ImportedKeyColFKTableNameIndex, GetPAnsiChar(kcu_table_name_Index, Len), Len);
+        Result.UpdatePAnsiChar(ImportedKeyColFKColumnNameIndex, GetPAnsiChar(kcu_column_name_Index, Len), Len);
         Result.UpdateSmall(ImportedKeyColKeySeqIndex, GetSmall(kcu_ordinal_position_Index));
         Result.UpdateSmall(ImportedKeyColUpdateRuleIndex, Ord(GetRuleType(GetString(rf_update_rule_Index))));
         Result.UpdateSmall(ImportedKeyColDeleteRuleIndex, Ord(GetRuleType(GetString(rf_delete_rule_Index))));
-        Result.UpdatePAnsiChar(ImportedKeyColFKNameIndex, GetPAnsiChar(kcu_constraint_name_Index, Len), @Len);
-        Result.UpdatePAnsiChar(ImportedKeyColPKNameIndex, GetPAnsiChar(rf_unique_constraint_name_Index, Len), @Len);
+        Result.UpdatePAnsiChar(ImportedKeyColFKNameIndex, GetPAnsiChar(kcu_constraint_name_Index, Len), Len);
+        Result.UpdatePAnsiChar(ImportedKeyColPKNameIndex, GetPAnsiChar(rf_unique_constraint_name_Index, Len), Len);
         if GetString(tc_is_deferrable_Index) = 'NO' then
           Result.UpdateSmall(ImportedKeyColDeferrabilityIndex, Ord(ikNotDeferrable))
         else
@@ -2629,9 +2569,10 @@ begin
   CatalogCondition := ConstructNameCondition(Catalog,'tc.constraint_catalog');
   SchemaCondition := ConstructNameCondition(Schema,'tc.constraint_schema');
   TableNameCondition := ConstructNameCondition(Table,'ccu.table_name');
+  {$IFDEF WITH_VAR_INIT_WARNING}Len := 0;{$ENDIF}
   if (GetDatabaseInfo as IZPostgreDBInfo).HasMinimumServerVersion(7, 4) then
   begin
-    Result:=inherited UncachedGetImportedKeys(Catalog, Schema, Table);
+    Result:=inherited UncachedGetExportedKeys(Catalog, Schema, Table);
     SQL := 'SELECT '+
       'tc.constraint_catalog as PKTABLE_CAT, '+
       'tc.constraint_schema as PKTABLE_SCHEM, '+
@@ -2665,19 +2606,19 @@ begin
       while Next do
       begin
         Result.MoveToInsertRow;
-        //Result.UpdatePAnsiChar(ExportedKeyColPKTableCatalogIndex, GetPAnsiChar(tc_constraint_catalog_Index, Len), @Len);
-        Result.UpdatePAnsiChar(ExportedKeyColPKTableSchemaIndex, GetPAnsiChar(tc_constraint_schema_Index, Len), @Len);
-        Result.UpdatePAnsiChar(ExportedKeyColPKTableNameIndex, GetPAnsiChar(ccu_table_name_Index, Len), @Len);
-        Result.UpdatePAnsiChar(ExportedKeyColPKColumnNameIndex, GetPAnsiChar(ccu_column_name_Index, Len), @Len);
-        //Result.UpdatePAnsiChar(ExportedKeyColFKTableCatalogIndex, GetPAnsiChar(kcu_table_catalog_Index, Len), @Len);
-        Result.UpdatePAnsiChar(ExportedKeyColFKTableSchemaIndex, GetPAnsiChar(kcu_constraint_schema_Index, Len), @Len);
-        Result.UpdatePAnsiChar(ExportedKeyColFKTableNameIndex, GetPAnsiChar(kcu_table_name_Index, Len), @Len);
-        Result.UpdatePAnsiChar(ExportedKeyColFKColumnNameIndex, GetPAnsiChar(kcu_column_name_Index, Len), @Len);
+        //Result.UpdatePAnsiChar(ExportedKeyColPKTableCatalogIndex, GetPAnsiChar(tc_constraint_catalog_Index, Len), Len);
+        Result.UpdatePAnsiChar(ExportedKeyColPKTableSchemaIndex, GetPAnsiChar(tc_constraint_schema_Index, Len), Len);
+        Result.UpdatePAnsiChar(ExportedKeyColPKTableNameIndex, GetPAnsiChar(ccu_table_name_Index, Len), Len);
+        Result.UpdatePAnsiChar(ExportedKeyColPKColumnNameIndex, GetPAnsiChar(ccu_column_name_Index, Len), Len);
+        //Result.UpdatePAnsiChar(ExportedKeyColFKTableCatalogIndex, GetPAnsiChar(kcu_table_catalog_Index, Len), Len);
+        Result.UpdatePAnsiChar(ExportedKeyColFKTableSchemaIndex, GetPAnsiChar(kcu_constraint_schema_Index, Len), Len);
+        Result.UpdatePAnsiChar(ExportedKeyColFKTableNameIndex, GetPAnsiChar(kcu_table_name_Index, Len), Len);
+        Result.UpdatePAnsiChar(ExportedKeyColFKColumnNameIndex, GetPAnsiChar(kcu_column_name_Index, Len), Len);
         Result.UpdateSmall(ExportedKeyColKeySeqIndex, GetSmall(kcu_ordinal_position_Index));
         Result.UpdateSmall(ExportedKeyColUpdateRuleIndex, Ord(GetRuleType(GetString(rf_update_rule_Index))));
         Result.UpdateSmall(ExportedKeyColDeleteRuleIndex, Ord(GetRuleType(GetString(rf_delete_rule_Index))));
-        Result.UpdatePAnsiChar(ExportedKeyColFKNameIndex, GetPAnsiChar(kcu_constraint_name_Index, Len), @Len);
-        Result.UpdatePAnsiChar(ExportedKeyColPKNameIndex, GetPAnsiChar(rf_unique_constraint_name_Index, Len), @Len);
+        Result.UpdatePAnsiChar(ExportedKeyColFKNameIndex, GetPAnsiChar(kcu_constraint_name_Index, Len), Len);
+        Result.UpdatePAnsiChar(ExportedKeyColPKNameIndex, GetPAnsiChar(rf_unique_constraint_name_Index, Len), Len);
         if GetString(tc_is_deferrable_Index) = 'NO' then
           Result.UpdateSmall(ExportedKeyColDeferrabilityIndex, Ord(ikNotDeferrable))
         else
@@ -2810,7 +2751,7 @@ var
 begin
   Result:=inherited UncachedGetCrossReference(PrimaryCatalog, PrimarySchema, PrimaryTable,
                                               ForeignCatalog, ForeignSchema, ForeignTable);
-
+  {$IFDEF WITH_VAR_INIT_WARNING}Len := 0;{$ENDIF}
   if (GetDatabaseInfo as IZPostgreDBInfo).HasMinimumServerVersion(7, 4) then
   begin
     SQL := 'SELECT '+
@@ -2851,19 +2792,19 @@ begin
       while Next do
       begin
         Result.MoveToInsertRow;
-        //Result.UpdatePAnsiChar(CrossRefKeyColPKTableCatalogIndex, GetPAnsiChar(tc_constraint_catalog_Index_74, Len), @Len);
-        Result.UpdatePAnsiChar(CrossRefKeyColPKTableSchemaIndex, GetPAnsiChar(tc_constraint_schema_Index_74, Len), @Len);
-        Result.UpdatePAnsiChar(CrossRefKeyColPKTableNameIndex, GetPAnsiChar(ccu_table_name_Index_74, Len), @Len);
-        Result.UpdatePAnsiChar(CrossRefKeyColPKColumnNameIndex, GetPAnsiChar(ccu_column_name_Index_74, Len), @Len);
-        //Result.UpdatePAnsiChar(CrossRefKeyColFKTableCatalogIndex, GetPAnsiChar(kcu_table_catalog_Index_74, Len), @Len);
-        Result.UpdatePAnsiChar(CrossRefKeyColFKTableSchemaIndex, GetPAnsiChar(kcu_constraint_schema_Index_74, Len), @Len);
-        Result.UpdatePAnsiChar(CrossRefKeyColFKTableNameIndex, GetPAnsiChar(kcu_table_name_Index_74, Len), @Len);
-        Result.UpdatePAnsiChar(CrossRefKeyColFKColumnNameIndex, GetPAnsiChar(kcu_column_name_Index_74, Len), @Len);
+        //Result.UpdatePAnsiChar(CrossRefKeyColPKTableCatalogIndex, GetPAnsiChar(tc_constraint_catalog_Index_74, Len), Len);
+        Result.UpdatePAnsiChar(CrossRefKeyColPKTableSchemaIndex, GetPAnsiChar(tc_constraint_schema_Index_74, Len), Len);
+        Result.UpdatePAnsiChar(CrossRefKeyColPKTableNameIndex, GetPAnsiChar(ccu_table_name_Index_74, Len), Len);
+        Result.UpdatePAnsiChar(CrossRefKeyColPKColumnNameIndex, GetPAnsiChar(ccu_column_name_Index_74, Len), Len);
+        //Result.UpdatePAnsiChar(CrossRefKeyColFKTableCatalogIndex, GetPAnsiChar(kcu_table_catalog_Index_74, Len), Len);
+        Result.UpdatePAnsiChar(CrossRefKeyColFKTableSchemaIndex, GetPAnsiChar(kcu_constraint_schema_Index_74, Len), Len);
+        Result.UpdatePAnsiChar(CrossRefKeyColFKTableNameIndex, GetPAnsiChar(kcu_table_name_Index_74, Len), Len);
+        Result.UpdatePAnsiChar(CrossRefKeyColFKColumnNameIndex, GetPAnsiChar(kcu_column_name_Index_74, Len), Len);
         Result.UpdateSmall(CrossRefKeyColKeySeqIndex, GetSmall(kcu_ordinal_position_Index_74));
         Result.UpdateSmall(CrossRefKeyColUpdateRuleIndex, Ord(GetRuleType(GetString(rf_update_rule_Index_74))));
         Result.UpdateSmall(CrossRefKeyColDeleteRuleIndex, Ord(GetRuleType(GetString(rf_delete_rule_Index_74))));
-        Result.UpdatePAnsiChar(CrossRefKeyColFKNameIndex, GetPAnsiChar(kcu_constraint_name_Index_74, Len), @Len);
-        Result.UpdatePAnsiChar(CrossRefKeyColPKNameIndex, GetPAnsiChar(rf_unique_constraint_name_Index_74, Len), @Len);
+        Result.UpdatePAnsiChar(CrossRefKeyColFKNameIndex, GetPAnsiChar(kcu_constraint_name_Index_74, Len), Len);
+        Result.UpdatePAnsiChar(CrossRefKeyColPKNameIndex, GetPAnsiChar(rf_unique_constraint_name_Index_74, Len), Len);
         if GetString(tc_is_deferrable_Index_74) = 'NO' then
           Result.UpdateSmall(CrossRefKeyColDeferrabilityIndex, Ord(ikNotDeferrable))
         else
@@ -2950,10 +2891,10 @@ begin
         while Next do
         begin
           Result.MoveToInsertRow;
-          Result.UpdatePAnsiChar(CrossRefKeyColPKTableSchemaIndex, GetPAnsiChar(pnspname_index, Len), @Len);
-          Result.UpdatePAnsiChar(CrossRefKeyColFKTableSchemaIndex, GetPAnsiChar(fnspname_index, Len), @Len);
-          Result.UpdatePAnsiChar(CrossRefKeyColPKTableNameIndex, GetPAnsiChar(prelname_index, Len), @Len);
-          Result.UpdatePAnsiChar(CrossRefKeyColFKTableNameIndex, GetPAnsiChar(frelname_index, Len), @Len);
+          Result.UpdatePAnsiChar(CrossRefKeyColPKTableSchemaIndex, GetPAnsiChar(pnspname_index, Len), Len);
+          Result.UpdatePAnsiChar(CrossRefKeyColFKTableSchemaIndex, GetPAnsiChar(fnspname_index, Len), Len);
+          Result.UpdatePAnsiChar(CrossRefKeyColPKTableNameIndex, GetPAnsiChar(prelname_index, Len), Len);
+          Result.UpdatePAnsiChar(CrossRefKeyColFKTableNameIndex, GetPAnsiChar(frelname_index, Len), Len);
 
           //FKeyName := GetString(t1_tgconstrname_index);
           UpdateRule := GetString(updaterule_index);
@@ -3090,13 +3031,13 @@ begin
     if (GetDatabaseInfo as IZPostgreDBInfo).HasMinimumServerVersion(7, 3) then
       SQL := ' SELECT typname FROM pg_catalog.pg_type '
     else SQL := ' SELECT typname FROM pg_type ';
-
+  {$IFDEF WITH_VAR_INIT_WARNING}Len := 0;{$ENDIF}
     with GetConnection.CreateStatement.ExecuteQuery(SQL) do
     begin
       while Next do
       begin
         Result.MoveToInsertRow;
-        Result.UpdatePAnsiChar(TypeInfoTypeNameIndex, GetPAnsiChar(FirstDbcIndex, Len), @Len);
+        Result.UpdatePAnsiChar(TypeInfoTypeNameIndex, GetPAnsiChar(FirstDbcIndex, Len), Len);
         Result.UpdateInt(TypeInfoDataTypeIndex, Ord(GetSQLTypeByName(GetString(FirstDbcIndex))));
         Result.UpdateInt(TypeInfoPecisionIndex, 9);
         Result.UpdateInt(TypeInfoNullAbleIndex, Ord(ntNoNulls));
@@ -3243,13 +3184,19 @@ begin
   Result := (GetConnection as IZPostgreSQLConnection).GetTypeNameByOid(Oid);
 end;
 
-function TZPostgreSQLDatabaseMetadata.GetSQLTypeByOid(Oid: OID): TZSQLType;
+function TZPostgreSQLDatabaseMetadata.GetSQLTypeByOid(Oid: OID; AttTypMod: Integer): TZSQLType;
 var
   PostgreSQLConnection: IZPostgreSQLConnection;
 begin
   PostgreSQLConnection := GetConnection as IZPostgreSQLConnection;
-  Result := PostgreSQLToSQLType(PostgreSQLConnection,
-    PostgreSQLConnection.GetTypeNameByOid(Oid));
+
+  Result := ZDbcPostgreSQLUtils.PostgreSQLToSQLType(PostgreSQLConnection.IsOidAsBlob, OID, AttTypMod);
+  if Result = stUnknown then begin
+    Result := PostgreSQLToSQLType(PostgreSQLConnection, PostgreSQLConnection.GetTypeNameByOid(Oid));
+    if Result = stBigDecimal then //Currency range?
+      Result := PostgreSQLToSQLType(PostgreSQLConnection.IsOidAsBlob, NUMERICOID, AttTypMod);
+  end;
+
 end;
 
 function TZPostgreSQLDatabaseMetadata.InternalUncachedGetColumns(const Catalog,
@@ -3268,19 +3215,22 @@ const
   description_index = FirstDbcIndex + 9;
   cnspname_index    = FirstDbcIndex + 10;
   cdomain_oid_Index = FirstDbcIndex + 11;
+  attidentity_Index = FirstDbcIndex + 12;
 var
   Len: NativeUInt;
   TypeOid: Cardinal;
   AttTypMod, Precision: Integer;
   SQL, PgType: string;
   SQLType: TZSQLType;
-  CheckVisibility: Boolean;
+  B: Boolean;
+  P: PAnsiChar;
   ColumnNameCondition, TableNameCondition, SchemaCondition, CatalogCondition: string;
   PGConnection: IZPostgreSQLConnection;
 label FillSizes;
 begin
   //http://zeoslib.sourceforge.net/viewtopic.php?f=40&t=11174
-  CheckVisibility := (GetConnection as IZPostgreSQLConnection).CheckFieldVisibility;
+  PGConnection := GetConnection as IZPostgreSQLConnection;
+  B := PGConnection.CheckFieldVisibility;
   if TableOID = '' then begin
     CatalogCondition := ConstructNameCondition(Catalog,'dn.relname');
     SchemaCondition := ConstructNameCondition(SchemaPattern,'n.nspname');
@@ -3288,62 +3238,66 @@ begin
     ColumnNameCondition := ConstructNameCondition(ColumnNamePattern,'a.attname');
   end;
   Result:=inherited UncachedGetColumns(Catalog, SchemaPattern, TableNamePattern, ColumnNamePattern);
-
-  if (GetDatabaseInfo as IZPostgreDBInfo).HasMinimumServerVersion(7, 3) then
-  begin
-    SQL := 'SELECT n.nspname,' {nspname_index}
-      + 'c.relname,' {relname_index}
-      //+ 'case t.typtype when ''d'' then t.typname else a.attname end as attname,' {attname_index}
-      + 'a.attname,' {attname_index}
-      + 'case t.typtype when ''d'' then t.typbasetype else t.oid end as atttypid,' {atttypid_index}
-      + 'case t.typtype when ''d'' then t.typnotnull else a.attnotnull end as attnotnull,' {attnotnull_index}
-      + 'case t.typtype when ''d'' then t.typtypmod else a.atttypmod end as atttypmod,' {atttypmod_index}
-      + 'case t.typtype when ''d'' then t.typlen else a.attlen end as attlen,' {attlen_index}
-      + 'a.attnum,' {attnum_index}
-      + 'pg_get_expr(def.adbin, def.adrelid) as adsrc,' {adsrc_index}
-      + 'dsc.description, ' {description_index}
-      + 'dn.nspname as cnspname, ' {cnspname_index}
-      + 'case t.typtype when ''d'' then t.oid else null end as domain_oid'
-      + ' FROM pg_catalog.pg_namespace n '
-      + ' JOIN pg_catalog.pg_class c ON (c.relnamespace = n.oid) '
-      + ' JOIN pg_catalog.pg_attribute a ON (a.attrelid=c.oid) '
-      + ' JOIN pg_catalog.pg_type t ON (t.oid = a.atttypid)'
-      + ' LEFT JOIN pg_catalog.pg_attrdef def ON (a.attrelid=def.adrelid AND a.attnum = def.adnum)'
-      + ' LEFT JOIN pg_catalog.pg_description dsc ON (c.oid=dsc.objoid AND a.attnum = dsc.objsubid) '
-      + ' LEFT JOIN pg_catalog.pg_class dc ON (dc.oid=dsc.classoid AND dc.relname=''pg_class'') '
-      + ' LEFT JOIN pg_catalog.pg_namespace dn ON (dc.relnamespace=dn.oid AND dn.nspname=''pg_catalog'') ';
-    if TableOID <> '' then
-      SQL := SQL + ' WHERE a.attnum > 0 AND c.oid = '+TableOID
-    else begin
-        SQL := SQL + ' WHERE a.attnum > 0 AND NOT a.attisdropped';
-      if Catalog <> '' then
-        SQL := SQL + ' AND ' + CatalogCondition;
-      if SchemaPattern <> '' then
-        SQL := SQL + ' AND ' + SchemaCondition;
-      //not by default: because of Speed decrease: http://http://zeoslib.sourceforge.net/viewtopic.php?p=16646&sid=130
-      if CheckVisibility then
-        SQL := SQL + ' AND pg_table_is_visible (c.oid) ';
+  {$IFDEF WITH_VAR_INIT_WARNING}Len := 0;{$ENDIF}
+  with (GetDatabaseInfo as IZPostgreDBInfo) do begin
+    if HasMinimumServerVersion(7, 3) then begin
+      SQL := 'SELECT n.nspname,' {nspname_index}
+        + 'c.relname,' {relname_index}
+        //+ 'case t.typtype when ''d'' then t.typname else a.attname end as attname,' {attname_index}
+        + 'a.attname,' {attname_index}
+        + 'case t.typtype when ''d'' then t.typbasetype else t.oid end as atttypid,' {atttypid_index}
+        + 'case t.typtype when ''d'' then t.typnotnull else a.attnotnull end as attnotnull,' {attnotnull_index}
+        + 'case t.typtype when ''d'' then t.typtypmod else a.atttypmod end as atttypmod,' {atttypmod_index}
+        + 'case t.typtype when ''d'' then t.typlen else a.attlen end as attlen,' {attlen_index}
+        + 'a.attnum,' {attnum_index}
+        + 'pg_get_expr(def.adbin, def.adrelid) as adsrc,' {adsrc_index}
+        + 'dsc.description, ' {description_index}
+        + 'dn.nspname as cnspname, ' {cnspname_index}
+        + 'case t.typtype when ''d'' then t.oid else null end as domain_oid, ';
+      if HasMinimumServerVersion(10, 0)
+      then SQL := SQL + 'a.attidentity'
+      else SQL := SQL + 'NULL::TEXT';
+      SQL := SQL
+        + ' FROM pg_catalog.pg_namespace n '
+        + ' JOIN pg_catalog.pg_class c ON (c.relnamespace = n.oid) '
+        + ' JOIN pg_catalog.pg_attribute a ON (a.attrelid=c.oid) '
+        + ' JOIN pg_catalog.pg_type t ON (t.oid = a.atttypid)'
+        + ' LEFT JOIN pg_catalog.pg_attrdef def ON (a.attrelid=def.adrelid AND a.attnum = def.adnum)'
+        + ' LEFT JOIN pg_catalog.pg_description dsc ON (c.oid=dsc.objoid AND a.attnum = dsc.objsubid) '
+        + ' LEFT JOIN pg_catalog.pg_class dc ON (dc.oid=dsc.classoid AND dc.relname=''pg_class'') '
+        + ' LEFT JOIN pg_catalog.pg_namespace dn ON (dc.relnamespace=dn.oid AND dn.nspname=''pg_catalog'') ';
+      if TableOID <> '' then
+        SQL := SQL + ' WHERE a.attnum > 0 AND c.oid = '+TableOID
+      else begin
+          SQL := SQL + ' WHERE a.attnum > 0 AND NOT a.attisdropped';
+        if Catalog <> '' then
+          SQL := SQL + ' AND ' + CatalogCondition;
+        if SchemaPattern <> '' then
+          SQL := SQL + ' AND ' + SchemaCondition;
+        //not by default: because of Speed decrease: http://http://zeoslib.sourceforge.net/viewtopic.php?p=16646&sid=130
+        if B then
+          SQL := SQL + ' AND pg_table_is_visible (c.oid) ';
+      end;
+    end else begin
+      SQL := 'SELECT NULL::text AS nspname,' {nspname_index}
+        + 'c.relname,' {relname_index}
+        + 'a.attname,' {attname_index}
+        + 'a.atttypid,' {atttypid_index}
+        + 'a.attnotnull,' {attnotnull_index}
+        + 'a.atttypmod,' {atttypmod_index}
+        + 'a.attlen,' {attlen_index}
+        + 'a.attnum,' {attnum_index}
+        + 'NULL AS adsrc,' {adsrc_index}
+        + 'NULL AS description, ' {description_index}
+        + 'NULL::text AS cnspname' {cnspname_index}
+        + 'NULL::OID as domain_oid,'
+        + 'NULL::TEXT as attidentity '
+        + 'FROM pg_class c, pg_attribute a';
+      if TableOID <> '' then
+        SQL := SQL + ' WHERE c.oid = '+TableOID
+      else
+        SQL := SQL + ' WHERE a.attrelid=c.oid AND a.attnum > 0 ';
     end;
-  end
-  else
-  begin
-    SQL := 'SELECT NULL::text AS nspname,' {nspname_index}
-      + 'c.relname,' {relname_index}
-      + 'a.attname,' {attname_index}
-      + 'a.atttypid,' {atttypid_index}
-      + 'a.attnotnull,' {attnotnull_index}
-      + 'a.atttypmod,' {atttypmod_index}
-      + 'a.attlen,' {attlen_index}
-      + 'a.attnum,' {attnum_index}
-      + 'NULL AS adsrc,' {adsrc_index}
-      + 'NULL AS description, ' {description_index}
-      + 'NULL::text AS cnspname' {cnspname_index}
-      + 'NULL::OID as domain_oid'
-      + 'FROM pg_class c, pg_attribute a';
-    if TableOID <> '' then
-      SQL := SQL + ' WHERE c.oid = '+TableOID
-    else
-      SQL := SQL + ' WHERE a.attrelid=c.oid AND a.attnum > 0 ';
   end;
 
   if TableOID = '' then begin
@@ -3353,7 +3307,6 @@ begin
       SQL := SQL+ ' AND ' + ColumnNameCondition;
   end;
   SQL := SQL+ ' ORDER BY nspname,relname,attnum';
-  GetConnection.QueryInterface(IZPostgreSQLConnection,PGConnection);
   with PGConnection.CreateStatement.ExecuteQuery(SQL) do begin
     while Next do begin
       AttTypMod := GetInt(atttypmod_index);
@@ -3363,17 +3316,15 @@ begin
 
       Result.MoveToInsertRow;
       if not IsNull(cnspname_index) then
-        Result.UpdatePAnsiChar(CatalogNameIndex, GetPAnsiChar(cnspname_index, Len), @Len);
+        Result.UpdatePAnsiChar(CatalogNameIndex, GetPAnsiChar(cnspname_index, Len), Len);
       if not IsNull(nspname_index) then
-        Result.UpdatePAnsiChar(SchemaNameIndex, GetPAnsiChar(nspname_index, Len), @Len);
-      Result.UpdatePAnsiChar(TableNameIndex, GetPAnsiChar(relname_index, Len), @Len);
-      Result.UpdatePAnsiChar(ColumnNameIndex, GetPAnsiChar(attname_index, Len), @Len);
-      SQLType := GetSQLTypeByOid(TypeOid);
+        Result.UpdatePAnsiChar(SchemaNameIndex, GetPAnsiChar(nspname_index, Len), Len);
+      Result.UpdatePAnsiChar(TableNameIndex, GetPAnsiChar(relname_index, Len), Len);
+      Result.UpdatePAnsiChar(ColumnNameIndex, GetPAnsiChar(attname_index, Len), Len);
+      SQLType := GetSQLTypeByOid(TypeOid, AttTypMod);
       Result.UpdateInt(TableColColumnTypeIndex, Ord(SQLType));
       Result.UpdateString(TableColColumnTypeNameIndex, PgType);
-
       Result.UpdateInt(TableColColumnBufLengthIndex, 0);
-
       if (PgType = 'bpchar') or (PgType = 'varchar') or (PgType = 'enum') then
       begin
         if AttTypMod <> -1 then begin
@@ -3386,30 +3337,29 @@ FillSizes:Result.UpdateInt(TableColColumnSizeIndex, Precision);
             Result.UpdateInt(TableColColumnBufLengthIndex, (Precision+1) shl 1);
             Result.UpdateInt(TableColColumnCharOctetLengthIndex, Precision shl 1);
           end;
-        end else
-          if (PgType = 'varchar') then
-            if ( (GetConnection as IZPostgreSQLConnection).GetUndefinedVarcharAsStringLength = 0 ) then
-            begin
-              Result.UpdateInt(TableColColumnTypeIndex, Ord(GetSQLTypeByOid(25))); //Assume text-lob instead
-              Result.UpdateInt(TableColColumnSizeIndex, 0); // need no size for streams
-            end
-            else begin //keep the string type but with user defined count of chars
-              Precision := (GetConnection as IZPostgreSQLConnection).GetUndefinedVarcharAsStringLength;
-              goto FillSizes;
-            end
-          else
-            Result.UpdateInt(TableColColumnSizeIndex, 0);
-      end
-      else if (PgType = 'uuid') then
-      begin
+          if (TypeOid = CHAROID) or (TypeOid = BPCHAROID) then
+            //tag fixed size fields by having scale equal to precision
+            Result.UpdateInt(TableColColumnDecimalDigitsIndex, Precision);
+        end else if (PgType = 'varchar') then
+          if ( PGConnection.GetUndefinedVarcharAsStringLength = 0 ) then begin
+            Result.UpdateInt(TableColColumnTypeIndex, Ord(GetSQLTypeByOid(TEXTOID, -1))); //Assume text-lob instead
+            Result.UpdateInt(TableColColumnSizeIndex, 0); // need no size for streams
+          end else begin //keep the string type but with user defined count of chars
+            Precision := PGConnection.GetUndefinedVarcharAsStringLength;
+            goto FillSizes;
+          end
+        else Result.UpdateInt(TableColColumnSizeIndex, 0);
+      end else if (TypeOID = UUIDOID) then begin
         // I set break point and see code reaching here. Below assignments, I have no idea what I am doing.
-        Result.UpdateInt(TableColColumnBufLengthIndex, 16); // MSSQL returns 16 here - which makes sense since a GUID is 16 bytes long.
-        // TableColColumnCharOctetLengthIndex is removed - PG returns 0 and in the dblib driver 0 is also used, although MSSQL returns null...
-      end
-      else if (PgType = 'numeric') or (PgType = 'decimal') then
-      begin
-        Result.UpdateInt(TableColColumnSizeIndex, ((AttTypMod - 4) div 65536)); //precision
-        Result.UpdateInt(TableColColumnDecimalDigitsIndex, ((AttTypMod -4) mod 65536)); //scale
+        Result.UpdateInt(TableColColumnCharOctetLengthIndex, 16); // MSSQL returns 16 here - which makes sense since a GUID is 16 bytes long.
+        Result.UpdateInt(TableColColumnSizeIndex, 38); //maximum visible characters
+      end else if (TypeOID = TIMESTAMPOID) or (TypeOID = TIMESTAMPTZOID) or (TypeOID = ABSTIMEOID) or (TypeOID = TIMEOID) or (TypeOID = TIMETZOID) then begin
+        if AttTypMod = -1
+        then Result.UpdateInt(TableColColumnDecimalDigitsIndex, 6) //scale
+        else Result.UpdateInt(TableColColumnDecimalDigitsIndex, AttTypMod); //scale
+      end else if (TypeOID = NUMERICOID) or (PgType = 'decimal') then begin
+        Result.UpdateInt(TableColColumnSizeIndex, ((AttTypMod - VARHDRSZ) shr 16 and $FFFF)); //precision
+        Result.UpdateInt(TableColColumnDecimalDigitsIndex, ((AttTypMod - VARHDRSZ) and $FFFF)); //scale
         Result.UpdateInt(TableColColumnNumPrecRadixIndex, 10); //base? ten as default
       end else if (TypeOID = CASHOID) then begin
         Result.UpdateInt(TableColColumnSizeIndex, 22); //precision
@@ -3418,33 +3368,33 @@ FillSizes:Result.UpdateInt(TableColColumnSizeIndex, Precision);
       end else if (PgType = 'bit') or (PgType = 'varbit') then begin
         Result.UpdateInt(TableColColumnSizeIndex, AttTypMod);
         Result.UpdateInt(TableColColumnNumPrecRadixIndex, 2);
-      end
-      else
-      begin
+      end else begin
         Result.UpdateInt(TableColColumnSizeIndex, GetInt(attlen_index));
         Result.UpdateInt(TableColColumnNumPrecRadixIndex, 2);
       end;
-      if GetBoolean(attnotnull_index) then
-      begin
+      if GetBoolean(attnotnull_index) then begin
         Result.UpdateString(TableColColumnIsNullableIndex, 'NO');
         Result.UpdateInt(TableColColumnNullableIndex, Ord(ntNoNulls));
-      end
-      else
-      begin
+      end else begin
         Result.UpdateString(TableColColumnIsNullableIndex, 'YES');
         Result.UpdateInt(TableColColumnNullableIndex, Ord(ntNullable));
       end;
+      P := GetPAnsiChar(attidentity_Index, Len);
+      B := (P <> nil) and (PByte(P)^ <> 0);
+      Result.UpdateBoolean(TableColColumnAutoIncIndex, B);
 
-      Result.UpdatePAnsiChar(TableColColumnRemarksIndex, GetPAnsiChar(description_index {description}, Len), @Len);
-      Result.UpdatePAnsiChar(TableColColumnColDefIndex, GetPAnsiChar(adsrc_index {adsrc}, Len), @Len);
+      Result.UpdatePAnsiChar(TableColColumnRemarksIndex, GetPAnsiChar(description_index {description}, Len), Len);
+      Result.UpdatePAnsiChar(TableColColumnColDefIndex, GetPAnsiChar(adsrc_index {adsrc}, Len), Len);
       Result.UpdateInt(TableColColumnCharOctetLengthIndex, Result.GetInt(attlen_index));
       Result.UpdateInt(TableColColumnOrdPosIndex, GetInt(attnum_index));
 
-      Result.UpdateBoolean(TableColColumnCaseSensitiveIndex, IC.IsCaseSensitive(GetString(attname_index)));
+      SQL := GetString(attname_index);
+      Result.UpdateBoolean(TableColColumnCaseSensitiveIndex, IC.IsCaseSensitive(SQL));
       Result.UpdateBoolean(TableColColumnSearchableIndex, True);
-      Result.UpdateBoolean(TableColColumnWritableIndex, True);
-      Result.UpdateBoolean(TableColColumnDefinitelyWritableIndex, True);
-      Result.UpdateBoolean(TableColColumnReadonlyIndex, False);
+      B := (P <> nil) and (PByte(P)^ = Byte('a'));
+      Result.UpdateBoolean(TableColColumnWritableIndex, not B);
+      Result.UpdateBoolean(TableColColumnDefinitelyWritableIndex, not B);
+      Result.UpdateBoolean(TableColColumnReadonlyIndex, B);
       if not IsNull(cdomain_oid_Index) then
         PGConnection.AddDomain2BaseTypeIfNotExists(GetUInt(cdomain_oid_Index), TypeOid);
       Result.InsertRow;
@@ -3455,9 +3405,10 @@ end;
 
 function TZPostgreSQLDatabaseMetadata.GetSQLTypeByName(
   const TypeName: string): TZSQLType;
+var PGConn: IZPostgreSQLConnection;
 begin
-  Result := PostgreSQLToSQLType(
-    GetConnection as IZPostgreSQLConnection, TypeName);
+  PGConn := GetConnection as IZPostgreSQLConnection;
+  Result := PostgreSQLToSQLType(PGConn, TypeName);
 end;
 
 function TZPostgreSQLDatabaseMetadata.TableTypeSQLExpression(
@@ -3603,10 +3554,10 @@ begin
   end;
 end;
 
-function TZPostgreSQLDatabaseMetadata.GetIdentifierConvertor: IZIdentifierConvertor;
+function TZPostgreSQLDatabaseMetadata.GetIdentifierConverter: IZIdentifierConverter;
 begin
-  Result := TZDefaultIdentifierConvertor.Create(Self);
-  //Result:= TZPostgreSQLIdentifierConvertor.Create(Self);
+  Result := TZDefaultIdentifierConverter.Create(Self);
+  //Result:= TZPostgreSQLIdentifierConverter.Create(Self);
 end;
 
 {**
@@ -3641,14 +3592,14 @@ begin
   Self.GetConnection.CreateStatement.ExecuteQuery('select get_encodings();').Close;
 
   Result:=inherited UncachedGetCharacterSets;
-
+  {$IFDEF WITH_VAR_INIT_WARNING}Len := 0;{$ENDIF}
   with Self.GetConnection.CreateStatement.ExecuteQuery(
    'select * from encodings;') do
   begin
     while Next do
     begin
       Result.MoveToInsertRow;
-      Result.UpdatePAnsiChar(CharacterSetsNameIndex, GetPAnsiChar(name_Index, Len), @Len); //CHARACTER_SET_NAME
+      Result.UpdatePAnsiChar(CharacterSetsNameIndex, GetPAnsiChar(name_Index, Len), Len); //CHARACTER_SET_NAME
       Result.UpdateSmall(CharacterSetsIDIndex, GetSmall(enc_Index)); //CHARACTER_SET_ID
       Result.InsertRow;
     end;
@@ -3656,9 +3607,9 @@ begin
   end;
 end;
 
-{ TZPostgresIdentifierConvertor }
+{ TZPostgresIdentifierConverter }
 
-function TZPostgreSQLIdentifierConvertor.ExtractQuote(
+function TZPostgreSQLIdentifierConverter.ExtractQuote(
   const Value: string): string;
 var
   QuoteDelim: string;
@@ -3675,7 +3626,7 @@ begin
     Result := AnsiLowerCase(Value);
 end;
 
-function TZPostgreSQLIdentifierConvertor.IsQuoted(const Value: string): Boolean;
+function TZPostgreSQLIdentifierConverter.IsQuoted(const Value: string): Boolean;
 var
   QuoteDelim: string;
   pQ, pV: PChar;
@@ -3687,28 +3638,28 @@ begin
             ((pV+Length(Value)-1)^ = (pQ+Length(QuoteDelim)-1)^);
 end;
 
-function TZPostgreSQLIdentifierConvertor.IsSpecialCase(
+function TZPostgreSQLIdentifierConverter.IsSpecialCase(
   const Value: string): Boolean;
 var
-  I: Integer;
+  P, PEnd: PChar;
 begin
   Result := False;
-  if not CharInSet(Value[1], ['a'..'z','_']) then
-  begin
+  P := Pointer(Value);
+  if (P = nil) or not (Ord(P^) in [Ord('a')..Ord('z'),Ord('_')]) then begin
     Result := True;
     Exit;
   end;
-  for I := 1 to Length(Value) do
-  begin
-    if not CharInSet(Value[I], ['A'..'Z','a'..'z','0'..'9','_']) then
-    begin
+  PEnd := P+Length(Value);
+  while P < PEnd do
+    if not (Ord(P^) in [Ord('A')..Ord('Z'),Ord('a')..Ord('z'),Ord('0')..Ord('9'),Ord('_')]) then begin
       Result := True;
       Break;
     end;
-  end;
 end;
 
-function TZPostgreSQLIdentifierConvertor.Quote(const Value: string): string;
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "Qualifier" not used} {$ENDIF}
+function TZPostgreSQLIdentifierConverter.Quote(const Value: string;
+  Qualifier: TZIdentifierQualifier = iqUnspecified): string;
 var
   QuoteDelim: string;
   P: PChar absolute QuoteDelim;
@@ -3724,6 +3675,7 @@ begin
     end;
   end;
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {$ENDIF ZEOS_DISABLE_POSTGRESQL} //if set we have an empty unit
 end.

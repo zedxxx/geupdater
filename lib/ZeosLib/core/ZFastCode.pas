@@ -42,7 +42,7 @@
 {                 John O'Harrow                           }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -257,11 +257,11 @@ var
 
 var
   {$IFDEF FPC}
-    {$IFDEF cpuarm}
+    {$IF DEFINED(cpuarm) or DEFINED(CPUPOWERPC32)}
     StrLen: function(Str: PChar): sizeint;
     {$ELSE}
     StrLen: function(Str: PAnsiChar): {$IFDEF cpui386}LongInt{$ELSE}Int64{$ENDIF};
-    {$ENDIF}
+    {$IFEND}
   {$ELSE}
   StrLen: function(const Str: PAnsiChar): Cardinal;
   {$ENDIF}
@@ -306,48 +306,58 @@ procedure IntToUnicode(const Value: UInt64; Buf: PWideChar; PEnd: ZPPWideChar = 
 procedure IntToUnicode(Value: Cardinal; Buf: PWideChar; Digits: Byte); overload; {$IFDEF WITH_INLINE}inline;{$ENDIF}
 procedure IntToUnicode(Value: UInt64; Buf: PWideChar; Digits: Byte); overload;
 
-function IntToUnicode(Value: Byte): ZWideString; overload;
-function IntToUnicode(Value: ShortInt): ZWideString; overload;
-function IntToUnicode(Value: Word): ZWideString; overload;
-function IntToUnicode(Value: SmallInt): ZWideString; overload;
-function IntToUnicode(Value: Cardinal): ZWideString; overload;
-function IntToUnicode(Value: Integer): ZWideString; overload;
-function IntToUnicode(const Value: Int64): ZWideString; overload;
-function IntToUnicode(const Value: UInt64): ZWideString; overload;
+function IntToUnicode(Value: Byte): UnicodeString; overload;
+function IntToUnicode(Value: ShortInt): UnicodeString; overload;
+function IntToUnicode(Value: Word): UnicodeString; overload;
+function IntToUnicode(Value: SmallInt): UnicodeString; overload;
+function IntToUnicode(Value: Cardinal): UnicodeString; overload;
+function IntToUnicode(Value: Integer): UnicodeString; overload;
+function IntToUnicode(const Value: Int64): UnicodeString; overload;
+function IntToUnicode(const Value: UInt64): UnicodeString; overload;
 
-procedure CurrToRaw(const Value: Currency; Buf: PAnsiChar; PEnd: PPAnsiChar = nil); overload;
-function CurrToRaw(const Value: Currency): RawByteString; overload;
+procedure CurrToRaw(const Value: Currency; DecimalSep: Char; Buf: PAnsiChar; PEnd: PPAnsiChar = nil); overload;
+function CurrToRaw(const Value: Currency; DecimalSep: Char): RawByteString; overload;
 
-procedure CurrToUnicode(const Value: Currency; Buf: PWideChar; PEnd: ZPPWideChar = nil); overload;
-function CurrToUnicode(const Value: Currency): ZWideString; overload;
+procedure CurrToUnicode(const Value: Currency; DecimalSep: Char; Buf: PWideChar; PEnd: ZPPWideChar = nil); overload;
+function CurrToUnicode(const Value: Currency; DecimalSep: Char): UnicodeString; overload;
 
 function RawToInt(const Value: RawByteString): Integer; overload;
 function RawToInt(const Value: PAnsiChar): Integer; overload;
+function RawToUInt32(Buf, PEnd: PAnsiChar): Cardinal; overload;
+function RawToUInt32(Const S: RawByteString): Cardinal; overload;
 function RawToInt64(const Value: RawByteString): Int64;
 function RawToUInt64(const Value: RawByteString): UInt64;
-function UnicodeToInt(const Value: ZWideString): Integer;
-function UnicodeToInt64(const Value: ZWideString): Int64;
-function UnicodeToUInt64(const Value: ZWideString): UInt64;
+function UnicodeToInt(const Value: UnicodeString): Integer;
+function UnicodeToUInt32(const S: UnicodeString): Cardinal; overload;
+function UnicodeToUInt32(Buf, PEnd: PWideChar): Cardinal; overload;
+function UnicodeToInt64(Buf, PEnd: PWideChar): Int64; overload;
+function UnicodeToInt64(const Value: UnicodeString): Int64; overload;
+function UnicodeToUInt64(const Value: UnicodeString): UInt64; overload;
+function UnicodeToUInt64(Buf, PEnd: PWideChar): Int64; overload;
 
-function RawToIntDef(const S: RawByteString; const Default: Integer) : Integer; overload;
-function RawToIntDef(const S: PAnsiChar; const Default: Integer) : Integer; overload;
-function RawToIntDef(Buf, PEnd: PAnsiChar; const Default: Integer) : Integer; overload;
-function RawToInt64Def(const S: RawByteString; const Default: Int64) : Int64; overload;
-function RawToInt64Def(const S: PAnsiChar; const Default: Int64) : Int64; overload;
-function RawToInt64Def(Buf, PEnd: PAnsiChar; const Default: Int64) : Int64; overload;
-function RawToUInt64Def(const S: PAnsiChar; const Default: UInt64) : UInt64; overload;
-function RawToUInt64Def(Buf, PEnd: PAnsiChar; const Default: UInt64) : UInt64; overload;
-function RawToUInt64Def(const S: RawByteString; const Default: UInt64) : UInt64; overload;
+function RawToIntDef(const S: RawByteString; const Default: Integer): Integer; overload;
+function RawToIntDef(const S: PAnsiChar; const Default: Integer): Integer; overload;
+function RawToIntDef(Buf, PEnd: PAnsiChar; const Default: Integer): Integer; overload;
+function RawToUInt32Def(const S: RawByteString; const Default: Cardinal): Cardinal; overload;
+function RawToUInt32Def(Buf, PEnd: PAnsiChar; const Default: Cardinal): Cardinal; overload;
+function RawToInt64Def(const S: RawByteString; const Default: Int64): Int64; overload;
+function RawToInt64Def(const S: PAnsiChar; const Default: Int64): Int64; overload;
+function RawToInt64Def(Buf, PEnd: PAnsiChar; const Default: Int64): Int64; overload;
+function RawToUInt64Def(const S: PAnsiChar; const Default: UInt64): UInt64; overload;
+function RawToUInt64Def(Buf, PEnd: PAnsiChar; const Default: UInt64): UInt64; overload;
+function RawToUInt64Def(const S: RawByteString; const Default: UInt64): UInt64; overload;
 
-function UnicodeToIntDef(const S: ZWideString; const Default: Integer) : Integer; overload;
-function UnicodeToIntDef(const S: PWideChar; const Default: Integer) : Integer; overload;
-function UnicodeToIntDef(Buf, PEnd: PWideChar; Default: Integer) : Integer; overload;
-function UnicodeToInt64Def(const S: ZWideString; const Default: Int64) : Int64; overload;
-function UnicodeToInt64Def(const S: PWideChar; const Default: Int64) : Int64; overload;
-function UnicodeToInt64Def(Buf, PEnd: PWideChar; Default: Integer) : Int64; overload;
-function UnicodeToUInt64Def(const S: ZWideString; const Default: UInt64) : UInt64; overload;
-function UnicodeToUInt64Def(const S: PWideChar; const Default: UInt64) : UInt64; overload;
-function UnicodeToUInt64Def(Buf, PEnd: PWideChar; Default: Integer) : UInt64; overload;
+function UnicodeToIntDef(const S: UnicodeString; Default: Integer): Integer; overload;
+function UnicodeToIntDef(const S: PWideChar; Default: Integer): Integer; overload;
+function UnicodeToIntDef(Buf, PEnd: PWideChar; Default: Integer): Integer; overload;
+function UnicodeToUInt32Def(const S: UnicodeString; Default: Cardinal): Cardinal; overload;
+function UnicodeToUInt32Def(Buf, PEnd: PWideChar; Default: Cardinal): Cardinal; overload;
+function UnicodeToInt64Def(const S: UnicodeString; const Default: Int64): Int64; overload;
+function UnicodeToInt64Def(const S: PWideChar; const Default: Int64): Int64; overload;
+function UnicodeToInt64Def(Buf, PEnd: PWideChar; Default: Integer): Int64; overload;
+function UnicodeToUInt64Def(const S: UnicodeString; const Default: UInt64): UInt64; overload;
+function UnicodeToUInt64Def(const S: PWideChar; const Default: UInt64): UInt64; overload;
+function UnicodeToUInt64Def(Buf, PEnd: PWideChar; Default: Integer): UInt64; overload;
 
 { Float convertion in Raw and Unicode Format}
 function RawToFloat(const s: PAnsiChar; const DecimalSep: AnsiChar): Extended; overload;
@@ -372,10 +382,12 @@ function ValRawCurr(S: PByteArray; DecimalSep: Char; var Len: Integer): Currency
 function ValRawInt(const s: RawByteString; out code: Integer): Integer; overload;
 function ValRawInt(s: PAnsiChar; out code: Integer): Integer; overload;
 function ValRawInt(PStart: PAnsiChar; var PEnd: PAnsiChar): Integer; overload;
+function ValRawUInt32(PStart: PAnsiChar; var PEnd: PAnsiChar): Cardinal; overload;
 function ValRawInt64(PStart: PAnsiChar; var PEnd: PAnsiChar): Int64; overload;
 function ValRawUInt64(PStart: PAnsiChar; var PEnd: PAnsiChar): UInt64; overload;
 
 function ValUnicodeInt(PStart: PWideChar; var PEnd: PWideChar): Integer; overload;
+function ValUnicodeUInt32(PStart: PWideChar; var PEnd: PWideChar): Cardinal; overload;
 function ValUnicodeInt64(PStart: PWideChar; var PEnd: PWideChar): Int64; overload;
 function ValUnicodeUInt64(PStart: PWideChar; var PEnd: PWideChar): UInt64; overload;
 
@@ -408,24 +420,29 @@ function Trunc(const X: Single): Int64; overload;
 {$ENDIF USE_FAST_TRUNC}
 
 function Pos(const SubStr: RawByteString; const Str: RawByteString): Integer; overload;
-function Pos(const SubStr, Str: ZWideString): Integer; overload;
+function Pos(const SubStr, Str: UnicodeString): Integer; overload;
 
 function PosEx(const SubStr: RawByteString; Str: PAnsiChar; len: LengthInt; Offset: Integer = 1): Integer; overload;
 function PosEx(SubStr, Str: PAnsiChar; SubStrLen, Strlen: LengthInt; Offset: Integer = 1): Integer; overload;
 function PosEx(const SubStr, S: RawByteString; Offset: Integer = 1): Integer; overload;
 
-function PosEx(const SubStr: ZWideString; Str: PWideChar; len: LengthInt; Offset: Integer = 1): Integer; overload;
+function PosEx(const SubStr: UnicodeString; Str: PWideChar; len: LengthInt; Offset: Integer = 1): Integer; overload;
 function PosEx(SubStr, Str: PWideChar; SubStrLen, Strlen: LengthInt; Offset: Integer = 1): Integer; overload;
-function PosEx(const SubStr, S: ZWideString; Offset: Integer = 1): Integer; overload;
+function PosEx(const SubStr, S: UnicodeString; Offset: Integer = 1): Integer; overload;
 
 function GetOrdinalDigits(const Value: UInt64): Byte; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
-function GetOrdinalDigits(const Value: Int64): Byte; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+{$IFDEF HAVE_TRUE_NATIVE_TYPES}//some newer delphi's can't determine the correct overload ):
+{$IFNDEF NATIVEINT_WEAK_REFERENCE}
+function GetOrdinalDigits(const Value: NativeInt; out U: NativeUInt; out Negative: Boolean): Byte; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+{$ENDIF}
+{$ENDIF}
+function GetOrdinalDigits(const Value: Int64; out U: UInt64; out Negative: Boolean): Byte; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
 function GetOrdinalDigits(Value: Cardinal): Byte; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
-function GetOrdinalDigits(Value: Integer): Byte; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+function GetOrdinalDigits(Value: Integer; out C: Cardinal; out Negative: Boolean): Byte; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
 function GetOrdinalDigits(Value: Word): Byte; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
-function GetOrdinalDigits(Value: SmallInt): Byte; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+function GetOrdinalDigits(Value: SmallInt; out W: Word; out Negative: Boolean): Byte; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
 function GetOrdinalDigits(Value: Byte): Byte; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
-function GetOrdinalDigits(Value: ShortInt): Byte; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+function GetOrdinalDigits(Value: ShortInt; out B: Byte; out Negative: Boolean): Byte; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
 
 const Int64Tower: array[0..18] of Int64 = (
   $0000000000000001 {                  1},
@@ -523,6 +540,13 @@ var
     $8AC7230489E80000 {10000000000000000000});
   _10Trillion = UInt64(10000000000000000000);
 {$IFEND}
+
+{$IFDEF WITH_UINT64_C1118_ERROR}
+function UInt64ToCardinal(const Src: UInt64): Cardinal;
+function UInt64ToInt64(const Src: UInt64): Int64;
+function CardinalToUint64(Src: Cardinal): UInt64;
+function Int64ToUInt64(const Src: Int64): UInt64;
+{$ENDIF}
 
 implementation
 
@@ -2641,6 +2665,7 @@ function IntToRaw(Value: Cardinal): RawByteString;
 var Digits: Byte;
 begin
   Digits := GetOrdinalDigits(Value);
+  {$IFDEF FPC}Result := '';{$ENDIF}
   ZSetString(nil, Digits, Result);
   IntToRaw(Value, Pointer(Result), Digits);
 end;
@@ -3006,11 +3031,8 @@ var C: Cardinal;
   Negative: Boolean;
   P: PAnsiChar;
 begin
-  Negative := Value < 0;
-  if Negative
-  then C := Cardinal(-Value)
-  else C := Cardinal(Value);
-  Digits := GetOrdinalDigits(C);
+  Digits := GetOrdinalDigits(Value, C, Negative);
+  {$IFDEF FPC}Result := '';{$ENDIF}
   ZSetString(nil, Digits+Ord(Negative), Result);
   P := Pointer(Result);
   if Negative then
@@ -3024,11 +3046,8 @@ var U: UInt64;
   Negative: Boolean;
   P: PAnsiChar;
 begin
-  Negative := Value < 0;
-  if Negative
-  then U := UInt64(-Value)
-  else U := UInt64(Value);
-  Digits := GetOrdinalDigits(U);
+  Digits := GetOrdinalDigits(Value, U, Negative);
+  {$IFDEF FPC}Result := '';{$ENDIF}
   ZSetString(nil, Digits+Ord(Negative), Result);
   P := Pointer(Result);
   if Negative then
@@ -3194,11 +3213,12 @@ function IntToRaw(const Value: UInt64): RawByteString;
 var Digits: Byte;
 begin
   Digits := GetOrdinalDigits(Value);
+  {$IFDEF FPC}Result := '';{$ENDIF}
   ZSetString(nil, Digits, Result);
   IntToRaw(Value, Pointer(Result), Digits);
 end;
 
-procedure CurrToRaw(const Value: Currency; Buf: PAnsiChar; PEnd: PPAnsiChar = nil);
+procedure CurrToRaw(const Value: Currency; DecimalSep: Char; Buf: PAnsiChar; PEnd: PPAnsiChar = nil);
 var
   I64: UInt64;
   I64Rec: Int64Rec absolute I64;
@@ -3216,7 +3236,7 @@ begin
       I64 := PInt64(@Value)^;
     Digits := GetOrdinalDigits(I64);
     if Digits < 5 then begin
-      PLongWord(Buf)^ := ord('0')+ord('.') shl 8+ord('0') shl 16+ord('0') shl 24; //fill 0.00 @once
+      PCardinal(Buf)^ := ord('0')+ord('.') shl 8+ord('0') shl 16+ord('0') shl 24; //fill 0.00 @once
       if Digits = 1
       then PWord(Buf+4)^ := Ord('0')+(Ord('0')+I64Rec.Lo) shl 8 //finalize last 0x pair directyl
       else IntToRaw(I64Rec.Lo, Buf+2+Ord(Digits<3)+Ord(Digits<4), Digits);
@@ -3225,7 +3245,7 @@ begin
       IntToRaw(i64, Buf, Digits);
       Inc(Buf, Digits);
       PCardinal(Buf-3)^ := PCardinal(Buf-4)^; //move trailing digits one pos forward;
-      PByte(Buf-4)^ := Ord('.');
+      PByte(Buf-4)^ := Ord(DecimalSep);
     end;
     //dec by trailing zeroes
     if PByte(Buf)^ = Ord('0') then begin
@@ -3243,15 +3263,17 @@ begin
   else PByte(Buf)^ := Ord(#0);
 end;
 
-function CurrToRaw(const Value: Currency): RawByteString;
+function CurrToRaw(const Value: Currency; DecimalSep: Char): RawByteString;
 var buf: array[0..31] of AnsiChar;
   P: PAnsiChar;
 begin
-  CurrToRaw(Value, @buf[0], @P);
+  CurrToRaw(Value, DecimalSep, @buf[0], @P);
+  {$IFDEF FPC}Result := '';{$ENDIF}
   ZSetString(PAnsiChar(@Buf[0]), P-PAnsiChar(@Buf[0]), Result);
 end;
 
-procedure CurrToUnicode(const Value: Currency; Buf: PWideChar; PEnd: ZPPWideChar = nil);
+procedure CurrToUnicode(const Value: Currency; DecimalSep: Char; Buf: PWideChar;
+  PEnd: ZPPWideChar = nil);
 var
   I64: UInt64;
   I64Rec: Int64Rec absolute I64;
@@ -3269,10 +3291,10 @@ begin
       I64 := PInt64(@Value)^;
     Digits := GetOrdinalDigits(I64);
     if Digits < 5 then begin
-      PLongWord(Buf)^   := ord('0') + ord('.') shl 16; //write "0." @once
-      PLongWord(Buf+2)^ := ord('0') + ord('0') shl 16; //fill "00" @once
+      PCardinal(Buf)^   := ord('0') + ord('.') shl 16; //write "0." @once
+      PCardinal(Buf+2)^ := ord('0') + ord('0') shl 16; //fill "00" @once
       if Digits = 1
-      then PLongWord(Buf+4)^ := Ord('0')+(Ord('0')+I64Rec.Lo) shl 16 //finalize last 0x pair directly
+      then PCardinal(Buf+4)^ := Ord('0')+(Ord('0')+I64Rec.Lo) shl 16 //finalize last 0x pair directly
       else IntToUnicode(I64Rec.Lo, Buf+2+Ord(Digits<3)+Ord(Digits<4), Digits);
       Inc(Buf, 5);
     end else begin
@@ -3280,7 +3302,7 @@ begin
       Inc(Buf, Digits);
       I64 := PUInt64(Buf-4)^; //localize (CPU32 makes two cadinal moves and the value would be incorrect then)
       PUInt64(Buf-3)^ := i64; //move trailing digits one pos forward;
-      PWord(Buf-4)^ := Ord('.');
+      PWord(Buf-4)^ := Ord(DecimalSep);
     end;
     if PWord(Buf)^ = Ord('0') then begin
       if PWord(Buf-1)^ = Ord('0') then
@@ -3297,11 +3319,11 @@ begin
   else PWord(Buf)^ := Ord(#0);
 end;
 
-function CurrToUnicode(const Value: Currency): ZWideString;
+function CurrToUnicode(const Value: Currency; DecimalSep: Char): UnicodeString;
 var buf: array[0..31] of WideChar;
   P: PWideChar;
 begin
-  CurrToUnicode(Value, @buf[0], @P);
+  CurrToUnicode(Value, DecimalSep, @buf[0], @P);
   System.SetString(Result, PWideChar(@Buf[0]), P-PWideChar(@Buf[0]));
 end;
 
@@ -3337,10 +3359,10 @@ begin
       K  := Value - K;               {Dividend mod 100}
       Value  := J;                   {Next Dividend}
       Dec(Digits, 2);
-      PLongWord(Buf+Digits)^ := TwoDigitLookupLW[K];
+      PCardinal(Buf+Digits)^ := TwoDigitLookupLW[K];
     until Digits <= 2;
   if Digits = 2
-  then PLongWord(Buf)^ := TwoDigitLookupLW[Value]
+  then PCardinal(Buf)^ := TwoDigitLookupLW[Value]
   else PWord(Buf)^ := Value or Ord('0');
 end;
 
@@ -3409,16 +3431,16 @@ begin
   J32 := I32 div 100;
   K32 := J32 * 100;
   K32 := I32 - K32;
-  PLongWord(Buf + Digits - 2)^ := TwoDigitLookupLW[K32];
+  PCardinal(Buf + Digits - 2)^ := TwoDigitLookupLW[K32];
   I32 := J32 div 100;
   L32 := I32 * 100;
   L32 := J32 - L32;
-  PLongWord(Buf + Digits - 4)^ := TwoDigitLookupLW[L32];
+  PCardinal(Buf + Digits - 4)^ := TwoDigitLookupLW[L32];
   J32 := I32 div 100;
   K32 := J32 * 100;
   K32 := I32 - K32;
-  PLongWord(Buf + Digits - 6)^ := TwoDigitLookupLW[K32];
-  PLongWord(Buf + Digits - 8)^ := TwoDigitLookupLW[J32];
+  PCardinal(Buf + Digits - 6)^ := TwoDigitLookupLW[K32];
+  PCardinal(Buf + Digits - 8)^ := TwoDigitLookupLW[J32];
   Dec(Digits, 8);
   I32 := J64; {Dividend now Fits within Integer - Use Faster Version}
 cardinal_range:
@@ -3429,34 +3451,34 @@ cardinal_range:
       K32 := I32 - K32;  {Dividend mod 100}
       I32 := J32;        {next Dividend}
       Dec(Digits, 2);
-      PLongWord(Buf + Digits)^ := TwoDigitLookupLW[K32];
+      PCardinal(Buf + Digits)^ := TwoDigitLookupLW[K32];
     until Digits <= 2;
   if Digits = 2
-  then PLongWord(Buf)^ := TwoDigitLookupLW[I32]
+  then PCardinal(Buf)^ := TwoDigitLookupLW[I32]
   else PWord(Buf)^ := Word(I32 or ord('0'));
 end;
 
-function IntToUnicode(Value: Byte): ZWideString;
+function IntToUnicode(Value: Byte): UnicodeString;
 begin
   Result := IntToUnicode(Cardinal(Value));
 end;
 
-function IntToUnicode(Value: ShortInt): ZWideString;
+function IntToUnicode(Value: ShortInt): UnicodeString;
 begin
   Result := IntToUnicode(Integer(Value));
 end;
 
-function IntToUnicode(Value: Word): ZWideString;
+function IntToUnicode(Value: Word): UnicodeString;
 begin
   Result := IntToUnicode(Cardinal(Value));
 end;
 
-function IntToUnicode(Value: SmallInt): ZWideString;
+function IntToUnicode(Value: SmallInt): UnicodeString;
 begin
   Result := IntToUnicode(Integer(Value));
 end;
 
-function IntToUnicode(Value: Cardinal): ZWideString;
+function IntToUnicode(Value: Cardinal): UnicodeString;
 var
   Digits: Byte;
 begin
@@ -3465,17 +3487,13 @@ begin
   IntToUnicode(Value, Pointer(Result), Digits);
 end;
 
-function IntToUnicode(Value: Integer): ZWideString;
+function IntToUnicode(Value: Integer): UnicodeString;
 var C: Cardinal;
   Digits: Byte;
   Negative: Boolean;
   P: PWideChar;
 begin
-  Negative := Value < 0;
-  if Negative
-  then C := Cardinal(-Value)
-  else C := Cardinal(Value);
-  Digits := GetOrdinalDigits(C);
+  Digits := GetOrdinalDigits(Value, C, Negative);
   System.SetString(Result, nil, Digits+Ord(Negative));
   P := Pointer(Result);
   if Negative then
@@ -3483,17 +3501,13 @@ begin
   IntToUnicode(C, P+Ord(Negative), Digits);
 end;
 
-function IntToUnicode(const Value: Int64): ZWideString;
+function IntToUnicode(const Value: Int64): UnicodeString;
 var U: UInt64;
   Digits: Byte;
   Negative: Boolean;
   P: PWideChar;
 begin
-  Negative := Value < 0;
-  if Negative
-  then U := UInt64(-Value)
-  else U := UInt64(Value);
-  Digits := GetOrdinalDigits(U);
+  Digits := GetOrdinalDigits(Value, U, Negative);
   System.SetString(Result, nil, Digits+Ord(Negative));
   P := Pointer(Result);
   if Negative then
@@ -3501,7 +3515,7 @@ begin
   IntToUnicode(U, P+Ord(Negative), Digits);
 end;
 
-function IntToUnicode(const Value: UInt64): ZWideString;
+function IntToUnicode(const Value: UInt64): UnicodeString;
 var Digits: Byte;
 begin
   Digits := GetOrdinalDigits(Value);
@@ -3918,10 +3932,42 @@ asm
       raise EConvertError.CreateResFmt(@SInvalidInteger, [Value]);
 {$IFEND}
 end;
-{$WARNINGS ON}
 
-{$WARNINGS OFF}
-function UnicodeToInt(const Value: ZWideString): Integer;
+function RawToUInt32(Buf, PEnd: PAnsiChar): Cardinal;
+var P: PAnsiChar;
+label jmpFail;
+begin
+  if (Buf = nil) or (PEnd <= Buf) then
+    goto jmpFail;
+  P := PEnd;
+  Result := ValRawUInt32(Buf, PEnd);
+  if (PEnd <> P) and (PByte(PEnd)^ <> Byte(' ')) then
+jmpFail:
+    raise EConvertError.CreateResFmt(@SInvalidInteger, [Buf]);
+end;
+
+{$IFDEF FPC} {$PUSH} {$WARN 4055 off : Conversion between ordinals and pointers is not portable} {$ENDIF}
+function RawToUInt32(Const S: RawByteString): Cardinal;
+var Buf, P, PEnd: PAnsiChar;
+label jmpFail;
+begin
+  if Pointer(S) = nil then
+    goto jmpFail;
+  Buf := Pointer(S);
+  {$IFDEF WITH_INLINE}
+  PEnd := Buf + Length(S) {$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}-1{$ENDIF};
+  {$ELSE}
+  PEnd := Buf + PLengthInt(NativeUInt(Buf) - StringLenOffSet)^;
+  {$ENDIF}
+  P := PEnd;
+  Result := ValRawUInt32(Buf, PEnd);
+  if (PEnd <> P) and (PByte(PEnd)^ <> Byte(' ')) then
+jmpFail:
+    raise EConvertError.CreateResFmt(@SInvalidInteger, [S]);
+end;
+{$IFDEF FPC} {$POP} {$ENDIF}
+
+function UnicodeToInt(const Value: UnicodeString): Integer;
 //function StrToInt32_JOH_PAS_7_c(const s: string): Integer;
 //originally wrtten by John O'Harrow
 //http://fastcode.sourceforge.net/
@@ -4005,6 +4051,41 @@ begin
   if (not Valid) or (P^ <> #0) then
     raise EConvertError.CreateResFmt(@SInvalidInteger, [Value]);
 end;
+
+function UnicodeToUInt32(Buf, PEnd: PWideChar): Cardinal;
+var P: PWideChar;
+label jmpFail;
+begin
+  if (Buf = nil) or (PEnd <= Buf) then
+    goto jmpFail;
+  P := PEnd;
+  Result := ValUnicodeUInt32(Buf, PEnd);
+  if (PEnd <> P) and (PWord(PEnd)^ <> Word(' ')) then
+jmpFail:
+    raise EConvertError.CreateResFmt(@SInvalidInteger, [Buf]);
+end;
+
+{$IFDEF FPC} {$PUSH} {$WARN 4055 off : Conversion between ordinals and pointers is not portable} {$ENDIF}
+function UnicodeToUInt32(Const S: UnicodeString): Cardinal;
+var Buf, P, PEnd: PWideChar;
+label jmpFail;
+begin
+  if Pointer(S) = nil then
+    goto jmpFail;
+  Buf := Pointer(S);
+  {$IFDEF WITH_INLINE}
+  PEnd := Buf + Length(S) {$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}-1{$ENDIF};
+  {$ELSE}
+  PEnd := Buf + PLengthInt(NativeUInt(Buf) - StringLenOffSet)^;
+  {$ENDIF}
+  P := PEnd;
+  Result := ValUnicodeUInt32(Buf, PEnd);
+  if (PEnd <> P) and (PWord(PEnd)^ <> Word(' ')) then
+jmpFail:
+    raise EConvertError.CreateResFmt(@SInvalidInteger, [S]);
+end;
+{$IFDEF FPC} {$POP} {$ENDIF}
+
 {$WARNINGS ON}
 
 {$IF defined(WIN32) and not defined(FPC)}
@@ -4234,8 +4315,46 @@ end;
 function RawToIntDef(Buf, PEnd: PAnsiChar; const Default: Integer) : Integer;
 var P: PAnsiChar;
 begin
+  if (Buf = nil) or (PEnd <= Buf)
+  then Result := Default
+  else begin
+    P := PEnd;
+    Result := ValRawInt(Buf, PEnd);
+    if PEnd <> P then
+      Result := Default;
+  end;
+end;
+
+{$IFDEF FPC} {$PUSH}
+  {$WARN 4055 off : Conversion between ordinals and pointers is not portable}
+  {$WARN 4056 off : Conversion between ordinals and pointers is not portable}
+{$ENDIF}
+function RawToUInt32Def(const S: RawByteString; const Default: Cardinal): Cardinal; overload;
+var Buf, P, PEnd: PAnsiChar;
+begin
+  if Pointer(S) = nil
+  then Result := Default
+  else begin
+    Buf := Pointer(S);
+    {$IFDEF WITH_INLINE}
+    PEnd := Buf + Length(S) {$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}-1{$ENDIF};
+    {$ELSE}
+    PEnd := Buf + PLengthInt(NativeUInt(Buf) - StringLenOffSet)^;
+    {$ENDIF}
+    P := PEnd;
+    Result := ValRawUInt32(Buf, PEnd);
+    if (PEnd <> P) and (PByte(PEnd)^ <> Byte(' ')) then
+      Result := Default;
+  end;
+
+end;
+{$IFDEF FPC} {$POP} {$ENDIF}
+
+function RawToUInt32Def(Buf, PEnd: PAnsiChar; const Default: Cardinal): Cardinal;
+var P: PAnsiChar;
+begin
   P := PEnd;
-  Result := ValRawInt(Buf, PEnd);
+  Result := ValRawUInt32(Buf, PEnd);
   if PEnd <> P then
     Result := Default;
 end;
@@ -4321,7 +4440,7 @@ begin
 end;
 {$WARNINGS ON}
 
-function UnicodeToIntDef(const S: ZWideString; const Default: Integer) : Integer;
+function UnicodeToIntDef(const S: UnicodeString; Default: Integer) : Integer;
 var
   E: Integer;
 begin
@@ -4331,7 +4450,7 @@ begin
       Result := Default;
 end;
 
-function UnicodeToIntDef(const S: PWideChar; const Default: Integer) : Integer;
+function UnicodeToIntDef(const S: PWideChar; Default: Integer) : Integer;
 var
   E: Integer;
 begin
@@ -4347,6 +4466,40 @@ begin
   P := PEnd;
   Result := ValUnicodeInt(Buf, PEnd);
   if P <> PEnd then
+    Result := Default;
+end;
+
+{$IFDEF FPC} {$PUSH}
+  {$WARN 4055 off : Conversion between ordinals and pointers is not portable}
+  {$WARN 4056 off : Conversion between ordinals and pointers is not portable}
+{$ENDIF}
+function UnicodeToUInt32Def(const S: UnicodeString; Default: Cardinal): Cardinal;
+var Buf, P, PEnd: PWideChar;
+begin
+  if Pointer(S) = nil
+  then Result := Default
+  else begin
+    Buf := Pointer(S);
+    {$IFDEF WITH_INLINE}
+    PEnd := Buf + Length(S) {$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}-1{$ENDIF};
+    {$ELSE}
+    PEnd := Buf + PLengthInt(NativeUInt(Buf) - StringLenOffSet)^;
+    {$ENDIF}
+    P := PEnd;
+    Result := ValUnicodeUInt32(Buf, PEnd);
+    if (PEnd <> P) and (PByte(PEnd)^ <> Byte(' ')) then
+      Result := Default;
+  end;
+
+end;
+{$IFDEF FPC} {$POP} {$ENDIF}
+
+function UnicodeToUInt32Def(Buf, PEnd: PWideChar; Default: Cardinal): Cardinal;
+var P: PWideChar;
+begin
+  P := PEnd;
+  Result := ValUnicodeUInt32(Buf, PEnd);
+  if PEnd <> P then
     Result := Default;
 end;
 
@@ -4878,7 +5031,7 @@ function RawToUInt64(const Value: RawByteString) : UInt64;
 var
   E: Integer;
 begin
-  Result := ValUInt64_JOH_PAS_8_a_raw(Pointer(Value), E{%H-});
+    Result := ValUInt64_JOH_PAS_8_a_raw(Pointer(Value), E{%H-});
   if E <> 0 then
     raise EConvertError.CreateResFmt(@SInvalidInteger, [Value]);
 end;
@@ -4989,7 +5142,7 @@ begin
 end;
 {$WARNINGS ON}
 
-function UnicodeToInt64Def(const S: ZWideString; const Default: Int64) : Int64;
+function UnicodeToInt64Def(const S: UnicodeString; const Default: Int64) : Int64;
 var
   E: Integer;
 begin
@@ -4999,13 +5152,28 @@ begin
       Result := Default;
 end;
 
-function UnicodeToInt64(const Value: ZWideString) : Int64;
+function UnicodeToInt64(const Value: UnicodeString) : Int64;
 var
   E: Integer;
 begin
   Result := ValInt64_JOH_PAS_8_a_unicode(Pointer(Value), E{%H-});
   if E <> 0 then
     raise EConvertError.CreateResFmt(@SInvalidInteger, [Value]);
+end;
+
+function UnicodeToInt64(Buf, PEnd: PWideChar): Int64;
+var P: PWideChar;
+  function CreateException: EConvertError;
+  var S: UnicodeString;
+  begin
+    System.SetString(S, Buf, P-Buf);
+    Result := EConvertError.CreateResFmt(@SInvalidInteger, [String(S)]);
+  end;
+begin
+  P := PEnd;
+  Result := ValUnicodeInt64(Buf, PEnd);
+  if P <> PEnd then
+    raise CreateException;
 end;
 
 function UnicodeToInt64Def(const S: PWideChar; const Default: Int64) : Int64;
@@ -5027,7 +5195,7 @@ begin
     Result := Default;
 end;
 
-function UnicodeToUInt64(const Value: ZWideString) : UInt64;
+function UnicodeToUInt64(const Value: UnicodeString) : UInt64;
 var
   E: Integer;
 begin
@@ -5036,7 +5204,22 @@ begin
     raise EConvertError.CreateResFmt(@SInvalidInteger, [Value]);
 end;
 
-function UnicodeToUInt64Def(const S: ZWideString; const Default: UInt64) : UInt64;
+function UnicodeToUInt64(Buf, PEnd: PWideChar): Int64; overload;
+var P: PWideChar;
+  function CreateException: EConvertError;
+  var S: UnicodeString;
+  begin
+    System.SetString(S, Buf, P-Buf);
+    Result := EConvertError.CreateResFmt(@SInvalidInteger, [String(S)]);
+  end;
+begin
+  P := PEnd;
+  Result := ValUnicodeUInt64(Buf, PEnd);
+  if P <> PEnd then
+    raise CreateException;
+end;
+
+function UnicodeToUInt64Def(const S: UnicodeString; const Default: UInt64) : UInt64;
 var
   E: Integer;
 begin
@@ -5372,6 +5555,23 @@ begin
     inc(Code);
     Neg := (Ch = Ord('-'));
   end;
+  if (Ch or $20 = Byte('n')) and not Neg then //test NAN (overrun safe)
+    if (S[Code+1] or $20 = Byte('a')) and (S[Code+2] or $20 = Byte('n')) and (S[Code+3] = 0) then begin
+      Code := 0;
+      Result := NaN;
+      Exit;
+    end;
+  if (S[code] or $20 = Byte('i')) then //test Infinity (overrun safe)
+    if (S[Code+1] or $20 = Byte('n')) and (S[Code+2] or $20 = Byte('f')) and
+       (S[Code+3] or $20 = Byte('i')) and (S[Code+4] or $20 = Byte('n')) and
+       (S[Code+5] or $20 = Byte('i')) and (S[Code+6] or $20 = Byte('t')) and
+       (S[Code+7] or $20 = Byte('y')) and (S[Code+8] = 0) then begin
+      Code := 0;
+      if Neg
+      then Result := NegInfinity
+      else Result := Infinity;
+      Exit;
+    end;
   while true do begin
     Ch := S[code];
     inc(Code);
@@ -5874,6 +6074,75 @@ begin
     PEnd := PStart;
 end;
 
+{$IFDEF FPC} {$PUSH}
+  {$WARN 4079 off : Conversion between ordinals and pointers is not portable}
+{$ENDIF}
+function ValRawUInt32(PStart: PAnsiChar; var PEnd: PAnsiChar): Cardinal; overload;
+//function ValInt64_JOH_PAS_8_a(const s: AnsiString; out code: Integer): Int64;
+//fast pascal from John O'Harrow see:
+//http://www.fastcode.dk/fastcodeproject/fastcodeproject/61.htm
+//modified by EgonHugeist for faster conversion, PAnsiChar, Cardinal
+var
+  Digit: Cardinal;
+  Flags: Byte; {Bit 0 = Valid, Bit 1 = Hex}
+begin
+  Result := 0;
+  if (PStart = nil) or (PStart = PEnd) then begin
+    PEnd := PStart;
+    Exit;
+  end;
+  Flags := 0;
+  while (Ord(PStart^) = Ord(' ')) and (PStart < PEnd) do
+    Inc(PStart);
+  if Ord(PStart^) in [Ord('+'), Ord('-')] then
+    if Ord(PStart^) = Ord('-') then begin//can't be negative
+      PEnd := PStart;
+      Exit;
+    end else
+      inc(PStart);
+  if Ord(PStart^) = Ord('$') then begin
+    inc(PStart);
+    Flags := Flags or 2; {Hex := True}
+  end else begin
+    if Ord(PStart^) = Ord('0') then begin
+      Flags := Flags or 1; {Valid := True}
+      inc(PStart);
+    end;
+    if (Ord(PStart^) or $20) = ord('x') then begin {S[Code+1] in ['X','x']}
+      Flags := Flags or 2; {Hex := True}
+      inc(PStart);
+    end;
+  end;
+  if (Flags and 2) <> 0 then begin {Hex = True}
+    Flags := Flags and (not 1); {Valid := False}
+    while PStart < PEnd do begin
+      case Ord(PStart^) of
+        Ord('0')..Ord('9'): Digit := Ord(PStart^) - Ord('0');
+        Ord('a')..Ord('f'): Digit := Ord(PStart^) - AdjustLowercase;
+        Ord('A')..Ord('F'): Digit := Ord(PStart^) - AdjustUppercase;
+        else      Break;
+      end;
+      if (Result > $0FFFFFFF) then
+        Break;
+      Result := (Result shl 4) + Digit;
+      Flags := Flags or 1; {Valid := True}
+      inc(PStart);
+    end;
+  end else while PStart < PEnd do begin
+    if ( not (Ord(PStart^) in [Ord('0')..Ord('9')]) ) then //overflow
+      Break;
+    if (Result >= (Cardinal($FFFFFFFF) div 10)) then
+      if (Result > (Cardinal($FFFFFFFF) div 10)) or (PByte(PStart)^ > Byte('5')) then
+        Break;
+    Result := (Result shl 1) + (Result shl 3) + Ord(PStart^) - Ord('0');
+    Flags := Flags or 1; {Valid := True}
+    Inc(PStart);
+  end;
+  if not (((Flags and 1) <> 0) and (PStart = PEnd)) then
+    PEnd := PStart;
+end;
+{$IFDEF FPC} {$POP} {$ENDIF}
+
 function ValRawUInt64(PStart: PAnsiChar; var PEnd: PAnsiChar): UInt64; overload;
 //function ValInt64_JOH_PAS_8_a(const s: AnsiString; out code: Integer): Int64;
 //fast pascal from John O'Harrow see:
@@ -5950,8 +6219,6 @@ begin
       Inc(PStart);
     end;
   end;
-  if ((Flags and 2) <> 0) then {Neg=True}
-    Result := -Result;
   if not (((Flags and 1) <> 0) and (PStart = PEnd)) then
     PEnd := PStart;
 end;
@@ -6029,6 +6296,76 @@ begin
   if not (((Flags and 1) <> 0) and (PStart = PEnd)) then
     PEnd := PStart;
 end;
+
+{$IFDEF FPC} {$PUSH}
+  {$WARN 4079 off : Conversion between ordinals and pointers is not portable}
+{$ENDIF}
+function ValUnicodeUInt32(PStart: PWideChar; var PEnd: PWideChar): Cardinal; overload;
+//function ValInt64_JOH_PAS_8_a(const s: AnsiString; out code: Integer): Int64;
+//fast pascal from John O'Harrow see:
+//http://www.fastcode.dk/fastcodeproject/fastcodeproject/61.htm
+//modified by EgonHugeist for faster conversion, PAnsiChar, UInt64
+var
+  Digit: Cardinal;
+  Flags: Byte; {Bit 0 = Valid, Bit 1 = Hex}
+begin
+  Result := 0;
+  if (PStart = nil) or (PStart = PEnd) then begin
+    PEnd := PStart;
+    Exit;
+  end;
+  Flags := 0;
+  while (Ord(PStart^) = Ord(' ')) and (PStart < PEnd) do
+    Inc(PStart);
+  if Ord(PStart^) in [Ord('+'), Ord('-')] then
+    if Ord(PStart^) = Ord('-') then begin//can't be negative
+      PEnd := PStart;
+      Exit;
+    end else
+      inc(PStart);
+  if Ord(PStart^) = Ord('$') then begin
+    inc(PStart);
+    Flags := Flags or 2; {Hex := True}
+  end else begin
+    if Ord(PStart^) = Ord('0') then begin
+      Flags := Flags or 1; {Valid := True}
+      inc(PStart);
+    end;
+    if (Ord(PStart^) or $20) = ord('x') then begin {S[Code+1] in ['X','x']}
+      Flags := Flags or 2; {Hex := True}
+      inc(PStart);
+    end;
+  end;
+  if (Flags and 2) <> 0 then begin {Hex = True}
+    Flags := Flags and (not 1); {Valid := False}
+    while PStart < PEnd do begin
+      case Ord(PStart^) of
+        Ord('0')..Ord('9'): Digit := Ord(PStart^) - Ord('0');
+        Ord('a')..Ord('f'): Digit := Ord(PStart^) - AdjustLowercase;
+        Ord('A')..Ord('F'): Digit := Ord(PStart^) - AdjustUppercase;
+        else      Break;
+      end;
+      if (Result > $0FFFFFFF) then
+        Break;
+      Result := (Result shl 4) + Digit;
+      Flags := Flags or 1; {Valid := True}
+      inc(PStart);
+    end;
+  end else while PStart < PEnd do begin
+    if ( not (Ord(PStart^) in [Ord('0')..Ord('9')]) ) then //overflow
+      Break;
+    if (Result >= (Cardinal($FFFFFFFF) div 10)) then
+      if (Result > (Cardinal($FFFFFFFF) div 10)) or (PByte(PStart)^ > Byte('5')) then
+        Break;
+    {Result := (Result * 10) + Ord(Ch) - Ord('0');}
+    Result := (Result shl 1) + (Result shl 3) + Ord(PStart^) - Ord('0');
+    Flags := Flags or 1; {Valid := True}
+    Inc(PStart);
+  end;
+  if not (((Flags and 1) <> 0) and (PStart = PEnd)) then
+    PEnd := PStart;
+end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 function ValUnicodeInt64(PStart: PWideChar; var PEnd: PWideChar): Int64;
 //function ValInt64_JOH_PAS_8_a(const s: AnsiString; out code: Integer): Int64;
@@ -6834,6 +7171,29 @@ end;}
 
 {$ENDIF USE_FAST_TRUNC}
 
+{$IFDEF WITH_UINT64_C1118_ERROR}
+function UInt64ToCardinal(const Src: UInt64): Cardinal;
+begin
+  Result := Int64Rec(Src).Lo;
+end;
+
+function UInt64ToInt64(const Src: UInt64): Int64;
+begin
+  Result := Src;
+end;
+
+function CardinalToUint64(Src: Cardinal): UInt64;
+begin
+  Int64Rec(Result).Lo := Result;
+  Int64Rec(Result).Hi := 0;
+end;
+
+function Int64ToUInt64(const Src: Int64): UInt64;
+begin
+  Result := Src;
+end;
+{$ENDIF}
+
 function GetOrdinalDigits(const Value: UInt64): Byte;
 var I64Rec: Int64Rec absolute Value;
 begin
@@ -6853,12 +7213,27 @@ begin
     Result := 10; //it's a nop -> GetOrdinalDigits(i64Rec.Lo)
 end;
 
-function GetOrdinalDigits(const Value: Int64): Byte;
+function GetOrdinalDigits(const Value: Int64; out U: UInt64; out Negative: Boolean): Byte;
 begin
-  if Value < 0
-  then Result := GetOrdinalDigits(UInt64(-Value))
-  else Result := GetOrdinalDigits(UInt64(Value))
+  Negative := Value < 0;
+  if Negative
+  then U := -Value
+  else U := Value;
+  Result := GetOrdinalDigits(U)
 end;
+
+{$IFDEF HAVE_TRUE_NATIVE_TYPES}//some newer delphi's can't determine the correct overload ):
+{$IFNDEF NATIVEINT_WEAK_REFERENCE}
+function GetOrdinalDigits(const Value: NativeInt; out U: NativeUInt; out Negative: Boolean): Byte;
+begin
+  Negative := Value < 0;
+  if Negative
+  then U := -Value
+  else U := Value;
+  Result := GetOrdinalDigits(U)
+end;
+{$ENDIF}
+{$ENDIF}
 
 function GetOrdinalDigits(Value: Cardinal): Byte;
 begin
@@ -6874,11 +7249,13 @@ begin
     Result := 1 + Ord(Value >= 10);
 end;
 
-function GetOrdinalDigits(Value: Integer): Byte;
+function GetOrdinalDigits(Value: Integer; out C: Cardinal; out Negative: Boolean): Byte;
 begin
-  if Value < 0
-  then Result := GetOrdinalDigits(Cardinal(-Value))
-  else Result := GetOrdinalDigits(Cardinal(Value));
+  Negative := Value < 0;
+  if Negative
+  then C := -Value
+  else C := Value;
+  Result := GetOrdinalDigits(C)
 end;
 
 function GetOrdinalDigits(Value: Word): Byte;
@@ -6891,11 +7268,13 @@ begin
     Result := 1 + Ord(Value >= 10);
 end;
 
-function GetOrdinalDigits(Value: SmallInt): Byte;
+function GetOrdinalDigits(Value: SmallInt; out W: Word; out Negative: Boolean): Byte;
 begin
-  if Value < 0
-  then Result := GetOrdinalDigits(Word(-Value))
-  else Result := GetOrdinalDigits(Word(Value));
+  Negative := Value < 0;
+  if Negative
+  then W := -Value
+  else W := Value;
+  Result := GetOrdinalDigits(W)
   {$IFDEF RangeCheckEnabled} {$R+} {$ENDIF}
   {$IFDEF OverFlowCheckEnabled} {$Q+} {$ENDIF}
 end;
@@ -6907,11 +7286,13 @@ begin
   else Result := 1 + Ord(Value >= 10);
 end;
 
-function GetOrdinalDigits(Value: ShortInt): Byte;
+function GetOrdinalDigits(Value: ShortInt; out B: Byte; out Negative: Boolean): Byte;
 begin
-  if Value < 0
-  then Result := GetOrdinalDigits(Byte(-Value))
-  else Result := GetOrdinalDigits(Byte(Value));
+  Negative := Value < 0;
+  if Negative
+  then B := -Value
+  else B := Value;
+  Result := GetOrdinalDigits(B)
 end;
 
 {$IFDEF USE_FAST_STRLEN}
@@ -6999,26 +7380,22 @@ end;
 //Optimized for:     Pure-Pascal
 
 //changed to PByte support:
-{$IFDEF FPC} {$PUSH} {$WARN 4055 off : Conversion between ordinals and pointers is not portable} {$ENDIF}
+{$IFDEF FPC} {$PUSH} {$WARN 4055 off : Conversion between ordinals and pointers is not portable} {$ENDIF} // uses pointer maths
 function StrLen_JOH_PAS_3_a(const Str: PAnsiChar): Cardinal;
 var
   P, PStr: PAnsiChar;
   I, J: Integer;
 begin
-  if (Str = nil) or (Ord(Str^) = Ord(#0)) then
-    begin
+  if (Str = nil) or (PByte(Str)^ = 0) then begin
       Result := 0; Exit;
     end;
-  if Ord((Str+1)^) = Ord(#0) then
-    begin
+  if PByte(Str+1)^ = 0 then begin
       Result := 1; Exit;
     end;
-  if Ord((Str+2)^) = Ord(#0) then
-    begin
+  if PByte(Str+2)^ = 0 then begin
       Result := 2; Exit;
     end;
-  if Ord((Str+3)^) = Ord(#0) then
-    begin
+  if PByte(Str+3)^ = 0 then begin
       Result := 3; Exit;
     end;
  P := Pointer(Str);
@@ -7041,7 +7418,7 @@ begin
      else
        Inc(Result, 3)
 end;
-{$IFDEF FPC} {$POP} {$ENDIF}
+{$IFDEF FPC} {$POP} {$ENDIF} // uses pointer maths
   {$ENDIF PUREPASCAL}
 {$ENDIF USE_FAST_STRLEN}
 
@@ -7465,9 +7842,9 @@ end;
 //Match - [esp+$10]
 
 //function PosUnicode32_DKC_IA32_3_a(const SubStr, Str: UnicodeString): Integer; overload;
-//changes by EgonHugeist: ZWideString might be a WideString(D7-D007, old FPC)
+//changes by EgonHugeist: UnicodeString might be a WideString(D7-D007, old FPC)
 //where length address returns size in bytes -> shrink to codepoints
-function Pos(const SubStr, Str: ZWideString): Integer; overload;
+function Pos(const SubStr, Str: UnicodeString): Integer; overload;
 asm
  push  ebx
  push  esi
@@ -7683,9 +8060,9 @@ begin;
     Result:=0;
     exit;
     end;
-  {$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}
-  len := Length(Str)-1;
-  lenSub := Length(SubStr)-1;
+  {$IFDEF WITH_INLINE}
+  len := Length(Str){$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}-1{$ENDIF};
+  lenSub := Length(SubStr){$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}-1{$ENDIF};
   {$else}
   len:=PLengthInt(p-StringLenOffSet)^;
   lenSub:=PLengthInt(pSub-StringLenOffSet)^;
@@ -7751,7 +8128,7 @@ Ret:
 //Author:            Dennis Kjaer Christensen
 //Date:              18/07 2012
 //faster than Delphi and FPC RTL
-function Pos(const SubStr, Str: ZWideString): Integer;
+function Pos(const SubStr, Str: UnicodeString): Integer;
 {$IFDEF ZERO_BASED_STRINGS}
 begin
   Result := PosEx(SubStr, Pointer(Str), Length(Str));
@@ -7877,14 +8254,14 @@ end;
 
 // from Aleksandr Sharahov's PosEx_Sha_Pas_2()
 // changed to a unicode pointer version
-function PosEx(const SubStr: ZWideString; Str: PWideChar; len: LengthInt; Offset: Integer = 1): Integer;
+function PosEx(const SubStr: UnicodeString; Str: PWideChar; len: LengthInt; Offset: Integer = 1): Integer;
 begin;
   Result := PosEx(Pointer(SubStr), Str, Length(SubStr), len, OffSet);
 end;
 
 // from Aleksandr Sharahov's PosEx_Sha_Pas_2()
 // changed to a unicode version
-function PosEx(const SubStr, S: ZWideString; Offset: Integer = 1): Integer;
+function PosEx(const SubStr, S: UnicodeString; Offset: Integer = 1): Integer;
 begin;
   Result := PosEx(SubStr, Pointer(S), Length(S), Offset);
 end;
@@ -8675,7 +9052,7 @@ begin
   begin
     W[0] := Ord(TwoDigitLookupRaw[I][1]);
     W[1] := Ord(TwoDigitLookupRaw[I][2]);
-    TwoDigitLookupLW[I] := PLongWord(@W)^;
+    TwoDigitLookupLW[I] := PCardinal(@W)^;
   end;
 end;
 {$ENDIF}

@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -61,9 +61,8 @@ interface
 
 {$IFNDEF ZEOS_DISABLE_ADO}
 uses Windows, Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils, ActiveX,
-  Types,
-  ZDbcIntfs, ZCompatibility, ZPlainAdo, ZDbcAdo, ZVariant, ZOleDB,
-  ZDbcStatement;
+  FmtBCD,
+  ZDbcIntfs, ZCompatibility, ZPlainAdo, ZVariant, ZPlainOleDBDriver;
 
 type
   PDirectionTypes = ^TDirectionTypes;
@@ -72,6 +71,31 @@ type
 const ZProcedureColumnType2AdoType: array[TZProcedureColumnType] of  TOleEnum =
   (adParamUnknown{pctUnknown}, adParamInput{pctIn}, adParamInputOutput{pctInOut},
     adParamOutput{pctOut}, adParamReturnValue{pctReturn}, adParamReturnValue{pctResultSet});
+  AdoType2ZProcedureColumnType: array[adParamUnknown..adParamReturnValue] of TZProcedureColumnType =
+    (pctUnknown, pctIn, pctInOut, pctOut, pctReturn);
+
+ ZSQLTypeToAdoParamSize: array[TZSQLType] of Integer = (0,//stUnknown,
+    //fixed size DataTypes first
+    SizeOf(WordBool),
+    SizeOf(Byte), SizeOf(ShortInt), SizeOf(Word), SizeOf(SmallInt), SizeOf(Cardinal), SizeOf(Integer), SizeOf(UInt64), SizeOf(Int64),  //ordinals
+    SizeOf(Single), SizeOf(Double), SizeOf(Currency), SizeOf(tagDec),
+    SizeOf(TDateTime), SizeOf(TDateTime), SizeOf(TDateTime), 38,
+    //now varying size types in equal order
+    15000,15000,15000,//stString, stUnicodeString, stBytes,
+    8192,8192,8192,//stAsciiStream, stUnicodeStream, stBinaryStream,  -> send chunked
+    //finally the object types
+    0,0//stArray, stDataSet not supported yet
+    );
+ ZSQLTypeToAdoType: array[TZSQLType] of TDataTypeEnum = (adEmpty,//stUnknown,
+    adBoolean, adUnsignedTinyInt, adTinyInt, adUnsignedSmallInt, adSmallInt,
+    adUnsignedInt, adInteger, adUnsignedBigInt, adBigInt,
+    adSingle, adDouble, adCurrency, adDecimal,
+    adDate{no msec loss}, adDate, adDate{no msec loss}, //check Paramter Precsion & Scale for full msec-support
+    adGUID,
+    {adVarWChar}adBSTR,{adVarWChar}adBSTR,adVarBinary,
+    {adLongVarWChar}adBSTR, {adLongVarWChar}adBSTR, adLongVarBinary,
+    adArray,adIDispatch//stArray, stDataSet not supported yet
+    );
 
 {**
   Converts an ADO native types into string related.
@@ -85,8 +109,7 @@ function ConvertAdoToTypeName(FieldType: SmallInt): string;
   @param FieldType dblibc native field type.
   @return a SQL undepended type.
 }
-function ConvertAdoToSqlType(const FieldType: SmallInt;
-  const CtrlsCPType: TZControlsCodePage): TZSQLType;
+function ConvertAdoToSqlType(const FieldType, Precision, Scale: SmallInt): TZSQLType;
 
 {**
   Converts a Zeos type into ADO types.
@@ -123,37 +146,9 @@ function ConvertResultSetConcurrencyToAdo(ResultSetConcurrency: TZResultSetConcu
 }
 function ConvertOleDBToAdoSchema(OleDBSchema: TGUID): Integer;
 
-{**
-  Brings up the ADO connection string builder dialog.
-}
-function PromptDataSource(Handle: THandle; InitialString: WideString): WideString;
-
-function GetCurrentResultSet(const AdoRecordSet: ZPlainAdo.RecordSet;
-  const Connection: IZAdoConnection; const Statement: IZStatement; Const SQL: String;
-  ConSettings: PZConSettings;
-  const ResultSetConcurrency: TZResultSetConcurrency): IZResultSet;
-
 function IsSelect(const SQL: string): Boolean;
 
-{**
-  Sets a variant value into specified parameter.
-  @param AdoCommand the ole command
-  @param Connection the Connection interface
-  @param ParameterIndex a index of the parameter.
-  @param SqlType a parameter SQL type.
-  @paran Value a new parameter value.
-}
-procedure ADOSetInParam(const AdoCommand: ZPlainAdo.Command; const Connection: IZConnection;
-  ParamCount: Integer; const ParameterIndex: Integer;
-  const SQLType: TZSQLType; const Value: TZVariant;
-  const ParamDirection: ParameterDirectionEnum);
-
-function ADOBindArrayParams(const AdoCommand: ZPlainAdo.Command; const Connection: IZConnection;
-  ConSettings: PZConSettings; const InParamValues: TZVariantDynArray;
-  ParamDirection: ParameterDirectionEnum{note: should be an array later!!};
-  ArrayCount: Integer): Integer;
-
-procedure RefreshParameters(const AdoCommand: ZPlainAdo.Command; DirectionTypes: PDirectionTypes = nil);
+procedure BCD2Decimal(const Value: TBCD; Dest: PDecimal);
 
 var
 {**
@@ -167,8 +162,7 @@ implementation
 
 uses
   {$IFDEF WITH_UNIT_NAMESPACES}System.Win.ComObj{$ELSE}ComObj{$ENDIF}, Variants,
-  ZSysUtils, ZDbcAdoResultSet, ZDbcCachedResultSet, ZDbcResultSet, ZDbcUtils,
-  ZMessages, ZEncoding, ZFastCode, Math, ZClasses;
+  ZSysUtils, ZDbcUtils, ZEncoding, ZFastCode;
 
 {**
   Converts an ADO native types into string related.
@@ -228,13 +222,12 @@ end;
   @param FieldType dblibc native field type.
   @return a SQL undepended type.
 }
-function ConvertAdoToSqlType(const FieldType: SmallInt;
-  const CtrlsCPType: TZControlsCodePage): TZSQLType;
+function ConvertAdoToSqlType(const FieldType, Precision, Scale: SmallInt): TZSQLType;
 begin
   //http://msdn.microsoft.com/en-us/library/windows/desktop/ms675318%28v=vs.85%29.aspx
   case FieldType of
-    adChar, adVarChar,
-    adWChar, adVarWChar, adBSTR: Result := stString;
+    adChar, adVarChar: Result := stString;
+    adWChar, adVarWChar, adBSTR: Result := stUnicodeString;
     adBoolean: Result := stBoolean;
     adTinyInt: Result := stShort;
     adUnsignedTinyInt: Result := stByte;
@@ -246,15 +239,17 @@ begin
     adUnsignedBigInt: Result := stULong;
     adSingle: Result := stFloat;
     adDouble: Result := stDouble;
-    adDecimal: Result := stBigDecimal;
-    adNumeric, adVarNumeric: Result := stBigDecimal;
+    adDecimal, adNumeric, adVarNumeric:
+        if (Scale >= 0) and (Scale <= 4) and (Precision < sAlignCurrencyScale2Precision[Scale])
+        then Result := stCurrency
+        else Result := stBigDecimal;
     adCurrency: Result := stCurrency;
     adDBDate: Result := stDate;
     adDBTime: Result := stTime;
     adDate : Result := stDate;
     adDBTimeStamp, adFileTime: Result := stTimestamp;
     adLongVarChar: Result := stAsciiStream;
-    adLongVarWChar: Result := stAsciiStream;
+    adLongVarWChar: Result := stUnicodeStream;
     adBinary, adVarBinary: Result := stBytes;
     adLongVarBinary: Result := stBinaryStream;
     adGUID: Result := stGUID;
@@ -264,11 +259,6 @@ begin
   else
     {adIDispatch, adIUnknown: reserved, nut used tpyes}Result := stUnknown
   end;
-  if CtrlsCPType = cCP_UTF16 then
-    case Result of
-      stString: Result := stUnicodeString;
-      stAsciiStream: Result := stUnicodeStream;
-    end;
 end;
 
 {**
@@ -351,9 +341,7 @@ begin
   case ResultSetType of
     rtForwardOnly: Result := adOpenForwardOnly;
     rtScrollInsensitive: Result := adOpenStatic;
-    rtScrollSensitive: Result := adOpenDynamic;
-  else
-    Result := -1;//adOpenUnspecified;
+    else {rtScrollSensitive:} Result := adOpenDynamic;
   end
 end;
 
@@ -364,12 +352,9 @@ end;
 }
 function ConvertResultSetConcurrencyToAdo(ResultSetConcurrency: TZResultSetConcurrency): Integer;
 begin
-  case ResultSetConcurrency of
-    rcReadOnly: Result := adLockReadOnly;
-    rcUpdatable: Result := adLockOptimistic;
-  else
-    Result := -1;//adLockUnspecified;
-  end
+  if ResultSetConcurrency = rcReadOnly
+  then Result := adLockReadOnly
+  else Result := adLockOptimistic;
 end;
 
 {**
@@ -420,481 +405,58 @@ begin
   if IsEqualGuid(OleDBSchema, DBPROPSET_TRUSTEE) then Result := 39;
 end;
 
-{**
-  Brings up the ADO connection string builder dialog.
-}
-function PromptDataSource(Handle: THandle; InitialString: WideString): WideString;
-var
-  DataInit: IDataInitialize;
-  DBPrompt: IDBPromptInitialize;
-  DataSource: IUnknown;
-  InitStr: PWideChar;
-begin
-  Result := InitialString;
-  DataInit := CreateComObject(CLSID_DataLinks) as IDataInitialize;
-  if InitialString <> '' then
-    DataInit.GetDataSource(nil, CLSCTX_INPROC_SERVER,
-      PWideChar(InitialString), IUnknown, DataSource{%H-});
-  DBPrompt := CreateComObject(CLSID_DataLinks) as IDBPromptInitialize;
-  if Succeeded(DBPrompt.PromptDataSource(nil, Handle,
-    DBPROMPTOPTIONS_PROPERTYSHEET, 0, nil, nil, IUnknown, DataSource)) then
-  begin
-    InitStr := nil;
-    DataInit.GetInitializationString(DataSource, True, InitStr);
-    Result := InitStr;
-  end;
-end;
-
-function GetCurrentResultSet(const AdoRecordSet: ZPlainAdo.RecordSet;
-  const Connection: IZAdoConnection; const Statement: IZStatement; Const SQL: String; ConSettings: PZConSettings;
-  const ResultSetConcurrency: TZResultSetConcurrency): IZResultSet;
-var
-  NativeResultSet: IZResultSet;
-begin
-  Result := nil;
-  if Assigned(AdoRecordset) then
-    if (AdoRecordSet.State and adStateOpen) = adStateOpen then
-    begin
-      NativeResultSet := TZAdoResultSet.Create(Statement, SQL, AdoRecordSet);
-      if ResultSetConcurrency = rcUpdatable then
-        Result := TZCachedResultSet.Create(NativeResultSet, SQL,
-          TZAdoCachedResolver.Create(Connection.GetAdoConnection,
-          Statement, NativeResultSet.GetMetaData), ConSettings)
-      else
-        Result := NativeResultSet;
-    end;
-end;
-
 function IsSelect(const SQL: string): Boolean;
+var P, PEnd: PChar;
 begin
-  Result := Uppercase(Copy(TrimLeft(Sql), 1, 6)) = 'SELECT';
+  P := Pointer(SQL);
+  if P = nil then
+    Result := False
+  else begin
+    PEnd := P + Length(SQL);
+    while (P < PEnd) and (Ord(P^) <= Ord (' ')) do Inc(P); //TrimLeft
+    Result := ((PEnd - P) >= 6) and SameText(P, PChar('SELECT'), 6);
+  end;
+  //Result := Uppercase(Copy(TrimLeft(Sql), 1, 6)) = 'SELECT';
 end;
 
-{**
-  Sets a variant value into specified parameter.
-  @param AdoCommand the ole command
-  @param Connection the Connection interface
-  @param ParameterIndex a index of the parameter.
-  @param SqlType a parameter SQL type.
-  @paran Value a new parameter value.
-}
-procedure ADOSetInParam(const AdoCommand: ZPlainAdo.Command; const Connection: IZConnection;
-  ParamCount: Integer; const ParameterIndex: Integer;
-  const SQLType: TZSQLType; const Value: TZVariant;
-  const ParamDirection: ParameterDirectionEnum);
+{$IF defined (RangeCheckEnabled) and defined(WITH_UINT64_C1118_ERROR)}{$R-}{$IFEND}
+procedure BCD2Decimal(const Value: TBCD; Dest: PDecimal);
 var
-  S: Integer;
-  B: IZBlob;
-  V: OleVariant;
-  T: DataTypeEnum;
-  P: ZPlainAdo.Parameter;
-  RetValue: TZVariant;
-  TmpSQLType: TZSQLType;
+  i64: UInt64;
+  Precision, Scale: Word;
+  GetFirstHalfByte: boolean;
+  PNibble, pLastNibble: PAnsiChar;
 begin
-  //ActiveX.VariantInit(V);
-  V := null;
-  RetValue:= Value;
-  TmpSQLType := SQLType;
-  if not (RetValue.VType = vtNull) and (RetValue.VType = vtInterface) and
-    (SQLType in [stAsciiStream, stUnicodeStream, stBinaryStream]) then begin
-    B := SoftVarManager.GetAsInterface(Value) as IZBlob;
-    if (B = nil) or (B.IsEmpty) then
-      RetValue := NullVariant
-    else case SQLType of
-      stAsciiStream, stUnicodeStream:
-        if B.IsClob then begin
-          SoftVarManager.SetAsUnicodeString(RetValue, B.GetUnicodeString);
-          TmpSQLType := stUnicodeString;
-        end else if SQLType = stAsciiStream then begin
-          {$IFDEF UNICODE}
-          SoftVarManager.SetAsString(RetValue, String(B.GetString));
-          {$ELSE}
-          SoftVarManager.SetAsString(RetValue, GetValidatedAnsiStringFromBuffer(B.GetBuffer, B.Length, Connection.GetConSettings));
-          {$ENDIF}
-          TmpSQLType := stString;
-        end else begin
-          B := TZAbstractClob.CreateWithStream(GetValidatedUnicodeStream(B.GetBuffer, B.Length, Connection.GetConSettings, False), 1200{zCP_UTF16}, Connection.GetConSettings);
-          SoftVarManager.SetAsUnicodeString(RetValue, B.GetUnicodeString);
-          TmpSQLType := stUnicodeString;
-        end;
-      stBinaryStream: begin
-          SoftVarManager.SetAsBytes(RetValue, B.GetBytes);
-          TmpSQLType := stBytes;
-        end;
-    end;
+  GetPacketBCDOffSets(Value, pNibble, pLastNibble, Precision, Scale, GetFirstHalfByte);
+  if (Precision <= 1) and (pByte(pNibble)^ = 0) then begin
+    Dest.Lo64 := 0;
+    Dest.Scale := 0;
+    Exit;
   end;
-  case RetValue.VType of
-    vtNull: tagVariant(V).vt := VT_NULL;
-    vtBoolean: begin
-                tagVariant(V).vt := VT_BOOL;
-                tagVariant(V).vbool := RetValue.VBoolean;
-              end;
-    vtBytes: if TmpSQLType = stGUID
-             then V := GUIDToUnicode(RetValue.VBytes)
-             else V := SoftVarManager.GetAsBytes(RetValue);
-    vtInteger: begin
-                tagVariant(V).vt := VT_I8;
-                {$IFDEF WITH_tagVARIANT_UINT64}
-                tagVariant(V).llVal := RetValue.VInteger;
-                {$ELSE}
-                PInt64(@tagVariant(V).cyVal)^ := RetValue.VInteger;
-                {$ENDIF}
-              end;
-    vtUInteger: begin
-                tagVariant(V).vt := VT_UI8;
-                {$IFDEF WITH_tagVARIANT_UINT64}
-                tagVariant(V).ullVal := RetValue.VUInteger;
-                {$ELSE}
-                PUInt64(@tagVariant(V).cyVal)^ := RetValue.VUInteger;
-                {$ENDIF}
-              end;
-    vtFloat: begin
-                tagVariant(V).vt := VT_R8;
-                tagVariant(V).dblVal := RetValue.VFloat;
-              end;
-    vtUnicodeString, vtString, vtAnsiString, vtUTF8String, vtRawByteString, vtCharRec:
-    begin
-      RetValue.VUnicodeString := Connection.GetClientVariantManager.GetAsUnicodeString(RetValue);
-      V := WideString(RetValue.VUnicodeString);
-    end;
-    vtDateTime: V := TDateTime(SoftVarManager.GetAsDateTime(RetValue));
+  if GetFirstHalfByte
+  then i64 := 0 //init
+  else begin
+    i64 := PByte(pNibble)^;
+    Inc(pNibble);
   end;
-
-  S := 0; //init val
-  case TmpSQLType of
-    stString, stUnicodeString:
-      begin
-        S := Length(RetValue.VUnicodeString) shl 1; //Need size in bytes not Words!
-        if S = 0 then S := 1;
-        //V := Null; patch by zx - see http://zeos.firmos.at/viewtopic.php?t=1255
-      end;
-    stBytes:
-      begin
-        if (VarType(V) and varArray) <> 0 then
-          S := VarArrayHighBound(V, 1) + 1;
-        if S = 0 then V := Null;
-      end;
+  while pNibble < pLastNibble do begin
+    i64 := i64 * 100 + ZBcdNibble2Base100ByteLookup[PByte(pNibble)^];
+    Inc(pNibble);
   end;
-
-  if VarIsNull(V) or (SQLType = stBytes) or (SQLType = stGUID) then
-    T := ConvertSqlTypeToAdo(TmpSQLType)
-  else
-    T := ConvertVariantToAdo(VarType(V));
-
-  if ParameterIndex <= ParamCount then
-  begin
-    P := AdoCommand.Parameters.Item[ParameterIndex - 1];
-    P.Direction := ParamDirection; //set ParamDirection! Bidirection is requires for callables f.e.
-    if not VarIsNull(V) then //align new size and type
-    begin
-      P.Type_ := T;
-      P.Size := S;
-    end;
-    //if VarIsClear(P.Value) or (P.Value <> V) or (TmpSQLType = stBytes) then //Check if Param is cleared, unasigned or different
-      P.Value := V;
-  end
-  else
-    AdoCommand.Parameters.Append(AdoCommand.CreateParameter(
-      'P' + ZFastCode.IntToUnicode(ParameterIndex), T, ParamDirection, S, V));
+  if not GetFirstHalfByte then
+    Dec(Precision);
+  if Precision and 1 = 1
+  then i64 := i64 * 10 + PByte(pNibble)^ shr 4
+  else i64 := i64 * 100 + ZBcdNibble2Base100ByteLookup[PByte(pNibble)^];
+  Dest.Sign := Byte(Value.SignSpecialPlaces and $80 = $80);
+  Dest.Scale := Byte(Scale);
+  {$IFDEF FPC}
+  Dest.Lo64 := i64; //correct translated
+  {$else}
+  PUint64(@Dest.Lo64)^ := i64;
+  {$ENDIF}
 end;
-
-
-function ADOBindArrayParams(const AdoCommand: ZPlainAdo.Command; const Connection: IZConnection;
-  ConSettings: PZConSettings; const InParamValues: TZVariantDynArray;
-  ParamDirection: ParameterDirectionEnum{note: should be an array later!!};
-  ArrayCount: Integer): Integer;
-var
-  P: ZPlainAdo.Parameter;
-  I: Integer;
-  J: Cardinal;
-  TempBlob: IZBlob;
-  UniTemp: WideString;
-  IsNull: Boolean;
-  RC: OleVariant;
-  SQLType: TZSQLType;
-
-  { array DML bindings }
-  ZData: Pointer; //array entry
-  {using mem entry of ZData is faster then casting}
-  ZBooleanArray: TBooleanDynArray absolute ZData;
-  ZByteArray: TByteDynArray absolute ZData;
-  ZShortIntArray: TShortIntDynArray absolute ZData;
-  ZWordArray: TWordDynArray absolute ZData;
-  ZSmallIntArray: TSmallIntDynArray absolute ZData;
-  ZLongWordArray: TLongWordDynArray absolute ZData;
-  ZIntegerArray: TIntegerDynArray absolute ZData;
-  ZInt64Array: TInt64DynArray absolute ZData;
-  ZUInt64Array: TUInt64DynArray absolute ZData;
-  ZSingleArray: TSingleDynArray absolute ZData;
-  ZDoubleArray: TDoubleDynArray absolute ZData;
-  ZCurrencyArray: TCurrencyDynArray absolute ZData;
-  ZExtendedArray: TExtendedDynArray absolute ZData;
-  ZDateTimeArray: TDateTimeDynArray absolute ZData;
-  ZRawByteStringArray: TRawByteStringDynArray absolute ZData;
-  ZAnsiStringArray: TAnsiStringDynArray absolute ZData;
-  ZUTF8StringArray: TUTF8StringDynArray absolute ZData;
-  ZStringArray: TStringDynArray absolute ZData;
-  ZUnicodeStringArray: TUnicodeStringDynArray absolute ZData;
-  ZCharRecArray: TZCharRecDynArray absolute ZData;
-  ZBytesArray: TBytesDynArray absolute ZData;
-  ZInterfaceArray: TInterfaceDynArray absolute ZData;
-  ZGUIDArray: TGUIDDynArray absolute ZData;
-label ProcString;
-
-  function IsNullFromIndicator: Boolean;
-  begin
-    case TZSQLType(InParamValues[I].VArray.VIsNullArrayType) of
-      stBoolean: Result := ZBooleanArray[J];
-      stByte: Result := ZByteArray[J] <> 0;
-      stShort: Result := ZShortIntArray[J] <> 0;
-      stWord: Result := ZWordArray[J] <> 0;
-      stSmall: Result := ZSmallIntArray[J] <> 0;
-      stLongWord: Result := ZLongWordArray[J] <> 0;
-      stInteger: Result := ZIntegerArray[J] <> 0;
-      stLong: Result := ZInt64Array[J] <> 0;
-      stULong: Result := ZUInt64Array[J] <> 0;
-      stFloat: Result := ZSingleArray[J] <> 0;
-      stDouble: Result := ZDoubleArray[J] <> 0;
-      stCurrency: Result := ZCurrencyArray[J] <> 0;
-      stBigDecimal: Result := ZExtendedArray[J] <> 0;
-      stGUID:
-        Result := True;
-      stString, stUnicodeString:
-        begin
-          case InParamValues[i].VArray.VIsNullArrayVariantType of
-            vtString: Result := StrToBoolEx(ZStringArray[j]);
-            vtAnsiString: Result := StrToBoolEx(ZAnsiStringArray[j]);
-            vtUTF8String: Result := StrToBoolEx(ZUTF8StringArray[j]);
-            vtRawByteString: Result := StrToBoolEx(ZRawByteStringArray[j]);
-            vtUnicodeString: Result := StrToBoolEx(ZUnicodeStringArray[j]);
-            vtCharRec:
-              if ZCompatibleCodePages(ZCharRecArray[j].CP, zCP_UTF16) then
-                Result := StrToBoolEx(PWideChar(ZCharRecArray[j].P))
-              else
-                Result := StrToBoolEx(PAnsiChar(ZCharRecArray[j].P));
-            vtNull: Result := True;
-            else
-              raise Exception.Create('Unsupported String Variant');
-          end;
-        end;
-      stBytes:
-        Result := ZBytesArray[j] = nil;
-      stDate, stTime, stTimestamp:
-        Result := ZDateTimeArray[j] <> 0;
-      stAsciiStream,
-      stUnicodeStream,
-      stBinaryStream:
-        Result := ZInterfaceArray[j] = nil;
-      else
-        raise EZSQLException.Create(SUnsupportedParameterType);
-    end;
-  end;
-
-begin
-  {EH: slight cut down version with OleVatiants}
-  Result := 0;
-  for J := 0 to ArrayCount-1 do
-  begin
-    for i := 0 to High(InParamValues) do
-    begin
-      P := AdoCommand.Parameters.Item[i];
-      P.Direction := ParamDirection;
-      ZData := InParamValues[I].VArray.VIsNullArray;
-      if (ZData = nil) then
-        IsNull := True
-      else
-        IsNull := IsNullFromIndicator;
-
-      ZData := InParamValues[I].VArray.VArray;
-      if (ZData = nil) or (IsNull) then
-        P.Value := null
-      else
-      begin
-        SQLType := TZSQLType(InParamValues[I].VArray.VArrayType);
-        P.Type_ := ConvertSQLTypeToADO(SQLType);
-        case SQLType of
-          stBoolean:    P.Value := ZBooleanArray[J];
-          stByte:       P.Value := ZByteArray[J];
-          stShort:      P.Value := ZShortIntArray[J];
-          stWord:       P.Value := ZWordArray[J];
-          stSmall:      P.Value := ZSmallIntArray[J];
-          stLongWord:   P.Value := ZLongWordArray[J];
-          stInteger:    P.Value := ZIntegerArray[J];
-          stLong:       P.Value := ZInt64Array[J];
-          stULong:      P.Value := ZUInt64Array[J];
-          stFloat:      P.Value := ZSingleArray[J];
-          stDouble:     P.Value := ZDoubleArray[J];
-          stCurrency:   P.Value := ZCurrencyArray[J];
-          stBigDecimal: P.Value := ZExtendedArray[J];
-          stGUID:
-            begin
-              P.Type_ := adGUID;
-              P.Size := 38;
-              P.Value := GUIDToUnicode(ZGUIDArray[j]);
-            end;
-          stString, stUnicodeString:
-            begin
-              case InParamValues[i].VArray.VArrayVariantType of
-                vtString:
-                    {$IFDEF UNICODE}
-                    UniTemp := ZStringArray[j];
-                    {$ELSE}
-                    UniTemp := ConSettings^.ConvFuncs.ZStringToUnicode(ZStringArray[j], ConSettings^.CTRL_CP);
-                    {$ENDIF}
-                vtAnsiString: UniTemp := ZWideString(ZAnsiStringArray[j]);
-                vtUTF8String: UniTemp := PRawToUnicode(Pointer(ZUTF8StringArray[j]), Length(ZUTF8StringArray[j]), zCP_UTF8);
-                vtRawByteString: UniTemp := ConSettings^.ConvFuncs.ZRawToUnicode(ZRawByteStringArray[j], ConSettings^.CTRL_CP);
-                vtUnicodeString: UniTemp := ZUnicodeStringArray[j];
-                vtCharRec:
-                  if ZCompatibleCodePages(ZCharRecArray[j].CP, zCP_UTF16) then
-                    SetString(UniTemp, PWideChar(ZCharRecArray[j].P), ZCharRecArray[j].Len)
-                  else
-                    UniTemp := PRawToUnicode(ZCharRecArray[j].P, ZCharRecArray[j].Len, ZCharRecArray[j].CP);
-                else
-                  raise Exception.Create('Unsupported String Variant');
-              end;
-              P.Size := Max(1, Length(UniTemp) shl 1);
-              P.Value := UniTemp;
-            end;
-          stBytes:
-            begin
-              P.Size := Length(ZBytesArray[j]);
-              P.Value := ZBytesArray[j];
-            end;
-          stDate, stTime, stTimestamp: P.Value := ZDateTimeArray[j];
-          stAsciiStream,
-          stUnicodeStream:
-            begin
-              TempBlob := ZInterfaceArray[j] as IZBlob;
-              if TempBlob.IsEmpty then
-                P.Value := null
-              else
-                if TempBlob.IsClob then
-                begin
-ProcString:         UniTemp := TempBlob.GetUnicodeString;
-                  P.Size := Max(1, Length(UniTemp) shl 1);
-                  P.Value := UniTemp;
-                end
-                else
-                begin
-                  TempBlob := TZAbstractClob.CreateWithStream(GetValidatedUnicodeStream(TempBlob.GetBuffer, TempBlob.Length, Connection.GetConSettings, False), zCP_UTF16, Connection.GetConSettings);
-                  goto ProcString;
-                end;
-            end;
-          stBinaryStream:
-            begin
-              TempBlob := ZInterfaceArray[j] as IZBlob;
-              if TempBlob.IsEmpty then
-                P.Value := null
-              else
-              begin
-                P.Size := TempBlob.Length;
-                P.Value := TempBlob.GetBytes;
-              end;
-            end
-          else
-            raise EZSQLException.Create(IntToStr(Ord(SQLType))+' '+SUnsupportedParameterType);
-        end;
-      end;
-    end;
-    if J < Cardinal(ArrayCount -1) then
-    begin
-      AdoCommand.Execute(RC, EmptyParam, adExecuteNoRecords); {left space for last execution}
-      Result := Result + RC;
-    end;
-  end;
-end;
-
-procedure RefreshParameters(const AdoCommand: ZPlainAdo.Command;
-  DirectionTypes: PDirectionTypes = nil);
-  procedure RefreshFromOleDB;
-  var
-    I: Integer;
-    ParamCount: NativeUInt;
-    ParamInfo: PDBParamInfoArray;
-    NamesBuffer: PPOleStr;
-    Name: WideString;
-    Parameter: _Parameter;
-    Direction: ParameterDirectionEnum;
-    OLEDBCommand: ICommand;
-    OLEDBParameters: ICommandWithParameters;
-    CommandPrepare: ICommandPrepare;
-  begin
-    OLEDBCommand := (AdoCommand as ADOCommandConstruction).OLEDBCommand as ICommand;
-    OLEDBCommand.QueryInterface(ICommandWithParameters, OLEDBParameters);
-    OLEDBParameters.SetParameterInfo(0, nil, nil);
-    if Assigned(OLEDBParameters) then
-    begin
-      ParamInfo := nil;
-      NamesBuffer := nil;
-      try
-        OLEDBCommand.QueryInterface(ICommandPrepare, CommandPrepare);
-        if Assigned(CommandPrepare) then CommandPrepare.Prepare(0);
-        if OLEDBParameters.GetParameterInfo(ParamCount{%H-}, PDBPARAMINFO(ParamInfo), NamesBuffer) = S_OK then
-          if ParamCount > 0 then for I := 0 to ParamCount - 1 do
-            with ParamInfo[I] do begin
-              { When no default name, fabricate one like ADO does }
-              if pwszName = nil then
-                Name := 'Param' + ZFastCode.IntToUnicode(I+1) else { Do not localize }
-                Name := pwszName;
-              { ADO maps DBTYPE_BYTES to adVarBinary }
-              if wType = DBTYPE_BYTES then wType := adVarBinary;
-              { ADO maps DBTYPE_STR to adVarChar }
-              if wType = DBTYPE_STR then wType := adVarChar;
-              { ADO maps DBTYPE_WSTR to adVarWChar }
-              if wType = DBTYPE_WSTR then wType := adVarWChar;
-              Direction := dwFlags and $F;
-              { Verify that the Direction is initialized }
-              if Assigned(DirectionTypes) then
-                Parameter := AdoCommand.CreateParameter(Name, wType, DirectionTypes^[i], ulParamSize, EmptyParam)
-              else
-              begin
-                if Direction = adParamUnknown then Direction := adParamInput;
-                Parameter := AdoCommand.CreateParameter(Name, wType, Direction, ulParamSize, EmptyParam);
-              end;
-              Parameter.Precision := bPrecision;
-              Parameter.NumericScale := ParamInfo[I].bScale;
-              Parameter.Attributes := dwFlags and $FFFFFFF0; { Mask out Input/Output flags }
-            end;
-      finally
-        if Assigned(CommandPrepare) then CommandPrepare.Unprepare;
-        if (ParamInfo <> nil) then ZAdoMalloc.Free(ParamInfo);
-        if (NamesBuffer <> nil) then ZAdoMalloc.Free(NamesBuffer);
-      end;
-    end;
-  end;
-
-  procedure RefreshFromADO;
-  var
-    I: Integer;
-    Parameter: _Parameter;
-  begin
-    with AdoCommand do
-    try
-      Parameters.Refresh;
-      for I := 0 to Parameters.Count - 1 do
-        with Parameters[I] do
-        begin
-        { We can't use the instance of the parameter in the ADO collection because
-          it will be freed when the connection is closed even though we have a
-          reference to it.  So instead we create our own and copy the settings }
-          if Assigned(DirectionTypes) and (Length(DirectionTypes^) > I) then
-            Parameter := CreateParameter(Name, Type_, DirectionTypes^[i], Size, EmptyParam)
-          else
-            Parameter := CreateParameter(Name, Type_, Direction, Size, EmptyParam);
-          Parameter.Precision := Precision;
-          Parameter.NumericScale := NumericScale;
-          Parameter.Attributes := Attributes;
-        end;
-    except
-      { do nothing }
-    end;
-  end;
-begin
-  if ( AdoCommand.CommandType = adCmdText ) then
-    RefreshFromOLEDB else
-    RefreshFromADO;
-end;
+{$IF defined (RangeCheckEnabled) and defined(WITH_UINT64_C1118_ERROR)}{$R+}{$IFEND}
 
 initialization
   OleCheck(CoGetMalloc(1, ZAdoMalloc));

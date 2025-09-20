@@ -55,16 +55,16 @@ interface
 
 {$I ZDbc.inc}
 
-{$IFNDEF ZEOS_DISABLE_PROXY} //if set we have an empty unit
+{$IFDEF ENABLE_PROXY} //if set we have an empty unit
 uses
-  {$IFDEF WITH_TOBJECTLIST_REQUIRES_SYSTEM_TYPES}System.Types, System.Contnrs{$ELSE}Types{$ENDIF},
+  {$IFDEF WITH_TOBJECTLIST_REQUIRES_SYSTEM_TYPES}System.Types{$IFNDEF NO_UNIT_CONTNRS}, Contnrs{$ENDIF}{$ELSE}Types{$ENDIF},
   Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils,
   ZPlainProxyDriverIntf, ZSysUtils, ZDbcIntfs, ZDbcResultSet, ZDbcLogging,{$IFDEF ZEOS73UP}FmtBCD, ZVariant, {$ENDIF}
-  ZDbcResultSetMetadata, ZCompatibility, XmlDoc, XmlIntf;
+  ZDbcResultSetMetadata, ZCompatibility, {$IFDEF FPC}ZXmlCompat{$ELSE} XmlDoc, XmlIntf{$ENDIF};
 
 type
   {** Implements DBC Layer Proxy ResultSet. }
-  TZDbcProxyResultSet = class(TZAbstractResultSet)
+  TZDbcProxyResultSet = class({$IFDEF ZEOS73UP}TZAbstractReadOnlyResultSet, IZResultSet{$ELSE}TZAbstractResultSet{$ENDIF})
   private
     FXmlDocument: IXMLDocument;
     FCurrentRowNode: IXMLNode;
@@ -78,7 +78,9 @@ type
     {$ENDIF}
     FWideBuffer: ZWideString;
     FStringBuffer: String;
+    {$IFNDEF ZEOS73UP}
     function InternalGetString(ColumnIndex: Integer): RawByteString; override;
+    {$ENDIF}
     /// <summary>
     ///  Opens this recordset.
     /// </summary>
@@ -97,7 +99,7 @@ type
     /// <param name="ResultStr">
     ///  A string containing the XML exncoded result set.
     /// </param>
-    constructor Create(const Connection: IZConnection; const SQL: string; const ResultStr: String);
+    constructor Create(const Connection: IZConnection; const SQL: string; const ResultStr: WideString);
     /// <summary>
     ///  Indicates if the value of the designated column in the current row
     ///  of this ResultSet object is Null.
@@ -109,7 +111,7 @@ type
     ///  if the value is SQL NULL, the
     ///  value returned is true. false otherwise.
     /// </returns>
-    function IsNull(ColumnIndex: Integer): Boolean; override;
+    function IsNull(ColumnIndex: Integer): Boolean; {$IFNDEF ZEOS73UP} override; {$ENDIF}
     /// <summary>
     ///  Gets the value of the designated column in the current row
     ///  of this ResultSet object as
@@ -122,7 +124,9 @@ type
     ///  the column value; if the value is SQL NULL, the
     ///  value returned is null
     /// </returns>
+    {$IFNDEF ZEOS73UP}
     function GetPChar(ColumnIndex: Integer): PChar; override;
+    {$ENDIF}
     /// <summary>
     ///  Gets the value of the designated column in the current row of this
     ///  <c>ResultSet</c> object as a <c>PAnsiChar</c> in the Delphi
@@ -135,7 +139,9 @@ type
     ///  the column value. If the value is SQL <c>NULL</c>, the value returned is <c>nil</c>
     ///  Also <c>LastWasNull</c> is set.
     /// </returns>
+    {$IFNDEF ZEOS73UP}
     function GetPAnsiChar(ColumnIndex: Integer): PAnsiChar; override;
+    {$ENDIF}
     /// <summary>
     ///  Gets the value of the designated column in the current row of this
     ///  <c>ResultSet</c> object as a <c>PAnsiChar</c> in the Delphi
@@ -151,7 +157,7 @@ type
     ///  the column value. If the value is SQL <c>NULL</c>, the value returned is <c>nil</c>
     ///  Also <c>LastWasNull</c> is set.
     /// </returns>
-    function GetPAnsiChar(ColumnIndex: Integer; out Len: NativeUInt): PAnsiChar; override;
+    function GetPAnsiChar(ColumnIndex: Integer; out Len: NativeUInt): PAnsiChar; {$IFNDEF ZEOS73UP} override; {$ELSE} overload;{$ENDIF}
     /// <summary>
     ///  Gets the value of the designated column in the current row of this
     ///  <c>ResultSet</c> object as a <c>PWideChar</c>.
@@ -163,7 +169,9 @@ type
     ///  the column value. If the value is SQL <c>NULL</c>, the value returned is <c>nil</c>
     ///  Also <c>LastWasNull</c> is set accordingly.
     /// </returns>
+    {$IFNDEF ZEOS73UP}
     function GetPWideChar(ColumnIndex: Integer): PWidechar; override;
+    {$ENDIF}
     /// <summary>
     ///  Gets the value of the designated column in the current row of this
     ///  <c>ResultSet</c> object as a PWideChar.
@@ -178,7 +186,7 @@ type
     ///  the column value. If the value is SQL <c>NULL</c>, the value returned is <c>nil</c>.
     ///  Also <c>LastWasNull</c> is set accordingly.
     /// </returns>
-    function GetPWideChar(ColumnIndex: Integer; out Len: NativeUInt): PWideChar; override;
+    function GetPWideChar(ColumnIndex: Integer; out Len: NativeUInt): PWideChar; {$IFNDEF ZEOS73UP} override; {$ELSE} overload;{$ENDIF}
     /// <summary>
     ///  Gets the value of the designated column in the current row of this
     ///  <c>ResultSet</c> object as a <c>String</c>.
@@ -190,7 +198,7 @@ type
     ///  the column value. If the value is SQL <c>null</c>, the value returned is <c>''</c>
     ///  Also <c>LastWasNull</c> is set.
     /// </returns>
-    function GetString(ColumnIndex: Integer): String; override;
+    function GetString(ColumnIndex: Integer): String; {$IFNDEF ZEOS73UP} override; {$ENDIF}
     {$IFNDEF NO_ANSISTRING}
     /// <summary>
     ///  Gets the value of the designated column in the current row of this
@@ -204,7 +212,7 @@ type
     ///  the column value. If the value is SQL <c>null</c>, the value returned is <c>''</c>
     ///  Also <c>LastWasNull</c> is set.
     /// </returns>
-    function GetAnsiString(ColumnIndex: Integer): AnsiString; override;
+    function GetAnsiString(ColumnIndex: Integer): AnsiString; {$IFNDEF ZEOS73UP} override; {$ENDIF}
     {$ENDIF}
     {$IFNDEF NO_UTF8STRING}
     /// <summary>
@@ -219,7 +227,7 @@ type
     ///  the column value. If the value is SQL <c>null</c>, the value returned is <c>''</c>
     ///  Also <c>LastWasNull</c> is set.
     /// </returns>
-    function GetUTF8String(ColumnIndex: Integer): UTF8String; override;
+    function GetUTF8String(ColumnIndex: Integer): UTF8String; {$IFNDEF ZEOS73UP} override; {$ENDIF}
     {$ENDIF}
     /// <summary>
     ///  Gets the value of the designated column in the current row of this
@@ -233,7 +241,7 @@ type
     ///  The column value. If the value is SQL <c>NULL</c>, the value returned is <c>''</c>.
     ///  Also <c>LastWasNull</c> is set.
     /// </returns>
-    function GetRawByteString(ColumnIndex: Integer): RawByteString; override;
+    function GetRawByteString(ColumnIndex: Integer): RawByteString; {$IFNDEF ZEOS73UP} override; {$ENDIF}
     /// <summary>
     ///  Gets the value of the designated column in the current row of this
     ///  <c>ResultSet</c> object as a <c>String</c> in the Delphi programming
@@ -246,7 +254,7 @@ type
     ///  The column value. If the value is SQL <c>NULL</c>, the value returned is <c>''</c>.
     ///  Also <c>LastWasNull</c> is set.
     /// </returns>
-    function GetBinaryString(ColumnIndex: Integer): RawByteString; override;
+    function GetBinaryString(ColumnIndex: Integer): RawByteString; {$IFNDEF ZEOS73UP} override; {$ENDIF}
     /// <summary>
     ///  Gets the value of the designated column in the current row of this <c>ResultSet</c> object as a <c>UnicodeString</c> in the Delphi programming language.
     /// </summary>
@@ -257,7 +265,7 @@ type
     ///  The column value. If the value is SQL <c>NULL</c>, the value returned is <c>''</c>.
     ///  Also <c>LastWasNull</c> is set.
     /// </returns>
-    function GetUnicodeString(ColumnIndex: Integer): ZWideString; override;
+    function GetUnicodeString(ColumnIndex: Integer): ZWideString; {$IFNDEF ZEOS73UP} override; {$ENDIF}
     /// <summary>
     /// Gets the value of the designated column in the current row of this
     /// <c>ResultSet</c> object as a <c>Boolean</c>.
@@ -269,20 +277,37 @@ type
     ///  The column value. If the value is SQL <c>NULL</c>, the value returned is <c>false</c>.
     ///  Also <c>LastWasNull</c> is set.
     /// </returns>
-    function GetBoolean(ColumnIndex: Integer): Boolean; override;
-    function GetInt(ColumnIndex: Integer): Integer; override;
-    function GetLong(ColumnIndex: Integer): Int64; override;
-    function GetULong(ColumnIndex: Integer): UInt64; override;
-    function GetFloat(ColumnIndex: Integer): Single; override;
-    function GetDouble(ColumnIndex: Integer): Double; override;
-    function GetCurrency(ColumnIndex: Integer): Currency; override;
+    function GetBoolean(ColumnIndex: Integer): Boolean; {$IFNDEF ZEOS73UP} override; {$ENDIF}
+    function GetInt(ColumnIndex: Integer): Integer; {$IFNDEF ZEOS73UP} override; {$ENDIF}
+    function GetLong(ColumnIndex: Integer): Int64; {$IFNDEF ZEOS73UP} override; {$ENDIF}
+    function GetULong(ColumnIndex: Integer): UInt64; {$IFNDEF ZEOS73UP} override; {$ENDIF}
+    function GetFloat(ColumnIndex: Integer): Single; {$IFNDEF ZEOS73UP} override; {$ENDIF}
+    function GetDouble(ColumnIndex: Integer): Double; {$IFNDEF ZEOS73UP} override; {$ENDIF}
+    function GetCurrency(ColumnIndex: Integer): Currency; {$IFNDEF ZEOS73UP} override; {$ENDIF}
+    {$IFNDEF ZEOS73UP}
     function GetBigDecimal(ColumnIndex: Integer): Extended; override;
-    function GetBytes(ColumnIndex: Integer): TBytes; override;
-    function GetDate(ColumnIndex: Integer): TDateTime; override;
-    function GetTime(ColumnIndex: Integer): TDateTime; override;
-    function GetTimestamp(ColumnIndex: Integer): TDateTime; override;
-    function GetBlob(ColumnIndex: Integer): IZBlob; override;
+    {$ELSE}
+    function GetBigDecimal(ColumnIndex: Integer): TBCD; overload;
+    {$ENDIF}
+    function GetBytes(ColumnIndex: Integer): TBytes; {$IFNDEF ZEOS73UP}override{$ELSE}overload{$ENDIF};
+    function GetDate(ColumnIndex: Integer): TDateTime; {$IFNDEF ZEOS73UP}override{$ELSE}overload{$ENDIF};
+    function GetTime(ColumnIndex: Integer): TDateTime; {$IFNDEF ZEOS73UP}override{$ELSE}overload{$ENDIF};
+    function GetTimestamp(ColumnIndex: Integer): TDateTime; {$IFNDEF ZEOS73UP}override{$ELSE}overload{$ENDIF};
+    {$IFNDEF ZEOS73UP}
+    function GetBlob(ColumnIndex: Integer): IZBlob; {$IFNDEF ZEOS73UP} override; {$ENDIF}
+    {$ELSE}
+    function GetBlob(ColumnIndex: Integer; LobStreamMode: TZLobStreamMode = lsmRead): IZBlob;
+    {$ENDIF}
 
+    {$IFDEF ZEOS73UP}
+    function GetUInt(ColumnIndex: Integer): Cardinal;
+    procedure GetBigDecimal(ColumnIndex: Integer; var Result: TBCD); overload;
+    procedure GetGUID(ColumnIndex: Integer; var Result: TGUID);
+    function GetBytes(ColumnIndex: Integer; out Len: NativeUInt): PByte; overload;
+    procedure GetDate(ColumnIndex: Integer; var Result: TZDate); overload;
+    procedure GetTime(ColumnIndex: Integer; Var Result: TZTime); overload;
+    procedure GetTimestamp(ColumnIndex: Integer; Var Result: TZTimeStamp); overload;
+    {$ENDIF ZEOS73UP}
     function MoveAbsolute(Row: Integer): Boolean; override;
     /// <summary>
     /// Gets the number of updated rows in the database.
@@ -298,14 +323,14 @@ type
       ParentResultSet: TZAbstractResultSet);
   End;
 
-{$ENDIF ZEOS_DISABLE_PROXY} //if set we have an empty unit
+{$ENDIF ENABLE_PROXY} //if set we have an empty unit
 implementation
-{$IFNDEF ZEOS_DISABLE_PROXY} //if set we have an empty unit
+{$IFDEF ENABLE_PROXY} //if set we have an empty unit
 
 uses
-  {$IFDEF WITH_UNITANSISTRINGS}AnsiStrings,{$ENDIF} Math, NetEncoding,
+  {$IFDEF WITH_UNITANSISTRINGS}AnsiStrings,{$ENDIF} Math,
   ZMessages, ZEncoding, ZFastCode, ZDbcMetadata, ZClasses,
-  TypInfo, Variants, xmldom, {$IFDEF WITH_OMNIXML}Xml.omnixmldom,{$ENDIF} System.Contnrs, EncdDecd;
+  TypInfo, Variants, ZBase64, ZExceptions {$IFNDEF FPC},xmldom{$ENDIF} {$IFDEF WITH_OMNIXML}, Xml.omnixmldom{$ENDIF};
 
 const
   ValueAttr = 'value';
@@ -324,34 +349,47 @@ end;
 
 { TZDbcProxyResultSet }
 
-constructor TZDbcProxyResultSet.Create(const Connection: IZConnection; const SQL: string; const ResultStr: String);
+constructor TZDbcProxyResultSet.Create(const Connection: IZConnection; const SQL: string; const ResultStr: WideString);
 var
   Stream: TStream;
   ConSettings: PZConSettings;
   Metadata: IZDatabaseMetadata;
-  x: String;
-  xmldoc: TXMLDocument;
+  xmldoc: {$IFDEF FPC}TZXMLDocument{$ELSE}TXMLDocument{$ENDIF};
 
-  DomVendor: TDOMVendor;
+  {$IFNDEF FPC}DomVendor: TDOMVendor;{$ENDIF}
+
+  procedure addBomToSTream;
+  const
+    {$IFDEF FPC}
+    BOM: AnsiString = #$FF#$FE;
+    {$ELSE}
+    BOM: WideString = #$FEFF;
+    {$ENDIF}
+  begin
+    Stream.Write(BOM[1], 2);
+  end;
+
 begin
   ConSettings := Connection.GetConSettings;
   Metadata := Connection.GetMetadata;
 
   inherited Create(Statement, SQL,
     TZDbcProxyResultSetMetadata.Create(Metadata, SQL, Self), ConSettings);
-
+  {$IFDEF FPC}
+  xmldoc := TZXmlDocument.Create;
+  {$ELSE}
   xmldoc := TXMLDocument.Create(nil);
   // OmiXml preserves the Carriage Return in Strings -> This solves a problem
   // where CRLF gets converted to LF wit MSXML
   DomVendor := DOMVendors.Find('Omni XML');
   if Assigned(DomVendor) then
     xmldoc.DOMImplementation := DomVendor.DOMImplementation;
+  {$ENDIF}
   FXmlDocument := xmldoc as IXMLDocument;
 
   Stream := TMemoryStream.Create;
   try
-    x := #$FEFF;
-    Stream.Write(x[1], 2);
+    addBomToSTream; // so the XML stuff knows that it is UTF16 encoded.
     Stream.Write(ResultStr[1], Length(ResultStr) * 2);
     Stream.Position := 0;
     FXmlDocument.LoadFromStream(Stream);
@@ -387,7 +425,10 @@ begin
   FMetadataNode := FResultSetNode.ChildNodes.FindNode('metadata');
   FRowsNode := FResultSetNode.ChildNodes.FindNode('rows');
 
-  LastRowNo := FRowsNode.ChildNodes.Count;
+  if Assigned(FRowsNode) then
+    LastRowNo := FRowsNode.ChildNodes.Count
+  else
+    LastRowNo := 0;
 
   { Fills the column info. }
   ColumnsInfo.Clear;
@@ -414,23 +455,33 @@ begin
 
       // todo: kl‰ren, was hier vonwegen der oben auskommentierten Unicodegeschichten rein muﬂ...
       CatalogName := ColumnNode.Attributes['catalogname'];
+      {$IFNDEF ZEOS73UP}
       ColumnDisplaySize := StrToInt(ColumnNode.Attributes['displaysize']);
+      {$ENDIF}
       ColumnLabel := ColumnNode.Attributes['label'];
       ColumnName := ColumnNode.Attributes['name'];
       ColumnType := TZSQLType(GetEnumValue(TypeInfo(TZSQLType), ColumnNode.Attributes['type']));
       case ColumnType of
         stString, stUnicodeString:
-          if GetConSettings.CPType = cCP_UTF16 then
-            ColumnType := stUnicodeString
-          else
+          {$IFNDEF ZEOS73UP}if GetConSettings.CPType = cCP_UTF16 then {$ENDIF ZEOS73UP} begin
+            ColumnType := stUnicodeString;
+            ColumnCodePage := zCP_UTF16;
+          {$IFNDEF ZEOS73UP}end else begin
             ColumnType := stString;
+            ColumnCodePage := zCP_UTF8;
+          {$ENDIF ZEOS73UP}
+          end;
         stAsciiStream, stUnicodeStream:
-          if GetConSettings.CPType = cCP_UTF16 then
-            ColumnType := stUnicodeStream
-          else
+          {$IFNDEF ZEOS73UP}if GetConSettings.CPType = cCP_UTF16 then {$ENDIF ZEOS73UP} begin
+            ColumnType := stUnicodeStream;
+            ColumnCodePage := zCP_UTF16;
+          {$IFNDEF ZEOS73UP}
+          end else begin
             ColumnType := stAsciiStream;
+            ColumnCodePage := zCP_UTF8
+          {$ENDIF ZEOS73UP}
+          end;
       end;
-
       DefaultValue := ColumnNode.Attributes['defaultvalue'];
       Precision := StrToInt(ColumnNode.Attributes['precision']);
       Scale := StrToInt(ColumnNode.Attributes['scale']);
@@ -471,11 +522,14 @@ begin
   Result := StrToBoolDef(VarToStrDef(ValueNode.Attributes['isnull'], 'False'), false);
 end;
 
+{$IFNDEF ZEOS73UP}
 function TZDbcProxyResultSet.InternalGetString(ColumnIndex: Integer): RawByteString;
 begin
-  RaiseUnsupportedException;
+  raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
+{$ENDIF}
 
+{$IFNDEF ZEOS73UP}
 function TZDbcProxyResultSet.GetPChar(ColumnIndex: Integer): PChar;
 var
   Val: OleVariant;
@@ -494,6 +548,13 @@ begin
   end;
 end;
 
+function TZDbcProxyResultSet.GetPAnsiChar(ColumnIndex: Integer): PAnsiChar;
+var Len: NativeUInt;
+begin
+  Result := GetPAnsiChar(ColumnIndex, Len);
+end;
+{$ENDIF ZEOS73UP}
+
 function TZDbcProxyResultSet.GetPAnsiChar(ColumnIndex: Integer; out Len: NativeUInt): PAnsiChar;
 {$IFNDEF NEXTGEN}
 var
@@ -505,11 +566,7 @@ begin
 
   if not LastWasNull then begin
     Val := FCurrentRowNode.ChildNodes.Get(ColumnIndex - FirstDbcIndex).Attributes[ValueAttr];
-    {$IFDEF NO_ANSISTRING}
-    FAnsiBuffer := UTF8Encode(VarToStrDef(Val, ''));
-    {$ELSE}
     FAnsiBuffer := AnsiString(VarToStrDef(Val, ''));
-    {$ENDIF}
     Len := Length(FAnsiBuffer);
     if Len = 0
     then Result := PEmptyAnsiString
@@ -517,20 +574,10 @@ begin
   end else begin
     Result := nil;
     Len := 0
-  end else begin
-    Len := Length(FAnsiBuffer);
-    Result := @FAnsiBuffer[Low(FAnsiBuffer)];
   end;
 {$ELSE}
-  raise Exception.Create('GetPAnsiChar is not supported on Nextgen.');
+  raise EZSQLException.Create('GetPAnsiChar is not supported on Nextgen.');
 {$ENDIF}
-end;
-
-function TZDbcProxyResultSet.GetPAnsiChar(ColumnIndex: Integer): PAnsiChar;
-var
-  Len: NativeUInt;
-begin
-  Result := GetPAnsiChar(ColumnIndex, Len);
 end;
 
 function TZDbcProxyResultSet.GetPWideChar(ColumnIndex: Integer; out Len: NativeUInt): PWideChar;
@@ -549,18 +596,17 @@ begin
   end else begin
     Result := nil;
     Len := 0
-  end else begin
-    Len := Length(FWideBuffer);
-    Result := @FWideBuffer[Low(FWideBuffer)];
   end;
 end;
 
+{$IFNDEF ZEOS73UP}
 function TZDbcProxyResultSet.GetPWideChar(ColumnIndex: Integer): PWidechar;
 var
   Len: NativeUInt;
 begin
   Result := GetPWideChar(ColumnIndex, Len);
 end;
+{$ENDIF ZEOS73UP}
 
 function TZDbcProxyResultSet.GetString(ColumnIndex: Integer): String;
 var
@@ -637,7 +683,7 @@ begin
   end;
 
   Val := FCurrentRowNode.ChildNodes.Get(ColumnIndex - FirstDbcIndex).Attributes[ValueAttr];
-  Result := RawByteString(Val);
+  Result := RawByteString(VarToStrDef(Val, ''));
 end;
 
 function TZDbcProxyResultSet.GetUnicodeString(ColumnIndex: Integer): ZWideString;
@@ -713,9 +759,9 @@ begin
     stByte, stShort, stWord, stSmall, stLongWord, stInteger:
       Result := StrToInt(Val);
     stULong:
-      Result := StrToUInt64(Val);
+      Result := StrToInt(Val);
     stLong:
-      Result := StrToInt64(Val);
+      Result := StrToInt(Val);
     stFloat, stDouble, stCurrency, stBigDecimal:
       Result := Trunc(StrToFloat(Val, FFormatSettings));
     stString, stUnicodeString, stAsciiStream, stUnicodeStream:
@@ -765,7 +811,7 @@ begin
     stByte, stShort, stWord, stSmall, stLongWord, stInteger:
       Result := StrToInt64(Val);
     stULong:
-      Result := StrToUInt64(Val);
+      Result := StrToInt64(Val);
     stLong:
       Result := StrToInt64(Val);
     stFloat, stDouble, stCurrency, stBigDecimal:
@@ -796,7 +842,7 @@ function TZDbcProxyResultSet.GetULong(ColumnIndex: Integer): UInt64;
 var
   ColType: TZSQLType;
   Idx: Integer;
-  Val: String;
+  Val: ZWideString;
 begin
 {$IFNDEF DISABLE_CHECKING}
   CheckColumnConvertion(ColumnIndex, stInteger);
@@ -815,15 +861,15 @@ begin
     stBoolean:
       Result := BoolToInt(StrToBool(Val));
     stByte, stShort, stWord, stSmall, stLongWord, stInteger:
-      Result := StrToUInt64(Val);
+      Result := UnicodeToUInt64(Val);
     stULong:
-      Result := StrToUInt64(Val);
+      Result := UnicodeToUInt64(Val);
     stLong:
       Result := StrToInt64(Val);
     stFloat, stDouble, stCurrency, stBigDecimal:
       Result := Trunc(StrToFloat(Val, FFormatSettings));
     stString, stUnicodeString, stAsciiStream, stUnicodeStream:
-      Result := StrToUInt64(Val);
+      Result := UnicodeToUInt64(Val);
     stDate:
       Result := Trunc(StrToDate(Val, FFormatSettings));
     stTime:
@@ -848,7 +894,7 @@ function TZDbcProxyResultSet.GetFloat(ColumnIndex: Integer): Single;
 var
   ColType: TZSQLType;
   Idx: Integer;
-  Val: String;
+  Val: ZWideString;
 begin
 {$IFNDEF DISABLE_CHECKING}
   CheckColumnConvertion(ColumnIndex, stInteger);
@@ -869,9 +915,9 @@ begin
     stByte, stShort, stWord, stSmall, stLongWord, stInteger:
       Result := StrToInt(Val);
     stULong:
-      Result := StrToUInt64(Val);
+      Result := UnicodeToUInt64(Val);
     stLong:
-      Result := StrToInt64(Val);
+      Result := UnicodeToUInt64(Val);
     stFloat, stDouble, stCurrency, stBigDecimal:
       Result := StrToFloat(Val, FFormatSettings);
     stString, stUnicodeString, stAsciiStream, stUnicodeStream:
@@ -900,7 +946,7 @@ function TZDbcProxyResultSet.GetDouble(ColumnIndex: Integer): Double;
 var
   ColType: TZSQLType;
   Idx: Integer;
-  Val: String;
+  Val: ZWideString;
 begin
 {$IFNDEF DISABLE_CHECKING}
   CheckColumnConvertion(ColumnIndex, stInteger);
@@ -921,9 +967,9 @@ begin
     stByte, stShort, stWord, stSmall, stLongWord, stInteger:
       Result := StrToInt(Val);
     stULong:
-      Result := StrToUInt64(Val);
+      Result := UnicodeToUInt64(Val);
     stLong:
-      Result := StrToInt64(Val);
+      Result := UnicodeToUInt64(Val);
     stFloat, stDouble, stCurrency, stBigDecimal:
       Result := StrToFloat(Val, FFormatSettings);
     stString, stUnicodeString, stAsciiStream, stUnicodeStream:
@@ -949,6 +995,7 @@ end;
   @return the column value; if the value is SQL <code>NULL</code>, the
     value returned is <code>null</code>
 }
+{$IFNDEF ZEOS73UP}
 function TZDbcProxyResultSet.GetBigDecimal(ColumnIndex: Integer): Extended;
 var
   ColType: TZSQLType;
@@ -991,7 +1038,44 @@ begin
       Result := 0;
   end;
 end;
+{$ELSE}
+function TZDbcProxyResultSet.GetBigDecimal(ColumnIndex: Integer): TBcd;
+var
+  ColType: TZSQLType;
+  Idx: Integer;
+  Val: ZWideString;
+begin
+{$IFNDEF DISABLE_CHECKING}
+  CheckColumnConvertion(ColumnIndex, stInteger);
+{$ENDIF}
+  LastWasNull := IsNull(ColumnIndex);
 
+  if LastWasNull then begin
+    Result :=  IntegerToBcd(0);
+    exit;
+  end;
+
+  Idx := ColumnIndex - FirstDbcIndex;
+  Val := FCurrentRowNode.ChildNodes.Get(Idx).Attributes[ValueAttr];
+  ColType := TZColumnInfo(ColumnsInfo.Items[Idx]).ColumnType;
+  case ColType of
+    stBoolean:
+      Result := IntegerToBcd(BoolToInt(StrToBool(Val)));
+    stByte, stShort, stWord, stSmall, stLongWord, stInteger:
+      Result := IntegerToBcd(StrToInt(Val));
+    stULong:
+      ScaledOrdinal2Bcd(UnicodeToUInt64(Val), 0, Result, False);
+    stLong:
+      ScaledOrdinal2Bcd(StrToInt64(Val), 0, Result);
+    stFloat, stDouble, stCurrency, stBigDecimal:
+      Result := UniToBcd(Val);
+    stString, stUnicodeString, stAsciiStream, stUnicodeStream:
+      Result := UniToBcd(Val);
+    else
+      Result := IntegerToBcd(0);
+  end;
+end;
+{$ENDIF}
 {**
   Gets the value of the designated column in the current row
   of this <code>ResultSet</code> object as
@@ -1003,32 +1087,33 @@ end;
     value returned is <code>null</code>
 }
 function TZDbcProxyResultSet.GetBytes(ColumnIndex: Integer): TBytes;
+var
+  ColType: TZSQLType;
+  Idx: Integer;
+  Val: String;
+  ColInfo: TZColumnInfo;
 begin
   LastWasNull := IsNull(ColumnIndex);
 
-//  if LastWasNull then begin
-//    Result := 0;
-//    exit;
-//  end;
+  if LastWasNull then begin
+    //Result := '';
+    exit;
+  end;
 
   Idx := ColumnIndex - FirstDbcIndex;
   Val := FCurrentRowNode.ChildNodes.Get(Idx).Attributes[ValueAttr];
   ColInfo := TZColumnInfo(ColumnsInfo.Items[Idx]);
   ColType := ColInfo.ColumnType;
+
   case ColType of
-    stBinaryStream, stBytes: begin
-      Result := DecodeBase64(Val);
-    end;
-    stAsciiStream, stUnicodeStream: begin
-      if Val <> '' then begin
-         SetLength(Result, Length(Val) * 2);
-         Move(Val[Low(String)], Result[0], Length(Val) * 2);
-       end else begin
-         Setlength(Result, 0);
-       end;
-    end;
+    stBytes, stBinaryStream:
+      {$IFDEF NEXTGEN}
+      Result := ZDecodeBase64(Val);
+      {$ELSE}
+      Result := ZDecodeBase64(AnsiString(Val));
+      {$ENDIF}
     else begin
-      raise Exception.Create('GetBytes is not supported for ' + ColInfo.GetColumnTypeName + ' (yet). Column: ' + ColInfo.ColumnLabel);
+      raise EZSQLException.Create('GetBytes is not supported for ' + ColInfo.GetColumnTypeName + ' (yet). Column: ' + ColInfo.ColumnLabel);
     end;
   end;
 end;
@@ -1038,7 +1123,7 @@ function TZDbcProxyResultSet.GetCurrency(
 var
   ColType: TZSQLType;
   Idx: Integer;
-  Val: String;
+  Val: ZWideString;
 begin
 {$IFNDEF DISABLE_CHECKING}
   CheckColumnConvertion(ColumnIndex, stInteger);
@@ -1059,7 +1144,7 @@ begin
     stByte, stShort, stWord, stSmall, stLongWord, stInteger:
       Result := StrToInt(Val);
     stULong:
-      Result := StrToUInt64(Val);
+      Result := UnicodeToUInt64(Val);
     stLong:
       Result := StrToInt64(Val);
     stCurrency:
@@ -1092,7 +1177,7 @@ function TZDbcProxyResultSet.GetDate(ColumnIndex: Integer): TDateTime;
 var
   ColType: TZSQLType;
   Idx: Integer;
-  Val: String;
+  Val: ZWideString;
 begin
 {$IFNDEF DISABLE_CHECKING}
   CheckColumnConvertion(ColumnIndex, stInteger);
@@ -1113,7 +1198,7 @@ begin
     stByte, stShort, stWord, stSmall, stLongWord, stInteger:
       Result := StrToInt(Val);
     stULong:
-      Result := StrToUInt64(Val);
+      Result := UnicodeToUInt64(Val);
     stLong:
       Result := StrToInt64(Val);
     stFloat, stDouble, stBigDecimal, stCurrency:
@@ -1197,7 +1282,7 @@ function TZDbcProxyResultSet.GetTimestamp(ColumnIndex: Integer): TDateTime;
 var
   ColType: TZSQLType;
   Idx: Integer;
-  Val: String;
+  Val: ZWideString;
 begin
 {$IFNDEF DISABLE_CHECKING}
   CheckColumnConvertion(ColumnIndex, stInteger);
@@ -1218,7 +1303,7 @@ begin
     stByte, stShort, stWord, stSmall, stLongWord, stInteger:
       Result := StrToInt(Val);
     stULong:
-      Result := StrToUInt64(Val);
+      Result := UnicodeToUInt64(Val);
     stLong:
       Result := StrToInt64(Val);
     stFloat, stDouble, stBigDecimal, stCurrency:
@@ -1236,6 +1321,8 @@ begin
   end;
 end;
 
+{$IFNDEF ZEOS73UP}
+
 {**
   Returns the value of the designated column in the current row
   of this <code>ResultSet</code> object as a <code>Blob</code> object
@@ -1250,6 +1337,7 @@ var
   ColType: TZSQLType;
   Idx: Integer;
   Val: String;
+  AnsiVal: AnsiString;
   Bytes: TBytes;
   ColInfo: TZColumnInfo;
 begin
@@ -1268,8 +1356,8 @@ begin
   ColInfo := TZColumnInfo(ColumnsInfo.Items[Idx]);
   ColType := ColInfo.ColumnType;
   case ColType of
-    stBinaryStream: begin
-      Bytes := DecodeBase64(Val);
+    stBinaryStream, stBytes: begin
+      Bytes := DecodeBase64(AnsiString(Val));
       Result := TZAbstractBlob.CreateWithData(@Bytes[0], Length(Bytes)) as IZBlob;
     end;
     stAsciiStream, stUnicodeStream: begin
@@ -1279,17 +1367,73 @@ begin
          Result := TZAbstractCLob.CreateWithData(nil, 0, GetConSettings) as IZBlob;
     end;
     else begin
-      raise Exception.Create('GetBlob is not supported for ' + ColInfo.GetColumnTypeName + ' (yet). Column: ' + ColInfo.ColumnLabel);
+      raise EZSQLException.Create('GetBlob is not supported for ' + ColInfo.GetColumnTypeName + ' (yet). Column: ' + ColInfo.ColumnLabel);
     end;
   end;
 end;
 
-{$IFDEF ZEOS73UP}
-procedure RaiseUnsupportedException;
-begin
-  raise EZSQLException.Create(SUnsupportedOperation);
-end;
+{$ELSE}
 
+function TZDbcProxyResultSet.GetBlob(ColumnIndex: Integer; LobStreamMode: TZLobStreamMode = lsmRead): IZBlob;
+var
+  ColType: TZSQLType;
+  Idx: Integer;
+  Val: String;
+  ValVariant: Variant;
+  //AnsiVal: {$IFDEF NEXTGEN}RawByteString{$ELSE}AnsiString{$ENDIF};
+  Bytes: TBytes;
+  ColInfo: TZColumnInfo;
+begin
+  if LobStreamMode <> lsmRead then
+    raise EZSQLException.Create('No lob stream mode besides lsmRead is supported.');
+
+  {$IFNDEF DISABLE_CHECKING}
+    CheckColumnConvertion(ColumnIndex, stInteger);
+  {$ENDIF}
+  LastWasNull := IsNull(ColumnIndex);
+
+  if LastWasNull then begin
+    Result := nil;
+    exit;
+  end;
+
+  Idx := ColumnIndex - FirstDbcIndex;
+  ValVariant := FCurrentRowNode.ChildNodes.Get(Idx).Attributes[ValueAttr];
+  Val := VarToStr(ValVariant);
+  ColInfo := TZColumnInfo(ColumnsInfo.Items[Idx]);
+  ColType := ColInfo.ColumnType;
+  case ColType of
+    stBinaryStream: begin
+      if Val = '' then
+        Result := TZAbstractBLob.CreateWithData(nil, 0)
+      else begin
+        {$IFDEF NO_ANSISTRING}
+        Bytes := ZDecodeBase64(Val);
+        {$ELSE}
+        Bytes := ZDecodeBase64(AnsiString(Val));
+        {$ENDIF}
+        Result := TZAbstractBlob.CreateWithData(@Bytes[0], Length(Bytes)) as IZBlob;
+      end;
+    end;
+    stAsciiStream, stUnicodeStream: begin
+      if Val <> '' then
+         {$IFDEF WITH_ZEROBASEDSTRINGS}
+         Result := TZAbstractCLob.CreateWithData(@Val[Low(Val)], Length(Val), GetConSettings) as IZBlob
+         {$ELSE}
+         Result := TZAbstractCLob.CreateWithData(@Val[1], Length(Val), GetConSettings) as IZBlob
+         {$ENDIF}
+       else
+         Result := TZAbstractCLob.CreateWithData(nil, 0, GetConSettings) as IZBlob;
+    end;
+    else begin
+      raise EZSQLException.Create('GetBlob is not supported for ' + ColInfo.GetColumnTypeName + ' (yet). Column: ' + ColInfo.ColumnLabel);
+    end;
+  end;
+end;
+{$ENDIF}
+
+
+{$IFDEF ZEOS73UP}
 function TZDbcProxyResultSet.GetUInt(ColumnIndex: Integer): Cardinal;
 var
   ColType: TZSQLType;
@@ -1313,15 +1457,15 @@ begin
     stBoolean:
       Result := BoolToInt(StrToBool(Val));
     stByte, stShort, stWord, stSmall, stLongWord, stInteger:
-      Result := StrToUInt(Val);
+      Result := UnicodeToUInt32(Val);
     stULong:
-      Result := StrToUInt(Val);
+      Result := UnicodeToUInt32(Val);
     stLong:
-      Result := StrToInt(Val);
+      Result := UnicodeToUInt32(Val);
     stFloat, stDouble, stCurrency, stBigDecimal:
       Result := Trunc(StrToFloat(Val, FFormatSettings));
     stString, stUnicodeString, stAsciiStream, stUnicodeStream:
-      Result := StrToUInt(Val);
+      Result := UnicodeToUInt32(Val);
     stDate:
       Result := Trunc(StrToDate(Val, FFormatSettings));
     stTime:
@@ -1362,13 +1506,13 @@ begin
     stGUID:
       Result := StringToGUID(Val);
     else
-      RaiseUnsupportedException;
+      raise EZUnsupportedException.Create(SUnsupportedOperation);
   end;
 end;
 
 function TZDbcProxyResultSet.GetBytes(ColumnIndex: Integer; out Len: NativeUInt): PByte;
 begin
-  raise Exception.Create('GetBytes is not supported (yet)');
+  raise EZSQLException.Create('GetBytes is not supported (yet)');
 end;
 
 procedure TZDbcProxyResultSet.GetDate(ColumnIndex: Integer; var Result: TZDate);
@@ -1378,12 +1522,12 @@ end;
 
 procedure TZDbcProxyResultSet.GetTime(ColumnIndex: Integer; Var Result: TZTime);
 begin
-  DecodeDateTimeToTime(GetDate(ColumnIndex), Result);
+  DecodeDateTimeToTime(GetTime(ColumnIndex), Result);
 end;
 
 procedure TZDbcProxyResultSet.GetTimestamp(ColumnIndex: Integer; Var Result: TZTimeStamp);
 begin
-  DecodeDateTimeToTimeStamp(GetDate(ColumnIndex), Result);
+  DecodeDateTimeToTimeStamp(GetTimestamp(ColumnIndex), Result);
 end;
 {$ENDIF}
 
@@ -1429,7 +1573,9 @@ begin
   CheckClosed;
 {$ENDIF}
   { Checks for maximum row. }
-  Result := False;
+{$IFDEF FPC} // I suppose FPC compiler needs this initial assignment...?
+   Result := False;
+{$ENDIF}
   { Processes negative rows. }
   if Row < 0 then begin
     Row := LastRowNo + Row + 1;
@@ -1437,20 +1583,35 @@ begin
   end;
 
   if (ResultSetType <> rtForwardOnly) or (Row >= RowNo) then begin
-    if (0 < Row) and (Row <= LastRowNo) then begin
-      Result := True;
-      FCurrentRowNode := FRowsNode.ChildNodes.Get(Row - 1)
+    if ResultSetType = rtForwardOnly then begin
+      while RowNo < Row do begin
+        if (RowNo <> 0) and (FRowsNode.ChildNodes.Count > 0) then
+          FRowsNode.ChildNodes.Delete(0);
+        RowNo := RowNo + 1;
+      end;
+      if FRowsNode.ChildNodes.Count > 0 then begin
+        Result := True;
+        FCurrentRowNode := FRowsNode.ChildNodes.Get(0);
+      end else begin
+        Result := False;
+        Row := Min(Row, LastRowNo + 1);
+        FCurrentRowNode := nil;
+      end;
     end else begin
-      Result := False;
-      Row := Min(Row, LastRowNo + 1);
-      FCurrentRowNode := nil;
+      if (0 < Row) and (Row <= LastRowNo) then begin
+        Result := True;
+        FCurrentRowNode := FRowsNode.ChildNodes.Get(Row - 1)
+      end else begin
+        Result := False;
+        Row := Min(Row, LastRowNo + 1);
+        FCurrentRowNode := nil;
+      end;
     end;
     RowNo := Row;
   end else begin
-    RaiseForwardOnlyException;
+    raise EZSQLException.Create('This resultset is forward only.');
   end;
 end;
 
-{$ENDIF ZEOS_DISABLE_PROXY} //if set we have an empty unit
+{$ENDIF ENABLE_PROXY} //if set we have an empty unit
 end.
-
