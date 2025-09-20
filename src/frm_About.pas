@@ -35,7 +35,7 @@ procedure TfrmAbout.FormShow(Sender: TObject);
   var
     VHeaders: PImageNtHeaders;
   begin
-    VHeaders := PImageNtHeaders(HInstance + Cardinal(PImageDosHeader(HInstance)._lfanew));
+    VHeaders := PImageNtHeaders(HInstance + UIntPtr(PImageDosHeader(HInstance)._lfanew));
     Result := VHeaders.FileHeader.TimeDateStamp / SecsPerDay + UnixDateDelta;
   end;
 
