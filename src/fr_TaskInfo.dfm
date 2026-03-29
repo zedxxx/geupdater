@@ -7,26 +7,26 @@ object frTaskInfo: TfrTaskInfo
   object lblName: TLabel
     Left = 60
     Top = 0
-    Width = 4
+    Width = 3
     Height = 13
     Alignment = taRightJustify
   end
   object lblVersion: TLabel
     Left = 80
     Top = 0
-    Width = 4
+    Width = 3
     Height = 13
   end
   object lblLastModified: TLabel
-    Left = 140
+    Left = 170
     Top = 0
-    Width = 4
+    Width = 3
     Height = 13
   end
   object lblNew: TLabel
-    Left = 270
+    Left = 290
     Top = 0
-    Width = 4
+    Width = 3
     Height = 13
   end
 end

@@ -5,7 +5,7 @@ object frmMain: TfrmMain
   BorderStyle = bsSingle
   Caption = 'GoogleEarth Update Checker'
   ClientHeight = 367
-  ClientWidth = 340
+  ClientWidth = 354
   Color = clBtnFace
   CustomTitleBar.CaptionAlignment = taCenter
   Font.Charset = DEFAULT_CHARSET
@@ -13,16 +13,18 @@ object frmMain: TfrmMain
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
+  OldCreateOrder = True
   Position = poScreenCenter
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   OnShow = FormShow
+  PixelsPerInch = 96
   TextHeight = 13
   object grpGEClassic: TGroupBox
     AlignWithMargins = True
     Left = 3
     Top = 3
-    Width = 334
+    Width = 348
     Height = 126
     Align = alTop
     Caption = 'Google Earth Desktop'
@@ -30,7 +32,7 @@ object frmMain: TfrmMain
     object pnlGEEarth: TPanel
       Left = 2
       Top = 15
-      Width = 330
+      Width = 344
       Height = 18
       Align = alTop
       BevelOuter = bvNone
@@ -39,7 +41,7 @@ object frmMain: TfrmMain
     object pnlGEHistory: TPanel
       Left = 2
       Top = 33
-      Width = 330
+      Width = 344
       Height = 18
       Align = alTop
       BevelOuter = bvNone
@@ -48,7 +50,7 @@ object frmMain: TfrmMain
     object pnlGESky: TPanel
       Left = 2
       Top = 51
-      Width = 330
+      Width = 344
       Height = 18
       Align = alTop
       BevelOuter = bvNone
@@ -57,7 +59,7 @@ object frmMain: TfrmMain
     object pnlGEMoon: TPanel
       Left = 2
       Top = 87
-      Width = 330
+      Width = 344
       Height = 18
       Align = alTop
       BevelOuter = bvNone
@@ -66,7 +68,7 @@ object frmMain: TfrmMain
     object pnlGEMars: TPanel
       Left = 2
       Top = 69
-      Width = 330
+      Width = 344
       Height = 18
       Align = alTop
       BevelOuter = bvNone
@@ -75,7 +77,7 @@ object frmMain: TfrmMain
     object pnlGEClient: TPanel
       Left = 2
       Top = 105
-      Width = 330
+      Width = 344
       Height = 18
       Align = alTop
       BevelOuter = bvNone
@@ -86,7 +88,7 @@ object frmMain: TfrmMain
     AlignWithMargins = True
     Left = 3
     Top = 135
-    Width = 334
+    Width = 348
     Height = 54
     Align = alTop
     Caption = 'Google Earth Web'
@@ -94,7 +96,7 @@ object frmMain: TfrmMain
     object pnlGEWebEarth: TPanel
       Left = 2
       Top = 15
-      Width = 330
+      Width = 344
       Height = 18
       Align = alTop
       BevelOuter = bvNone
@@ -103,7 +105,7 @@ object frmMain: TfrmMain
     object pnlGEWebClient: TPanel
       Left = 2
       Top = 33
-      Width = 330
+      Width = 344
       Height = 18
       Align = alTop
       BevelOuter = bvNone
@@ -114,7 +116,7 @@ object frmMain: TfrmMain
     AlignWithMargins = True
     Left = 3
     Top = 255
-    Width = 334
+    Width = 348
     Height = 73
     Align = alTop
     Caption = 'Google Maps'
@@ -122,7 +124,7 @@ object frmMain: TfrmMain
     object pnlGMEarth: TPanel
       Left = 2
       Top = 15
-      Width = 330
+      Width = 344
       Height = 18
       Align = alTop
       BevelOuter = bvNone
@@ -131,7 +133,7 @@ object frmMain: TfrmMain
     object pnlGMMars: TPanel
       Left = 2
       Top = 33
-      Width = 330
+      Width = 344
       Height = 18
       Align = alTop
       BevelOuter = bvNone
@@ -140,7 +142,7 @@ object frmMain: TfrmMain
     object pnlGMMoon: TPanel
       Left = 2
       Top = 51
-      Width = 330
+      Width = 344
       Height = 18
       Align = alTop
       BevelOuter = bvNone
@@ -151,7 +153,7 @@ object frmMain: TfrmMain
     AlignWithMargins = True
     Left = 3
     Top = 195
-    Width = 334
+    Width = 348
     Height = 54
     Align = alTop
     Caption = 'Google Maps Classic'
@@ -159,7 +161,7 @@ object frmMain: TfrmMain
     object pnlGMClassicEarth: TPanel
       Left = 2
       Top = 15
-      Width = 330
+      Width = 344
       Height = 18
       Align = alTop
       BevelOuter = bvNone
@@ -168,7 +170,7 @@ object frmMain: TfrmMain
     object pnlGMClassicJSAPI: TPanel
       Left = 2
       Top = 33
-      Width = 330
+      Width = 344
       Height = 18
       Align = alTop
       BevelOuter = bvNone
@@ -178,7 +180,7 @@ object frmMain: TfrmMain
   object pnlBottom: TPanel
     Left = 0
     Top = 331
-    Width = 340
+    Width = 354
     Height = 30
     Align = alTop
     BevelOuter = bvNone
@@ -195,7 +197,7 @@ object frmMain: TfrmMain
       OnClick = btnAboutClick
     end
     object btnExit: TButton
-      Left = 260
+      Left = 274
       Top = 5
       Width = 75
       Height = 25
