@@ -3,14 +3,13 @@ unit c_UserAgent;
 interface
 
 const
-  // https://www.whatismybrowser.com/guides/the-latest-user-agent/chrome
-  cBrowserUserAgent =
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
-    'AppleWebKit/537.36 (KHTML, like Gecko) ' +
-    'Chrome/140.0.0.0' + ' ' +
-    'Safari/537.36';
+  cGoogleChromeVersion = '146.0.0.0';
+  cGoogleEarthClientVersion = '7.3.7.1094';
 
-  cGoogleEarthClientVersion = '7.3.6.10441';
+  // https://www.whatismybrowser.com/guides/the-latest-user-agent/chrome
+  cGoogleChromeUserAgent =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ' +
+    'Chrome/' + cGoogleChromeVersion + ' Safari/537.36';
 
   cGoogleEarthClientUserAgent =
     'GoogleEarth/' + cGoogleEarthClientVersion +

@@ -93,7 +93,7 @@ end;
 function TGoogleMaps.GetHeaders: string;
 begin
   Result :=
-    'User-Agent: ' + cBrowserUserAgent + #13#10 +
+    'User-Agent: ' + cGoogleChromeUserAgent + #13#10 +
     'Accept: text/html, */*' + #13#10 +
     'Accept-Language: en-us,en,*';
 end;
