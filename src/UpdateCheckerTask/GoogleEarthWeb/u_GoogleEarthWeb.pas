@@ -15,8 +15,10 @@ type
   TGoogleEarthWeb = class(TUpdateCheckerTaskBase)
   private
     FCheckType: TGoogleEarthWebCheckType;
+    function IsClientCheck: Boolean; inline;
   private
     class function GetVersion(const AData: Pointer; const ASize: Int64): string;
+    class function GetClientDataVersion(const AText: string): string;
     class function GetClientVersion(const AText: string): string;
   protected
     function GetConf: TTaskConf; override;
@@ -41,6 +43,8 @@ uses
   c_UpdateCheckerTask,
   i_DownloadRequest,
   i_DownloadResponse,
+  u_DateTimeUtils,
+  u_DownloadRequest,
   u_PlanetoidMetadata;
 
 const
@@ -67,15 +71,29 @@ begin
   FCheckType := ACheckType;
 end;
 
+function TGoogleEarthWeb.IsClientCheck: Boolean;
+begin
+  Result := FCheckType = gewctClient;
+end;
+
 function TGoogleEarthWeb.GetConf: TTaskConf;
 begin
   Result := cTaskConf[FCheckType];
 end;
 
 function TGoogleEarthWeb.GetHeaders: string;
+var
+  VIfModifiedSince: string;
 begin
+  VIfModifiedSince := '';
+
+  if IsClientCheck and FPrevInfoExists and (FPrevInfo.LastModified <> 0) then begin
+    VIfModifiedSince :=  'If-Modified-Since: ' + DateTimeToRFC1123(FPrevInfo.LastModified) + #13#10;
+  end;
+
   Result :=
     'User-Agent: ' + cGoogleChromeUserAgent + #13#10 +
+    VIfModifiedSince +
     'Accept: */*' + #13#10 +
     'Accept-Language: en-us,en,*';
 end;
@@ -84,6 +102,40 @@ procedure TGoogleEarthWeb.DoExecute;
 var
   VRequest: IDownloadRequest;
   VResponse: IDownloadResponse;
+
+  procedure _FetchClientVersion;
+  var
+    VRequestUrl: string;
+  begin
+    // Step 1: fetch "data-version"
+    FInfo.Version := GetClientDataVersion(VResponse.GetBodyAsText);
+
+    if FInfo.Version = '' then begin
+      Exit;
+    end;
+
+    // Step 2: fetch actual value of client version
+    VRequestUrl := Format('https://earth.google.com/static/multi-threaded/versions/%s/main.dart.js', [FInfo.Version]);
+
+    VRequest := TDownloadRequest.Create(VRequestUrl, GetHeaders);;
+    VResponse := FDownloader.DoGetRequest(VRequest);
+
+    FInfo.HttpRequest := VRequest;
+    FInfo.HttpResponse := VResponse;
+
+    if VResponse.Code = 200 then begin
+      FInfo.LastModified := VResponse.LastModified;
+      FInfo.Version := GetClientVersion(VResponse.GetBodyAsText);
+    end else
+    if VResponse.Code = 304 then begin
+      Assert(FPrevInfoExists);
+      FInfo.LastModified := FPrevInfo.LastModified;
+      FInfo.Version := FPrevInfo.Version;
+    end else begin
+      // Use "data-version" as client version on error
+    end;
+  end;
+
 begin
   VRequest := BuildRequest;
   VResponse := FDownloader.DoGetRequest(VRequest);
@@ -94,13 +146,18 @@ begin
   if VResponse.Code = 200 then begin
     FInfo.State := tsFinished;
     FInfo.LastModified := VResponse.LastModified;
-    case FCheckType of
-      gewctEarth:  FInfo.Version := GetVersion(VResponse.Body, VResponse.BodySize);
-      gewctClient: FInfo.Version := GetClientVersion(VResponse.GetBodyAsText);
-    else
-      Assert(False);
+    if IsClientCheck then begin
+      _FetchClientVersion;
+    end else begin
+      FInfo.Version := GetVersion(VResponse.Body, VResponse.BodySize);
     end;
     FInfo.IsUpdatesFound := not FPrevInfoExists or (FPrevInfo.Version <> FInfo.Version);
+  end else
+  if VResponse.Code = 304 then begin
+    Assert(FPrevInfoExists);
+    FInfo.State := tsFinished;
+    FInfo.LastModified := FPrevInfo.LastModified;
+    FInfo.Version := FPrevInfo.Version;
   end else begin
     FInfo.State := tsHttpError;
   end;
@@ -122,6 +179,21 @@ begin
   end;
 end;
 
+class function TGoogleEarthWeb.GetClientDataVersion(const AText: string): string;
+var
+  VPattern: string;
+  VMatch: TMatch;
+begin
+  Result := '';
+  if AText <> '' then begin
+    VPattern := 'data-version="(.*?)"';
+    VMatch := TRegEx.Match(AText, VPattern, [roIgnoreCase, roMultiLine]);
+    if VMatch.Success then begin
+      Result := VMatch.Groups.Item[1].Value;
+    end;
+  end;
+end;
+
 class function TGoogleEarthWeb.GetClientVersion(const AText: string): string;
 var
   VPattern: string;
@@ -129,17 +201,7 @@ var
 begin
   Result := '';
   if AText <> '' then begin
-    VPattern := '"app_min\.html":"(.*?)/app_min\.html"';
-    VMatch := TRegEx.Match(AText, VPattern, [roIgnoreCase, roMultiLine]);
-    if VMatch.Success then begin
-      Result := VMatch.Groups.Item[1].Value;
-    end;
-
-    if Result <> '' then begin
-      Exit;
-    end;
-
-    VPattern := 'data-version="(.*?)"';
+    VPattern := '"(\d+\.\d+\.\d+\.\d+)"\.split\("\."\)';
     VMatch := TRegEx.Match(AText, VPattern, [roIgnoreCase, roMultiLine]);
     if VMatch.Success then begin
       Result := VMatch.Groups.Item[1].Value;
