@@ -59,7 +59,7 @@ uses
 
 const
   cParams =
-    'hl=en-GB&gl=us' +
+    'hl=en-US&gl=us' +
     {$IFDEF USE_PROTO}
     '&output=proto'
     {$ELSE}
@@ -90,7 +90,7 @@ const
      DisplayName: 'Moon'),
 
     (GUID:        cGoogleEarthDesktopClientGUID;
-     RequestUrl:  'https://dl.google.com/earth/client/advanced/current/GoogleEarthProWin.exe';
+     RequestUrl:  'https://dl.google.com/earth/client/advanced/current/GoogleEarthProWin-x64.exe';
      DisplayName: 'Client')
   );
 
