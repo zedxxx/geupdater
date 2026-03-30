@@ -10,22 +10,18 @@ uses
   ZDataset,
   ZDbcIntfs,
   t_EventLog,
-  i_EventLogStorage;
+  i_EventLogStorage,
+  u_GuidDictionary;
 
 type
   TEventLogStorageBySQLite = class(TInterfacedObject, IEventLogStorage)
   private
     FLock: TCriticalSection;
     FConnection: TZConnection;
-    FGuidID: TDictionary<TGUID, Int64>;
-    function GetGuidID(const AGuid: TGUID): Int64;
+    FGuidDict: TGuidDictionary;
     class function DateTimeToInt64(const AValue: TDateTime): Int64; inline;
     class function Int64ToDateTime(const AValue: Int64): TDateTime; inline;
-    class procedure ItemFromQuery(
-      const AGuid: TGUID;
-      const AQuery: TZQuery;
-      out AItem: TEventLogItem
-    ); inline;
+    class procedure ItemFromQuery(const AGuid: TGUID; const AQuery: TZQuery; out AItem: TEventLogItem); inline;
   private
     { IEventLogStorage }
     procedure AddItem(const AItem: TEventLogItem);
@@ -80,12 +76,12 @@ begin
   FConnection.LibraryLocation := VAppPath + cLibraryName;
   FConnection.Database := VDbFileName;
 
-  FConnection.Properties.Add('encoding="UTF-8"');
-  FConnection.Properties.Add('foreing_key=on');
-  FConnection.Properties.Add('cache_size=-2000');
-  FConnection.Properties.Add('synchronous=NORMAL');
-  FConnection.Properties.Add('main.journal_mode=WAL');
-  FConnection.Properties.Add('main.locking_mode=NORMAL');
+  FConnection.Properties.Add('encoding = "UTF-8"');
+  FConnection.Properties.Add('foreing_keys = ON');
+  FConnection.Properties.Add('cache_size = -2000');
+  FConnection.Properties.Add('synchronous = NORMAL');
+  FConnection.Properties.Add('main.journal_mode = WAL');
+  FConnection.Properties.Add('main.locking_mode = NORMAL');
 
   FConnection.TransactIsolationLevel := tiReadCommitted;
 
@@ -102,14 +98,14 @@ begin
       'ID            INTEGER PRIMARY KEY AUTOINCREMENT,' +
       'GuidID        INTEGER NOT NULL,' +
       'TimeStamp     INTEGER,' +
-      'LastModified  INTEDER,' +
+      'LastModified  INTEGER,' +
       'Version       TEXT,' +
-      'FOREIGN KEY (GuidID) REFERENCES ' + cGuidsTableName + '(Guid)'+
+      'FOREIGN KEY (GuidID) REFERENCES ' + cGuidsTableName + '(ID)'+
       ')'
     );
   end;
 
-  FGuidID := TDictionary<TGUID, Int64>.Create(64);
+  FGuidDict := TGuidDictionary.Create(64);
 
   // prepare guid cache
   VQuery := TZQuery.Create(nil);
@@ -119,7 +115,7 @@ begin
     VQuery.Open;
     if VQuery.FindFirst then begin
       repeat
-        FGuidID.Add(
+        FGuidDict.Add(
           StringToGUID(VQuery.FieldByName('Guid').AsString),
           VQuery.FieldByName('ID').AsLargeInt
         );
@@ -135,57 +131,65 @@ end;
 destructor TEventLogStorageBySQLite.Destroy;
 begin
   FreeAndNil(FConnection);
-  FreeAndNil(FGuidID);
+  FreeAndNil(FGuidDict);
   FreeAndNil(FLock);
   inherited Destroy;
 end;
 
-function TEventLogStorageBySQLite.GetGuidID(const AGuid: TGUID): Int64;
-var
-  VQuery: TZQuery;
-begin
-  // search in cache first
-  if FGuidID.TryGetValue(AGuid, Result) then begin
-    // found in cache - this already in db
-    Exit;
-  end;
-
-  // seems that is a brand new guid
-  VQuery := TZQuery.Create(nil);
-  try
-    VQuery.Connection := FConnection;
-    // insert guid into db
-    VQuery.SQL.Add('INSERT INTO ' + cGuidsTableName + ' (Guid) VALUES (:g)');
-    VQuery.ParamByName('g').AsString := GUIDToString(AGuid);
-
-    VQuery.ExecSQL;
-    if VQuery.RowsAffected <> 1 then begin
-      raise Exception.Create('Failed insert GUID into ' + cGuidsTableName);
-    end;
-    // fetch guid id from db
-    VQuery.SQL.Text := 'SELECT MAX(ID) AS RowID FROM ' + cGuidsTableName;
-    VQuery.Open;
-    if not VQuery.FindFirst then begin
-      raise Exception.Create('Failed to get last inserted row ID');
-    end;
-    Result := VQuery.FieldByName('RowID').AsLargeInt;
-    // add id to cache
-    FGuidID.Add(AGuid, Result);
-  finally
-    VQuery.Free;
-  end;
-end;
-
 procedure TEventLogStorageBySQLite.AddItem(const AItem: TEventLogItem);
+
+  function GetGuidId(const AGuid: TGUID): Int64;
+  var
+    VQuery: TZQuery;
+    VGuidStr: string;
+  begin
+    // search in cache first
+    if FGuidDict.TryGetIdByGuid(AGuid, Result) then begin
+      Exit;
+    end;
+
+    VGuidStr := GUIDToString(AGuid);
+
+    VQuery := TZQuery.Create(nil);
+    try
+      VQuery.Connection := FConnection;
+
+      // insert guid into db
+      VQuery.SQL.Text := 'INSERT INTO ' + cGuidsTableName + ' (Guid) VALUES (:g)';
+      VQuery.ParamByName('g').AsString := VGuidStr;
+
+      VQuery.ExecSQL;
+      if VQuery.RowsAffected <> 1 then begin
+        raise Exception.CreateFmt('Failed insert GUID %s into %s', [VGuidStr, cGuidsTableName]);
+      end;
+
+      // fetch guid id from db
+      VQuery.SQL.Text := 'SELECT ID FROM ' + cGuidsTableName + ' WHERE Guid = :g';
+      VQuery.ParamByName('g').AsString := VGuidStr;
+
+      VQuery.Open;
+      if not VQuery.FindFirst then begin
+        raise Exception.CreateFmt('Failed to get ID for last inserted GUID %s from %s', [VGuidStr, cGuidsTableName]);
+      end;
+
+      Result := VQuery.FieldByName('ID').AsLargeInt;
+
+      // add id to cache
+      FGuidDict.Add(AGuid, Result);
+    finally
+      VQuery.Free;
+    end;
+  end;
+
 var
-  VGuidID: Int64;
+  VGuidId: Int64;
   VQuery: TZQuery;
 begin
   FLock.Acquire;
   try
     FConnection.StartTransaction;
     try
-      VGuidID := GetGuidID(AItem.GUID);
+      VGuidId := GetGuidId(AItem.GUID);
 
       VQuery := TZQuery.Create(nil);
       try
@@ -195,7 +199,7 @@ begin
           'INSERT INTO ' + cEventsTableName +
           '(GuidID,TimeStamp,LastModified,Version) VALUES (:gid,:ts,:lm,:v)';
 
-        VQuery.ParamByName('gid').AsLargeInt := VGuidID;
+        VQuery.ParamByName('gid').AsLargeInt := VGuidId;
         VQuery.ParamByName('ts').AsLargeInt := DateTimeToInt64(AItem.TimeStamp);
         VQuery.ParamByName('lm').AsLargeInt := DateTimeToInt64(AItem.LastModified);
         VQuery.ParamByName('v').AsAnsiString := UTF8Encode(AItem.Version);
@@ -233,13 +237,13 @@ begin
 
         VQuery.SQL.Text :=
           'DELETE FROM ' + cEventsTableName + ' ' +
-          'WHERE ID = :RowID';
+          'WHERE ID = :id';
 
-        VQuery.ParamByName('RowID').AsLargeInt := AItemID;
+        VQuery.ParamByName('id').AsLargeInt := AItemID;
         VQuery.ExecSQL;
 
         if VQuery.RowsAffected <> 1 then begin
-          raise Exception.CreateFmt('Failed delete item with ID=%d', [AItemID]);
+          raise Exception.CreateFmt('Failed delete item with ID = %d from %s', [AItemID, cEventsTableName]);
         end;
       finally
         VQuery.Free;
@@ -273,12 +277,12 @@ function TEventLogStorageBySQLite.FindLast(
   out AItem: TEventLogItem
 ): Boolean;
 var
-  VGuidID: Int64;
+  VGuidId: Int64;
   VQuery: TZQuery;
 begin
   FLock.Acquire;
   try
-    Result := FGuidID.TryGetValue(AGuid, VGuidID);
+    Result := FGuidDict.TryGetIdByGuid(AGuid, VGuidId);
     if not Result then begin
       Exit;
     end;
@@ -290,8 +294,10 @@ begin
 
       VQuery.SQL.Text :=
         'SELECT ID,TimeStamp,LastModified,Version FROM ' + cEventsTableName + ' ' +
-        'WHERE GuidID=' + IntToStr(VGuidID) + ' ' +
+        'WHERE GuidID = :gid ' +
         'ORDER BY ID DESC LIMIT 1';
+      VQuery.ParamByName('gid').AsLargeInt := VGuidId;
+
       VQuery.Open;
 
       Result := VQuery.FindFirst;
@@ -310,31 +316,22 @@ end;
 
 function TEventLogStorageBySQLite.FetchAll: TArray<TEventLogItem>;
 
-  function GetGuidDictByID: TDictionary<Int64,TGUID>;
+  procedure GrowResultArray(const ANewCount: Integer);
   var
-    I: Integer;
-    VArray: TArray<TPair<TGUID,Int64>>;
+    VCapacity: Integer;
   begin
-    VArray := FGuidID.ToArray;
-    Result := TDictionary<Int64,TGUID>.Create(Length(VArray)*2);
-    for I := Low(VArray) to High(VArray) do begin
-      Result.Add(VArray[I].Value, VArray[I].Key);
+    VCapacity := Length(Result);
+    if ANewCount > VCapacity then begin
+      VCapacity := System.SysUtils.GrowCollection(VCapacity, ANewCount);
+      SetLength(Result, VCapacity); // grow
     end;
-  end;
-
-  function GetItemsCount(const AQuery: TZQuery): Integer;
-  begin
-    AQuery.Last;
-    Result := AQuery.RecordCount;
-    AQuery.First;
   end;
 
 var
   I: Integer;
-  VCount: Integer;
-  VGuidID: Int64;
+  VGuid: TGUID;
+  VGuidId: Int64;
   VQuery: TZQuery;
-  VDict: TDictionary<Int64,TGUID>;
 begin
   Result := nil;
 
@@ -342,25 +339,27 @@ begin
   try
     VQuery := TZQuery.Create(nil);
     try
-      VDict := GetGuidDictByID;
-
       VQuery.Connection := FConnection;
       VQuery.SQL.Text := 'SELECT ID,GuidID,TimeStamp,LastModified,Version FROM ' + cEventsTableName;
       VQuery.Open;
 
-      VCount := GetItemsCount(VQuery);
-
-      if (VCount > 0) and VQuery.FindFirst then begin
+      if VQuery.FindFirst then begin
         I := 0;
-        SetLength(Result, VCount);
+        SetLength(Result, 1024);
+
         repeat
-          if I >= VCount then begin
-            raise Exception.Create('Array length less then Items count!');
+          GrowResultArray(I+1);
+
+          VGuidId := VQuery.FieldByName('GuidID').AsLargeInt;
+          if FGuidDict.TryGetGuidById(VGuidId, VGuid) then begin
+            ItemFromQuery(VGuid, VQuery, Result[I]);
+            Inc(I);
+          end else begin
+            raise Exception.CreateFmt('Can''t find GUID for GuidID = %d', [VGuidId])
           end;
-          VGuidID := VQuery.FieldByName('GuidID').AsLargeInt;
-          ItemFromQuery(VDict.Items[VGuidID], VQuery, Result[I]);
-          Inc(I);
         until not VQuery.FindNext;
+
+        SetLength(Result, I);
       end;
     finally
       VQuery.Free;

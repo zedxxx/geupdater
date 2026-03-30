@@ -35,7 +35,8 @@ uses
   c_UpdateCheckerTask in 'src\UpdateCheckerTask\c_UpdateCheckerTask.pas',
   fr_TaskInfo in 'src\fr_TaskInfo.pas' {frTaskInfo: TFrame},
   u_DownloadRequest in 'src\Downloader\u_DownloadRequest.pas',
-  i_DownloadRequest in 'src\Downloader\i_DownloadRequest.pas';
+  i_DownloadRequest in 'src\Downloader\i_DownloadRequest.pas',
+  u_GuidDictionary in 'src\EventLog\u_GuidDictionary.pas';
 
 {$R *.res}
 
