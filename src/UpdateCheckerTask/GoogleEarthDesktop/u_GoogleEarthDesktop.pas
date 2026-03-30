@@ -163,8 +163,12 @@ begin
     FInfo.LastModified := VResponse.LastModified;
 
     if IsClientCheck then begin
-      FInfo.Version := '-';
       FInfo.IsUpdatesFound := not FPrevInfoExists or (FPrevInfo.LastModified <> FInfo.LastModified);
+      if FPrevInfoExists and (FPrevInfo.LastModified = FInfo.LastModified) then begin
+        FInfo.Version := FPrevInfo.Version;
+      end else begin
+        FInfo.Version := '-';
+      end;
     end else begin
       FInfo.Version :=
         {$IFDEF USE_PROTO}
