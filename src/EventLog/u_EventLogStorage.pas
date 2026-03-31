@@ -73,7 +73,7 @@ begin
   FConnection := TZConnection.Create(nil);
 
   FConnection.Protocol := cProtocolName;
-  FConnection.LibraryLocation := VAppPath + cLibraryName;
+  FConnection.LibraryLocation := cLibraryName;
   FConnection.Database := VDbFileName;
 
   FConnection.Properties.Add('encoding = "UTF-8"');

@@ -38,8 +38,8 @@ type
 implementation
 
 uses
-  System.Zlib,
   System.SysUtils,
+  u_ContentDecoder,
   u_DateTimeUtils,
   u_DownloadResponse;
 
@@ -85,48 +85,20 @@ function TDownloaderByHttpClient.GetResponseBody(
   const AContentEncoding: string;
   const AContentStream: TStream
 ): TMemoryStream;
-const
-  cZlibMagic = $9C78; // 0x789C
-var
-  VMagic: Word;
-  VStream: TMemoryStream;
-  VZlibStream: TDecompressionStream;
-  VWindowBits: Integer;
 begin
   if AContentStream = nil then begin
     Result := nil;
     Exit;
   end;
 
-  VStream := TMemoryStream.Create;
+  Result := TMemoryStream.Create;
   try
-    if (AContentEncoding = '') or (AContentEncoding = 'identity') then begin
-      VStream.LoadFromStream(AContentStream);
-    end else begin
-      VWindowBits := 15;
-      if AContentEncoding = 'gzip' then begin
-        VWindowBits := VWindowBits + 16;
-      end else
-      if AContentEncoding = 'deflate' then begin
-        AContentStream.ReadBuffer(VMagic, 2);
-        AContentStream.Seek(-2, soCurrent);
-        if VMagic <> cZlibMagic then begin
-          VWindowBits := -VWindowBits;
-        end;
-      end else begin
-        raise Exception.Create('Unsupported Content-Encoding: ' + AContentEncoding);
-      end;
-      VZlibStream := TDecompressionStream.Create(AContentStream, VWindowBits);
-      try
-        VStream.LoadFromStream(VZlibStream);
-      finally
-        VZlibStream.Free;
-      end;
-    end;
-    Result := VStream;
-    VStream := nil;
-  finally
-    VStream.Free;
+    Result.LoadFromStream(AContentStream);
+    Result.Position := 0;
+    TContentDecoder.Decode(AContentEncoding, Result);
+  except
+    FreeAndNil(Result);
+    raise;
   end;
 end;
 
@@ -172,7 +144,7 @@ begin
   try
     VHeaders := RawHeadersToNetHeaders(ARequest.RawHeaders);
     if FHttpClient.AutomaticDecompression = [] then begin
-      VHeaders := VHeaders + [TNetHeader.Create('Accept-Encoding', 'gzip, deflate')];
+      VHeaders := VHeaders + [TNetHeader.Create('Accept-Encoding', TContentDecoder.GetDecodersStr)];
     end;
     VHttpResponse := FHttpClient.Get(ARequest.Url, nil, VHeaders);
     Result := BuildResponse(VHttpResponse);

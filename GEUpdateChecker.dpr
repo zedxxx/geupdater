@@ -2,6 +2,7 @@ program GEUpdateChecker;
 
 uses
   Winapi.Windows,
+  System.SysUtils,
   Vcl.Forms,
   c_UserAgent in 'src\c_UserAgent.pas',
   frm_About in 'src\frm_About.pas' {frmAbout},
@@ -36,7 +37,8 @@ uses
   fr_TaskInfo in 'src\fr_TaskInfo.pas' {frTaskInfo: TFrame},
   u_DownloadRequest in 'src\Downloader\u_DownloadRequest.pas',
   i_DownloadRequest in 'src\Downloader\i_DownloadRequest.pas',
-  u_GuidDictionary in 'src\EventLog\u_GuidDictionary.pas';
+  u_GuidDictionary in 'src\EventLog\u_GuidDictionary.pas',
+  u_ContentDecoder in 'src\Downloader\u_ContentDecoder.pas';
 
 {$R *.res}
 
@@ -55,10 +57,20 @@ const
   {$SetPEFlags IMAGE_FILE_LOCAL_SYMS_STRIPPED}
 {$ENDIF}
 
+var
+  VLibPath: string;
 begin
   if not TScheduler.AppCanStart then begin
     Exit;
   end;
+
+  VLibPath := ExtractFilePath(ParamStr(0)) + PathDelim + 'lib';
+  if DirectoryExists(VLibPath) then begin
+    if not SetDllDirectory(PChar(VLibPath)) then begin
+      RaiseLastOSError;
+    end;
+  end;
+
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
   Application.CreateForm(TfrmMain, frmMain);
