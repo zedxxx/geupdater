@@ -3,7 +3,6 @@ unit u_EventLogStorage;
 interface
 
 uses
-  System.Classes,
   System.SyncObjs,
   System.Generics.Collections,
   ZConnection,
@@ -27,7 +26,7 @@ type
     procedure AddItem(const AItem: TEventLogItem);
     procedure DeleteItem(const AItemID: Int64);
     function FindLast(const AGuid: TGUID; out AItem: TEventLogItem): Boolean;
-    function FetchAll: TArray<TEventLogItem>;
+    function FetchAll: TEventLogItemArray;
   public
     constructor Create(const ADbFileName: string = '');
     destructor Destroy; override;
@@ -36,11 +35,8 @@ type
 implementation
 
 uses
-  Winapi.Windows,
-  System.StrUtils,
   System.SysUtils,
-  System.DateUtils,
-  System.NetEncoding;
+  System.DateUtils;
 
 const
   cProtocolName = 'sqlite';
@@ -314,7 +310,7 @@ begin
   end;
 end;
 
-function TEventLogStorageBySQLite.FetchAll: TArray<TEventLogItem>;
+function TEventLogStorageBySQLite.FetchAll: TEventLogItemArray;
 
   procedure GrowResultArray(const ANewCount: Integer);
   var

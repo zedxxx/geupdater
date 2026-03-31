@@ -249,7 +249,7 @@ var
   I: Integer;
   VTaskArr: array of ITask;
 begin
-  if FCheckerTasks.Count > 0 then begin
+  if Assigned(FCheckerTasks) and (FCheckerTasks.Count > 0) then begin
     SetLength(VTaskArr, FCheckerTasks.Count);
     for I := 0 to FCheckerTasks.Count - 1 do begin
       VTaskArr[I] := FCheckerTasks.Items[I];

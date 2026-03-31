@@ -11,7 +11,7 @@ type
     procedure AddItem(const AItem: TEventLogItem);
     procedure DeleteItem(const AItemID: Int64);
     function FindLast(const AGuid: TGUID; out AItem: TEventLogItem): Boolean;
-    function FetchAll: TArray<TEventLogItem>;
+    function FetchAll: TEventLogItemArray;
   end;
 
 implementation

@@ -12,6 +12,8 @@ type
   end;
   PEventLogItem = ^TEventLogItem;
 
+  TEventLogItemArray = TArray<TEventLogItem>;
+
 implementation
 
 end.

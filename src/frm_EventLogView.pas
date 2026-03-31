@@ -27,6 +27,8 @@ type
     ItemsCount: Integer;
   end;
 
+  TGuidInfoDictionary = TDictionary<TGUID, TGuidInfo>;
+
   TfrmEventLogViewer = class(TForm)
     btnClose: TButton;
     pnlTreeView: TPanel;
@@ -39,8 +41,8 @@ type
     FConfig: TEventLogViewConfig;
     FVirtualTree: TVirtualStringTree;
     FStorage: IEventLogStorage;
-    FEvents: TArray<TEventLogItem>;
-    FGuidInfo: TDictionary<TGUID, TGuidInfo>;
+    FEvents: TEventLogItemArray;
+    FGuidInfo: TGuidInfoDictionary;
     procedure PrepareGuidInfo;
     function GetItemIndex(const ANode: PVirtualNode): Int64; inline;
     procedure UpdateFormCaption(const ANode: PVirtualNode);
@@ -78,7 +80,7 @@ begin
   inherited Create(AOwner);
   FStorage := AStorage;
 
-  FGuidInfo := TDictionary<TGUID, TGuidInfo>.Create;
+  FGuidInfo := TGuidInfoDictionary.Create(32);
   PrepareGuidInfo;
 end;
 
@@ -97,7 +99,7 @@ var
 
 begin
   // Google Earth Desktop
-  VGroupName := 'GE Desktop';
+  VGroupName := 'Desktop';
   _Add(cGoogleEarthDesktopEathGUID, 'Earth');
   _Add(cGoogleEarthDesktopHistoryGUID, 'History');
   _Add(cGoogleEarthDesktopSkyGUID, 'Sky');
@@ -106,17 +108,17 @@ begin
   _Add(cGoogleEarthDesktopClientGUID, 'Client');
 
   // Google Earth Web
-  VGroupName := 'GE Web';
+  VGroupName := 'Web';
   _Add(cGoogleEarthWebEarthGUID, 'Earth');
   _Add(cGoogleEarthWebClientGUID, 'Client');
 
   // Google Maps Classic
-  VGroupName := 'GM Classic';
+  VGroupName := 'Maps Classic';
   _Add(cGoogleMapsClassicEarthGUID, 'Earth');
   _Add(cGoogleMapsClassicJSAPIGUID, 'JS API');
 
   // Google Maps
-  VGroupName := 'GM';
+  VGroupName := 'Maps';
   _Add(cGoogleMapsEarthGUID, 'Earth');
   _Add(cGoogleMapsMarsGUID, 'Mars');
   _Add(cGoogleMapsMoonGUID, 'Moon');

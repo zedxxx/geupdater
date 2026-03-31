@@ -7,10 +7,13 @@ uses
   System.Generics.Collections;
 
 type
+  TDictionaryById = TDictionary<Int64, TGUID>;
+  TDictionaryByGuid = TDictionary<TGUID, Int64>;
+
   TGuidDictionary = class
   private
-    FById: TDictionary<Int64, TGUID>;
-    FByGuid: TDictionary<TGUID, Int64>;
+    FById: TDictionaryById;
+    FByGuid: TDictionaryByGuid;
   public
     procedure Add(const AGuid: TGUID; const AId: Int64);
     function TryGetIdByGuid(const AGuid: TGUID; out AId: Int64): Boolean; inline;
@@ -29,8 +32,8 @@ implementation
 constructor TGuidDictionary.Create(ACapacity: Integer);
 begin
   inherited Create;
-  FById := TDictionary<Int64, TGUID>.Create(ACapacity);
-  FByGuid := TDictionary<TGUID, Int64>.Create(ACapacity);
+  FById := TDictionaryById.Create(ACapacity);
+  FByGuid := TDictionaryByGuid.Create(ACapacity);
 end;
 
 destructor TGuidDictionary.Destroy;
