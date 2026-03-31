@@ -71,10 +71,10 @@
         <Icon_MainIcon>$(BDS)\bin\delphi_PROJECTICON.ico</Icon_MainIcon>
         <SanitizedProjectName>GEUpdateChecker</SanitizedProjectName>
         <VerInfo_Locale>1033</VerInfo_Locale>
-        <VerInfo_Keys>CompanyName=zed;FileDescription=$(MSBuildProjectName);FileVersion=2022.5.26.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProgramID=$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
-        <VerInfo_MajorVer>2022</VerInfo_MajorVer>
-        <VerInfo_MinorVer>5</VerInfo_MinorVer>
-        <VerInfo_Release>26</VerInfo_Release>
+        <VerInfo_Keys>CompanyName=zed;FileDescription=$(MSBuildProjectName);FileVersion=2026.3.31.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProgramID=$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
+        <VerInfo_MajorVer>2026</VerInfo_MajorVer>
+        <VerInfo_MinorVer>3</VerInfo_MinorVer>
+        <VerInfo_Release>31</VerInfo_Release>
         <DCC_UnitSearchPath>lib/ProtoBufGenerator;lib/ZeosLib;lib/ZeosLib/core;lib/ZeosLib/component;lib/ZeosLib/dbc;lib/ZeosLib/parsesql;lib/ZeosLib/plain;lib/VirtualTreeView;lib/Synopse;lib;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
     </PropertyGroup>
