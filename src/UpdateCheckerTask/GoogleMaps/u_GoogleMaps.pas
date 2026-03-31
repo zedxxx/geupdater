@@ -43,10 +43,10 @@ uses
   Classes,
   SysUtils,
   RegularExpressions,
-  c_UserAgent,
   c_UpdateCheckerTask,
   i_DownloadRequest,
   i_DownloadResponse,
+  u_UserAgentInfo,
   u_PlanetoidMetadata;
 
 const
@@ -93,7 +93,7 @@ end;
 function TGoogleMaps.GetHeaders: string;
 begin
   Result :=
-    'User-Agent: ' + cGoogleChromeUserAgent + #13#10 +
+    'User-Agent: ' + GUserAgentInfo.GetChromeUserAgent + #13#10 +
     'Accept: text/html, */*' + #13#10 +
     'Accept-Language: en-us,en,*';
 end;

@@ -51,21 +51,23 @@ uses
   SysUtils,
   ZLib,
   dbroot_lite,
-  c_UserAgent,
   c_UpdateCheckerTask,
   i_DownloadRequest,
   i_DownloadResponse,
+  u_UserAgentInfo,
   u_DateTimeUtils;
 
 const
+  cClientVersionTmpl = '{client_version_tmpl}';
+
   cParams =
     'hl=en-US&gl=us' +
     {$IFDEF USE_PROTO}
-    '&output=proto'
+    '&output=proto' +
     {$ELSE}
-    ''
-    {$ENDIF} +
-    '&cv=' + cGoogleEarthClientVersion +
+    '' +
+    {$ENDIF}
+    '&cv=' + cClientVersionTmpl +
     '&ct=pro';
 
   cTaskConf: array [TGoogleEarthDesktopCheckType] of TTaskConf = (
@@ -115,6 +117,9 @@ end;
 function TGoogleEarthDesktop.GetConf: TTaskConf;
 begin
   Result := cTaskConf[FCheckType];
+
+  Result.RequestUrl := StringReplace(Result.RequestUrl, cClientVersionTmpl,
+    GUserAgentInfo.GetDesktopClientVersion, [rfReplaceAll]);
 end;
 
 function TGoogleEarthDesktop.GetHeaders: string;
@@ -123,7 +128,7 @@ var
 begin
   if IsClientCheck then begin
     Result :=
-      'User-Agent: ' + cGoogleChromeUserAgent + #13#10 +
+      'User-Agent: ' + GUserAgentInfo.GetChromeUserAgent + #13#10 +
       'Accept: */*' + #13#10 +
       'Accept-Language: en-us,en,*';
   end else begin
@@ -134,7 +139,7 @@ begin
       VIfModifiedSince := '';
     end;
     Result :=
-      'User-Agent: ' + cGoogleEarthClientUserAgent + #13#10 +
+      'User-Agent: ' + GUserAgentInfo.GetDesktopClientUserAgent + #13#10 +
       VIfModifiedSince +
       'Accept: application/vnd.google-earth.kml+xml, application/vnd.google-earth.kmz, image/*, */*' + #13#10 +
       'Accept-Language: en-us,en,*' + #13#10 +

@@ -74,6 +74,7 @@ uses
   u_GoogleMaps,
   u_GoogleEarthWeb,
   u_GoogleEarthDesktop,
+  u_UserAgentInfo,
   u_EventLogStorage;
 
 {$R *.dfm}
@@ -143,6 +144,8 @@ var
   VTask: IUpdateCheckerTask;
   VListener: ITaskInfoListener;
 begin
+  GUserAgentInfo.DoReadConfig;
+
   VDownloaderFactory := TDownloaderFactory.Create(dftHttpClient);
 
   // GoogleEarth Desktop

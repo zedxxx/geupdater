@@ -4,7 +4,7 @@ uses
   Winapi.Windows,
   System.SysUtils,
   Vcl.Forms,
-  c_UserAgent in 'src\c_UserAgent.pas',
+  u_UserAgentInfo in 'src\u_UserAgentInfo.pas',
   frm_About in 'src\frm_About.pas' {frmAbout},
   frm_Main in 'src\frm_Main.pas' {frmMain},
   u_DateTimeUtils in 'src\u_DateTimeUtils.pas',

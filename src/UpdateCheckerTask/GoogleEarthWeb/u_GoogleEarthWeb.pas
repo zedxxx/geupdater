@@ -39,12 +39,12 @@ uses
   Classes,
   SysUtils,
   RegularExpressions,
-  c_UserAgent,
   c_UpdateCheckerTask,
   i_DownloadRequest,
   i_DownloadResponse,
   u_DateTimeUtils,
   u_DownloadRequest,
+  u_UserAgentInfo,
   u_PlanetoidMetadata;
 
 const
@@ -92,7 +92,7 @@ begin
   end;
 
   Result :=
-    'User-Agent: ' + cGoogleChromeUserAgent + #13#10 +
+    'User-Agent: ' + GUserAgentInfo.GetChromeUserAgent + #13#10 +
     VIfModifiedSince +
     'Accept: */*' + #13#10 +
     'Accept-Language: en-us,en,*';

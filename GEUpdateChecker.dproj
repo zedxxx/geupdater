@@ -125,7 +125,7 @@
         <DelphiCompile Include="$(MainSource)">
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
-        <DCCReference Include="src\c_UserAgent.pas"/>
+        <DCCReference Include="src\u_UserAgentInfo.pas"/>
         <DCCReference Include="src\frm_About.pas">
             <Form>frmAbout</Form>
         </DCCReference>
