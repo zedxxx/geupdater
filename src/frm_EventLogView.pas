@@ -17,6 +17,7 @@ uses
   Vcl.ExtCtrls,
   Vcl.StdCtrls,
   VirtualTrees,
+  VirtualTrees.Types,
   t_EventLog,
   i_EventLogStorage,
   u_EventLogViewConfig;
@@ -476,8 +477,10 @@ end;
 procedure TfrmEventLogViewer.OnVTFocusChanged(Sender: TBaseVirtualTree;
   Node: PVirtualNode; Column: TColumnIndex);
 begin
-  UpdateFormCaption(Node);
-  FVirtualTree.Refresh;
+  if Node <> nil then begin
+    UpdateFormCaption(Node);
+    FVirtualTree.Refresh;
+  end;
 end;
 
 end.

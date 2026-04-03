@@ -1,4 +1,4 @@
-unit VirtualTrees.Classes;
+﻿unit VirtualTrees.Classes;
 
 // The contents of this file are subject to the Mozilla Public License
 // Version 1.1 (the "License"); you may not use this file except in compliance
@@ -63,18 +63,6 @@ type
     property AsString: string read GetAsString;
   end;
 
-  TCriticalSection = class(TObject)
-  protected
-    FSection: TRTLCriticalSection;
-  public
-    constructor Create;
-    destructor Destroy; override;
-
-    procedure Enter;
-    procedure Leave;
-  end;
-
-
 
 implementation
 
@@ -120,8 +108,8 @@ begin
     FPosition := FStart + LastOffset;
     FEnd := FStart + NewLen;
   end;
-  Move(PAnsiChar(S)^, FPosition^, Len);
-  Inc(FPosition, Len);
+  System.Move(PAnsiChar(S)^, FPosition^, Len);
+  System.Inc(FPosition, Len);
 end;
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -145,9 +133,9 @@ begin
     FEnd := FStart + NewLen;
   end;
   FPosition^ := #13;
-  Inc(FPosition);
+  System.Inc(FPosition);
   FPosition^ := #10;
-  Inc(FPosition);
+  System.Inc(FPosition);
 end;
 
 //----------------- TBufferedString --------------------------------------------------------------------------------
@@ -191,8 +179,8 @@ begin
     FPosition := FStart + LastOffset;
     FEnd := FStart + NewLen;
   end;
-  Move(PWideChar(S)^, FPosition^, 2 * Len);
-  Inc(FPosition, Len);
+  System.Move(PWideChar(S)^, FPosition^, 2 * Len);
+  System.Inc(FPosition, Len);
 end;
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -216,44 +204,9 @@ begin
     FEnd := FStart + NewLen;
   end;
   FPosition^ := #13;
-  Inc(FPosition);
+  System.Inc(FPosition);
   FPosition^ := #10;
-  Inc(FPosition);
-end;
-
-//----------------- TCriticalSection -----------------------------------------------------------------------------------
-
-constructor TCriticalSection.Create;
-
-begin
-  inherited Create;
-  InitializeCriticalSection(FSection);
-end;
-
-//----------------------------------------------------------------------------------------------------------------------
-
-destructor TCriticalSection.Destroy;
-
-begin
-  DeleteCriticalSection(FSection);
-
-  inherited Destroy;
-end;
-
-//----------------------------------------------------------------------------------------------------------------------
-
-procedure TCriticalSection.Enter;
-
-begin
-  EnterCriticalSection(FSection);
-end;
-
-//----------------------------------------------------------------------------------------------------------------------
-
-procedure TCriticalSection.Leave;
-
-begin
-  LeaveCriticalSection(FSection);
+  System.Inc(FPosition);
 end;
 
 

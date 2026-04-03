@@ -1,4 +1,4 @@
-unit VirtualTrees.Export;
+﻿unit VirtualTrees.Export;
 
 {$WARN UNSAFE_CODE OFF}
 {$WARN IMPLICIT_STRING_CAST OFF}
@@ -6,9 +6,9 @@ unit VirtualTrees.Export;
 
 interface
 
-uses Winapi.Windows, System.SysUtils, Vcl.Graphics, System.Classes, Vcl.Forms,
-     Vcl.Controls, System.StrUtils, System.Generics.Collections,
-     VirtualTrees, VirtualTrees.Classes;
+uses Winapi.Windows,
+     VirtualTrees,
+     VirtualTrees.Classes;
 
 function ContentToHTML(Tree: TCustomVirtualStringTree; Source: TVSTTextSourceType; const Caption: string = ''): String;
 function ContentToRTF(Tree: TCustomVirtualStringTree; Source: TVSTTextSourceType): RawByteString;
@@ -19,7 +19,18 @@ procedure ContentToCustom(Tree: TCustomVirtualStringTree; Source: TVSTTextSource
 implementation
 
 uses
-  UITypes;
+  System.Classes,
+  System.SysUtils,
+  System.StrUtils,
+  System.Generics.Collections,
+  System.UITypes,
+  Vcl.Graphics,
+  Vcl.Controls,
+  Vcl.Forms,
+  VirtualTrees.Types,
+  VirtualTrees.ClipBoard,
+  VirtualTrees.Header,
+  VirtualTrees.BaseTree;
 
 type
   TCustomVirtualStringTreeCracker = class(TCustomVirtualStringTree)
@@ -30,7 +41,8 @@ const
   WideLF = Char(#10);
 
 
-function ContentToHTML(Tree: TCustomVirtualStringTree; Source: TVSTTextSourceType; const Caption: string): String;
+
+function ContentToHTML(Tree: TCustomVirtualStringTree; Source: TVSTTextSourceType; const Caption: string): String;
 
 // Renders the current tree content (depending on Source) as HTML text encoded in UTF-8.
 // If Caption is not empty then it is used to create and fill the header for the table built here.
@@ -59,15 +71,15 @@ var
 
       Value := 48 + (Component shr 4);
       if Value > $39 then
-        Inc(Value, 7);
+        System.Inc(Value, 7);
       Buffer.Add(AnsiChar(Value));
-      Inc(I);
+      System.Inc(I);
 
       Value := 48 + (Component and $F);
       if Value > $39 then
-        Inc(Value, 7);
+        System.Inc(Value, 7);
       Buffer.Add(AnsiChar(Value));
-      Inc(I);
+      System.Inc(I);
 
       WinColor := WinColor shr 8;
     end;
@@ -82,7 +94,7 @@ var
 
   begin
     if Length(Name) = 0 then
-      Buffer.Add(' style="{')
+      Buffer.Add(' style="')
     else
     begin
       Buffer.Add('.');
@@ -96,15 +108,17 @@ var
     else
       Buffer.Add(Format('font-size: %dpt; ', [Font.Size]));
 
-    Buffer.Add(Format('font-style: %s; ', [IfThen(fsItalic in Font.Style, 'italic', 'normal')]));
-    Buffer.Add(Format('font-weight: %s; ', [IfThen(fsBold in Font.Style, 'bold', 'normal')]));
-    Buffer.Add(Format('text-decoration: %s; ', [IfThen(fsUnderline in Font.Style, 'underline', 'none')]));
+    Buffer.Add(Format('font-style: %s; ', [IfThen(TFontStyle.fsItalic in Font.Style, 'italic', 'normal')]));
+    Buffer.Add(Format('font-weight: %s; ', [IfThen(TFontStyle.fsBold in Font.Style, 'bold', 'normal')]));
+    Buffer.Add(Format('text-decoration: %s; ', [IfThen(TFontStyle.fsUnderline in Font.Style, 'underline', 'none')]));
 
     Buffer.Add('color: ');
     WriteColorAsHex(Font.Color);
-    Buffer.Add(';}');
+    Buffer.Add(';');
     if Length(Name) = 0 then
-      Buffer.Add('"');
+      Buffer.Add('"')
+    else
+      Buffer.Add('}');
   end;
 
   //--------------- end local functions ---------------------------------------
@@ -145,7 +159,7 @@ begin
     // Add title if adviced so by giving a caption.
     if Length(Caption) > 0 then
       AddHeader := AddHeader + 'caption="' + Caption + '"';
-    if CrackTree.Borderstyle <> bsNone then
+    if CrackTree.Borderstyle <> TFormBorderStyle.bsNone then
       AddHeader := AddHeader + Format(' border="%d" frame=box', [CrackTree.BorderWidth + 1]);
 
     Buffer.Add('<META http-equiv="Content-Type" content="text/html; charset=utf-8">');
@@ -298,11 +312,13 @@ begin
     Run := Save;
     while Assigned(Run) and not CrackTree.OperationCanceled do
     begin
-      if ((not CrackTree.CanExportNode(Run)) or (Assigned(CrackTree.OnBeforeNodeExport) and (not CrackTree.OnBeforeNodeExport(CrackTree, etHTML, Run)))) then
+      if (not CrackTree.CanExportNode(Run)) then
       begin
         Run := GetNextNode(Run);
         Continue;
       end;
+      if Assigned(CrackTree.OnBeforeNodeExport) then
+        CrackTree.OnBeforeNodeExport(CrackTree, etHTML, Run);
       Level := CrackTree.GetNodeLevel(Run);
       Buffer.Add(' <tr class="default">');
       Buffer.AddNewLine;
@@ -422,7 +438,7 @@ begin
 
         if not RenderColumns then
           Break;
-        Inc(I);
+        System.Inc(I);
       end;
       if Assigned(CrackTree.OnAfterNodeExport) then
         CrackTree.OnAfterNodeExport(CrackTree, etHTML, Run);
@@ -523,13 +539,13 @@ var
   begin
     if Length(Text) > 0 then
     begin
-      UseUnderline := fsUnderline in Font.Style;
+      UseUnderline := TFontStyle.fsUnderline in Font.Style;
       if UseUnderline then
         Buffer.Add('\ul');
-      UseItalic := fsItalic in Font.Style;
+      UseItalic := TFontStyle.fsItalic in Font.Style;
       if UseItalic then
         Buffer.Add('\i');
-      UseBold := fsBold in Font.Style;
+      UseBold := TFontStyle.fsBold in Font.Style;
       if UseBold then
         Buffer.Add('\b');
       SelectFont(Font.Name);
@@ -618,7 +634,7 @@ begin
     begin
       for I := 0 to High(Columns) do
       begin
-        Inc(J, Columns[I].Width);
+        System.Inc(J, Columns[I].Width);
         // This value must be expressed in twips (1 inch = 1440 twips).
         Twips := Round(1440 * J / Screen.PixelsPerInch);
         Buffer.Add('\cellx');
@@ -671,12 +687,13 @@ begin
     Run := Save;
     while Assigned(Run) and not CrackTree.OperationCanceled do
     begin
-      if ((not CrackTree.CanExportNode(Run)) or
-         (Assigned(CrackTree.OnBeforeNodeExport) and (not CrackTree.OnBeforeNodeExport(CrackTree, etRTF, Run)))) then
+      if (not CrackTree.CanExportNode(Run)) then
       begin
         Run := GetNextNode(Run);
         Continue;
       end;
+      if Assigned(CrackTree.OnBeforeNodeExport) then
+        CrackTree.OnBeforeNodeExport(CrackTree, etRTF, Run);
       I := 0;
       while not RenderColumns or (I < Length(Columns)) do
       begin
@@ -712,7 +729,7 @@ begin
           end;
 
           // Call back the application to know about font customization.
-          CrackTree.Canvas.Font := CrackTree.Font;
+          CrackTree.Canvas.Font.Assign(CrackTree.Font);
           CrackTree.FFontChanged := False;
           CrackTree.DoPaintText(Run, CrackTree.Canvas, Index, ttNormal);
 
@@ -751,7 +768,7 @@ begin
 
         if not RenderColumns then
           Break;
-        Inc(I);
+        System.Inc(I);
       end;
       Buffer.Add('\row');
       Buffer.AddNewLine;
@@ -792,7 +809,8 @@ begin
   end;
 end;
 
-function ContentToUnicodeString(Tree: TCustomVirtualStringTree; Source: TVSTTextSourceType; const Separator: string): string;
+
+function ContentToUnicodeString(Tree: TCustomVirtualStringTree; Source: TVSTTextSourceType; const Separator: string): string;
 
 // Renders the current tree content (depending on Source) as Unicode text.
 // If an entry contains the separator char then it is wrapped with double quotation marks.
