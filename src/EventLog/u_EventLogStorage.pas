@@ -24,6 +24,7 @@ type
   private
     { IEventLogStorage }
     procedure AddItem(const AItem: TEventLogItem);
+    procedure UpdateItem(const AItem: TEventLogItem);
     procedure DeleteItem(const AItemID: Int64);
     function FindLast(const AGuid: TGUID; out AItem: TEventLogItem): Boolean;
     function FetchAll: TEventLogItemArray;
@@ -96,7 +97,7 @@ begin
       'TimeStamp     INTEGER,' +
       'LastModified  INTEGER,' +
       'Version       TEXT,' +
-      'FOREIGN KEY (GuidID) REFERENCES ' + cGuidsTableName + '(ID)'+
+      'FOREIGN KEY (GuidID) REFERENCES ' + cGuidsTableName + '(ID)' +
       ')'
     );
   end;
@@ -219,6 +220,45 @@ begin
   end;
 end;
 
+procedure TEventLogStorageBySQLite.UpdateItem(const AItem: TEventLogItem);
+var
+  VQuery: TZQuery;
+begin
+  FLock.Acquire;
+  try
+    FConnection.StartTransaction;
+    try
+      VQuery := TZQuery.Create(nil);
+      try
+        VQuery.Connection := FConnection;
+
+        VQuery.SQL.Text :=
+          'UPDATE ' + cEventsTableName + ' ' +
+          'SET Version = :version' + ' ' +
+          'WHERE ID = :id';
+
+        VQuery.ParamByName('id').AsLargeInt := AItem.ID;
+        VQuery.ParamByName('version').AsAnsiString := UTF8Encode(AItem.Version);
+
+        VQuery.ExecSQL;
+
+        if VQuery.RowsAffected <> 1 then begin
+          raise Exception.CreateFmt('Failed to update item with ID = %d in %s', [AItem.ID, cEventsTableName]);
+        end;
+      finally
+        VQuery.Free;
+      end;
+
+      FConnection.Commit;
+    except
+      FConnection.Rollback;
+      raise;
+    end;
+  finally
+    FLock.Release;
+  end;
+end;
+
 procedure TEventLogStorageBySQLite.DeleteItem(const AItemID: Int64);
 var
   VQuery: TZQuery;
@@ -239,7 +279,7 @@ begin
         VQuery.ExecSQL;
 
         if VQuery.RowsAffected <> 1 then begin
-          raise Exception.CreateFmt('Failed delete item with ID = %d from %s', [AItemID, cEventsTableName]);
+          raise Exception.CreateFmt('Failed to delete item with ID = %d from %s', [AItemID, cEventsTableName]);
         end;
       finally
         VQuery.Free;
