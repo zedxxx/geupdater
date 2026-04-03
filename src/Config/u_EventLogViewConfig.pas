@@ -57,8 +57,6 @@ procedure TEventLogViewConfig.DoReadConfig(const AIni: TMemIniFile);
 var
   I: Integer;
 begin
-  Assert(AIni <> nil);
-
   FBounds := Bounds(
     AIni.ReadInteger(cSectionName, 'Left', FBounds.Left),
     AIni.ReadInteger(cSectionName, 'Top', FBounds.Top),
@@ -79,8 +77,6 @@ procedure TEventLogViewConfig.DoWriteConfig(const AIni: TMemIniFile);
 var
   I: Integer;
 begin
-  Assert(AIni <> nil);
-
   AIni.WriteInteger(cSectionName, 'Left', FBounds.Left);
   AIni.WriteInteger(cSectionName, 'Top', FBounds.Top);
   AIni.WriteInteger(cSectionName, 'Width', FBounds.Right - FBounds.Left);

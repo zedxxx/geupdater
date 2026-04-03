@@ -16,7 +16,8 @@ type
     FForceUpdateCheck: Boolean;
     FUserAgentConfig: IUserAgentConfig;
     FEventLogViewConfig: IEventLogViewConfig;
-  public
+  private
+    { IAppConfig }
     procedure DoReadConfig;
     procedure DoWriteConfig;
 
@@ -28,8 +29,10 @@ type
     function GetUserAgentConfig: IUserAgentConfig;
     function GetEventLogViewConfig: IEventLogViewConfig;
   public
+    class function GetIniFileName: string;
+    class function GetForceUpdateCmdLineFlag: Boolean;
+  public
     constructor Create;
-    destructor Destroy; override;
   end;
 
 implementation
@@ -37,6 +40,7 @@ implementation
 uses
   System.SysUtils,
   System.IniFiles,
+  Winapi.Windows,
   u_UserAgentConfig,
   u_EventLogViewConfig;
 
@@ -46,21 +50,33 @@ constructor TAppConfig.Create;
 begin
   inherited Create;
 
-  FShowPrevInfoOnly := False;
-  FForceUpdateCheck := False; // todo
+  FIniFileName := Self.GetIniFileName;
 
-  FIniFileName :=
-    ExtractFilePath(ParamStr(0)) +
-    ChangeFileExt(ExtractFileName(ParamStr(0)), '.ini');
+  FShowPrevInfoOnly := False;
+  FForceUpdateCheck := Self.GetForceUpdateCmdLineFlag;
 
   FUserAgentConfig := TUserAgentConfig.Create;
   FEventLogViewConfig := TEventLogViewConfig.Create;
 end;
 
-destructor TAppConfig.Destroy;
+class function TAppConfig.GetIniFileName: string;
 begin
+  Result :=
+    ExtractFilePath(ParamStr(0)) +
+    ChangeFileExt(ExtractFileName(ParamStr(0)), '.ini');
+end;
 
-  inherited;
+class function TAppConfig.GetForceUpdateCmdLineFlag: Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  for I := 1 to ParamCount do begin
+    if SameText(ParamStr(I), '--force-update') then begin
+      Result := True;
+      Exit;
+    end;
+  end;
 end;
 
 procedure TAppConfig.DoReadConfig;
