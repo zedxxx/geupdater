@@ -29,7 +29,7 @@ type
     procedure DoExecute; virtual; abstract;
   private
     { IUpdateCheckerTask }
-    procedure Execute;
+    procedure Execute(const AShowPrevInfoOnly: Boolean);
   public
     constructor Create(
       const ADownloader: IDownloader;
@@ -79,11 +79,21 @@ begin
   Result := TDownloadRequest.Create(FInfo.Conf.RequestUrl, GetHeaders);
 end;
 
-procedure TUpdateCheckerTaskBase.Execute;
+procedure TUpdateCheckerTaskBase.Execute(const AShowPrevInfoOnly: Boolean);
 var
   VItem: TEventLogItem;
   VTimeStamp: TDateTime;
 begin
+  if AShowPrevInfoOnly then begin
+    FInfo.State := tsFinished;
+    if FPrevInfoExists then begin
+      FInfo.Version := FPrevInfo.Version;
+      FInfo.TimeStamp := FPrevInfo.TimeStamp;
+    end;
+    UpdateListener;
+    Exit;
+  end;
+
   FInfo.State := tsInProgress;
   UpdateListener;
   try

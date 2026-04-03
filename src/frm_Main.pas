@@ -79,11 +79,11 @@ uses
 
 {$R *.dfm}
 
-function MakeTask(const ACheckerTask: IUpdateCheckerTask): ITask;
+function MakeTask(const ACheckerTask: IUpdateCheckerTask; const AShowPrevInfoOnly: Boolean): ITask;
 begin
   Result := TTask.Create(procedure ()
     begin
-      ACheckerTask.Execute;
+      ACheckerTask.Execute(AShowPrevInfoOnly);
     end
   );
 end;
@@ -143,8 +143,11 @@ var
   VDownloaderFactory: IDownloaderFactory;
   VTask: IUpdateCheckerTask;
   VListener: ITaskInfoListener;
+  VShowPrevInfoOnly: Boolean;
 begin
   GUserAgentInfo.DoReadConfig;
+
+  VShowPrevInfoOnly := {$IFDEF DEBUG} True {$ELSE} False {$ENDIF}; // ToDo: read value from config
 
   VDownloaderFactory := TDownloaderFactory.Create;
 
@@ -159,7 +162,7 @@ begin
       FEventLog,
       TArray<ITaskInfoListener>.Create(VListener)
     );
-    FCheckerTasks.Add( MakeTask(VTask) );
+    FCheckerTasks.Add( MakeTask(VTask, VShowPrevInfoOnly) );
   end;
 
   VDownloader := VDownloaderFactory.BuildDownloaderWithCache;
@@ -175,7 +178,7 @@ begin
       FEventLog,
       TArray<ITaskInfoListener>.Create(VListener)
     );
-    FCheckerTasks.Add( MakeTask(VTask) );
+    FCheckerTasks.Add( MakeTask(VTask, VShowPrevInfoOnly) );
   end;
 
   // GoogleMaps
@@ -194,7 +197,7 @@ begin
       FEventLog,
       TArray<ITaskInfoListener>.Create(VListener)
     );
-    FCheckerTasks.Add( MakeTask(VTask) );
+    FCheckerTasks.Add( MakeTask(VTask, VShowPrevInfoOnly) );
   end;
 
   // GoogleMaps Classic
@@ -210,7 +213,7 @@ begin
       FEventLog,
       TArray<ITaskInfoListener>.Create(VListener)
     );
-    FCheckerTasks.Add( MakeTask(VTask) );
+    FCheckerTasks.Add( MakeTask(VTask, VShowPrevInfoOnly) );
   end;
 end;
 

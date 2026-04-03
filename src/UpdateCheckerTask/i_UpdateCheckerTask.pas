@@ -5,7 +5,7 @@ interface
 type
   IUpdateCheckerTask = interface
     ['{B23C2268-3E51-44B1-AA39-197EED49A13E}']
-    procedure Execute;
+    procedure Execute(const AShowPrevInfoOnly: Boolean);
   end;
 
 implementation
