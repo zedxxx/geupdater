@@ -158,7 +158,6 @@
         <DCCReference Include="src\frm_EventLogView.pas">
             <Form>frmEventLogViewer</Form>
         </DCCReference>
-        <DCCReference Include="src\u_EventLogViewConfig.pas"/>
         <DCCReference Include="src\UpdateCheckerTask\c_UpdateCheckerTask.pas"/>
         <DCCReference Include="src\fr_TaskInfo.pas">
             <Form>frTaskInfo</Form>
@@ -168,15 +167,20 @@
         <DCCReference Include="src\Downloader\i_DownloadRequest.pas"/>
         <DCCReference Include="src\EventLog\u_GuidDictionary.pas"/>
         <DCCReference Include="src\Downloader\u_ContentDecoder.pas"/>
-        <BuildConfiguration Include="Release">
-            <Key>Cfg_2</Key>
-            <CfgParent>Base</CfgParent>
-        </BuildConfiguration>
+        <DCCReference Include="src\Config\u_AppConfig.pas"/>
+        <DCCReference Include="src\Config\i_AppConfig.pas"/>
+        <DCCReference Include="src\Config\u_EventLogViewConfig.pas"/>
+        <DCCReference Include="src\Config\i_EventLogViewConfig.pas"/>
+        <DCCReference Include="src\Config\i_ConfigBase.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
         <BuildConfiguration Include="Debug">
             <Key>Cfg_1</Key>
+            <CfgParent>Base</CfgParent>
+        </BuildConfiguration>
+        <BuildConfiguration Include="Release">
+            <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>
         </BuildConfiguration>
     </ItemGroup>

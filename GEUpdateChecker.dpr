@@ -31,13 +31,17 @@ uses
   t_EventLog in 'src\EventLog\t_EventLog.pas',
   u_EventLogStorage in 'src\EventLog\u_EventLogStorage.pas',
   frm_EventLogView in 'src\frm_EventLogView.pas' {frmEventLogViewer},
-  u_EventLogViewConfig in 'src\u_EventLogViewConfig.pas',
   c_UpdateCheckerTask in 'src\UpdateCheckerTask\c_UpdateCheckerTask.pas',
   fr_TaskInfo in 'src\fr_TaskInfo.pas' {frTaskInfo: TFrame},
   u_DownloadRequest in 'src\Downloader\u_DownloadRequest.pas',
   i_DownloadRequest in 'src\Downloader\i_DownloadRequest.pas',
   u_GuidDictionary in 'src\EventLog\u_GuidDictionary.pas',
-  u_ContentDecoder in 'src\Downloader\u_ContentDecoder.pas';
+  u_ContentDecoder in 'src\Downloader\u_ContentDecoder.pas',
+  u_AppConfig in 'src\Config\u_AppConfig.pas',
+  i_AppConfig in 'src\Config\i_AppConfig.pas',
+  u_EventLogViewConfig in 'src\Config\u_EventLogViewConfig.pas',
+  i_EventLogViewConfig in 'src\Config\i_EventLogViewConfig.pas',
+  i_ConfigBase in 'src\Config\i_ConfigBase.pas';
 
 {$R *.res}
 
@@ -59,6 +63,10 @@ const
 var
   VLibPath: string;
 begin
+  {$IFDEF DEBUG}
+  ReportMemoryLeaksOnShutdown := True;
+  {$ENDIF}
+
   if not TScheduler.AppCanStart then begin
     Exit;
   end;

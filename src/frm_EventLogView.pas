@@ -20,7 +20,7 @@ uses
   VirtualTrees.Types,
   t_EventLog,
   i_EventLogStorage,
-  u_EventLogViewConfig;
+  i_EventLogViewConfig;
 
 type
   TGuidInfo = record
@@ -39,7 +39,7 @@ type
     procedure FormDestroy(Sender: TObject);
     procedure FormShow(Sender: TObject);
   private
-    FConfig: TEventLogViewConfig;
+    FConfig: IEventLogViewConfig;
     FVirtualTree: TVirtualStringTree;
     FStorage: IEventLogStorage;
     FEvents: TEventLogItemArray;
@@ -59,6 +59,7 @@ type
   public
     constructor Create(
       const AOwner: TComponent;
+      const AConfig: IEventLogViewConfig;
       const AStorage: IEventLogStorage
     ); reintroduce;
   end;
@@ -75,10 +76,13 @@ uses
 
 constructor TfrmEventLogViewer.Create(
   const AOwner: TComponent;
+  const AConfig: IEventLogViewConfig;
   const AStorage: IEventLogStorage
 );
 begin
   inherited Create(AOwner);
+
+  FConfig := AConfig;
   FStorage := AStorage;
 
   FGuidInfo := TGuidInfoDictionary.Create(32);
@@ -126,15 +130,45 @@ begin
 end;
 
 procedure TfrmEventLogViewer.FormCreate(Sender: TObject);
+
+  procedure ReadTreeColumnsState(var ADef: TTreeColumnsState);
+  var
+    I: Integer;
+    VState: TTreeColumnsState;
+  begin
+    VState := FConfig.TreeColumnsState;
+
+    if Length(VState) <> Length(ADef) then begin
+      Assert(False);
+      Exit;
+    end;
+
+    for I := 0 to Length(ADef) - 1 do begin
+      if VState[I].Size >= 0 then
+        ADef[I].Size := VState[I].Size;
+
+      if VState[I].Position >= 0 then
+        ADef[I].Position := VState[I].Position;
+    end;
+  end;
+
+  procedure ReadBoundsRect;
+  var
+    VBounds: TRect;
+  begin
+    VBounds := FConfig.Bounds;
+
+    if not IsRectEmpty(VBounds) then begin
+      Self.BoundsRect := VBounds;
+    end;
+  end;
+
 var
   I: Integer;
   VTreeColumnsState: TTreeColumnsState;
   VTreeShowOpt: TTreeShowOptRec;
 begin
   // Init with default values
-  VTreeShowOpt.SortColumn := 0;
-  VTreeShowOpt.SortDirection := 1;
-
   SetLength(VTreeColumnsState, 5);
 
   VTreeColumnsState[0].Name := 'Num';
@@ -158,15 +192,10 @@ begin
   VTreeColumnsState[4].Size := 150;
   VTreeColumnsState[4].Position := 4;
 
-  // create and load config
-  FConfig :=
-    TEventLogViewConfig.Create(
-      Self.BoundsRect,
-      VTreeColumnsState,
-      VTreeShowOpt
-    );
-
-  Self.BoundsRect := FConfig.GetBoundsRect;
+  // read config
+  ReadBoundsRect;
+  ReadTreeColumnsState(VTreeColumnsState);
+  VTreeShowOpt := FConfig.TreeShowOpt;
 
   // create and init tree view
   FVirtualTree := TVirtualStringTree.Create(nil);
@@ -218,8 +247,6 @@ begin
       hoVisible
     ];
 
-    VTreeColumnsState := FConfig.TreeColumnsState;
-
     for I := 0 to Length(VTreeColumnsState) - 1 do begin
       with Header.Columns.Add do begin
         Text := VTreeColumnsState[I].Name;
@@ -252,36 +279,40 @@ begin
     end;
     Header.AutoSizeIndex := 0;
 
-    VTreeShowOpt := FConfig.TreeShowOpt;
     Header.SortColumn := VTreeShowOpt.SortColumn;
     Header.SortDirection := TSortDirection(VTreeShowOpt.SortDirection);
   end;
 end;
 
 procedure TfrmEventLogViewer.FormDestroy(Sender: TObject);
-var
-  I: Integer;
-  VColumn: TVirtualTreeColumn;
-  VTreeColumnsState: TTreeColumnsState;
-  VTreeShowOptRec: TTreeShowOptRec;
-begin
-  FConfig.SetWindowPosition(Self.BoundsRect);
 
-  VTreeColumnsState := FConfig.TreeColumnsState;
-  if Length(VTreeColumnsState) = FVirtualTree.Header.Columns.Count then begin
-    for I := 0 to FVirtualTree.Header.Columns.Count - 1 do begin
-      VColumn := FVirtualTree.Header.Columns.Items[I];
-      VTreeColumnsState[I].Size := VColumn.Width;
-      VTreeColumnsState[I].Position := VColumn.Position;
+  procedure WriteConfig;
+  var
+    I: Integer;
+    VColumn: TVirtualTreeColumn;
+    VTreeColumnsState: TTreeColumnsState;
+    VTreeShowOptRec: TTreeShowOptRec;
+  begin
+    FConfig.Bounds := Self.BoundsRect;
+
+    VTreeColumnsState := FConfig.TreeColumnsState;
+    if Length(VTreeColumnsState) = FVirtualTree.Header.Columns.Count then begin
+      for I := 0 to FVirtualTree.Header.Columns.Count - 1 do begin
+        VColumn := FVirtualTree.Header.Columns.Items[I];
+        VTreeColumnsState[I].Size := VColumn.Width;
+        VTreeColumnsState[I].Position := VColumn.Position;
+      end;
+      FConfig.TreeColumnsState := VTreeColumnsState;
     end;
-    FConfig.TreeColumnsState := VTreeColumnsState;
+
+    VTreeShowOptRec.SortColumn := FVirtualTree.Header.SortColumn;
+    VTreeShowOptRec.SortDirection := Integer(FVirtualTree.Header.SortDirection);
+    FConfig.TreeShowOpt := VTreeShowOptRec;
   end;
 
-  VTreeShowOptRec.SortColumn := FVirtualTree.Header.SortColumn;
-  VTreeShowOptRec.SortDirection := Integer(FVirtualTree.Header.SortDirection);
-  FConfig.TreeShowOpt := VTreeShowOptRec;
+begin
+  WriteConfig;
 
-  FreeAndNil(FConfig);
   FreeAndNil(FGuidInfo);
 end;
 
@@ -420,8 +451,7 @@ begin
   end;
 end;
 
-procedure TfrmEventLogViewer.OnVTKeyDown(Sender: TObject; var Key: Word;
-  Shift: TShiftState);
+procedure TfrmEventLogViewer.OnVTKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
 var
   I: Int64;
   VNode: PVirtualNode;

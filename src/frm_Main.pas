@@ -17,9 +17,12 @@ uses
   Vcl.StdCtrls,
   Vcl.ExtCtrls,
   Vcl.ComCtrls,
+  i_AppConfig,
   i_UpdateCheckerTask,
   i_EventLogStorage,
-  i_TaskInfoListener;
+  i_TaskInfoListener,
+  frm_About,
+  frm_EventLogView;
 
 type
   TfrmMain = class(TForm)
@@ -51,10 +54,13 @@ type
     procedure FormShow(Sender: TObject);
     procedure btnTimeLineClick(Sender: TObject);
   private
+    FAppConfig: IAppConfig;
     FEventLog: IEventLogStorage;
     FListeners: TList<ITaskInfoListener>;
     FCheckerTasks: TList<ITask>;
-    procedure BuildTasks;
+    FfrmAbout: TfrmAbout;
+    FfrmTimeLineForm: TfrmEventLogViewer;
+    procedure BuildTasks(const AShowPrevInfoOnly: Boolean);
     procedure StartTasks;
   end;
 
@@ -64,17 +70,15 @@ var
 implementation
 
 uses
-  frm_About,
-  frm_EventLogView,
   t_TaskInfo,
   i_Downloader,
   i_DownloaderFactory,
+  u_AppConfig,
   u_TaskInfoListener,
   u_DownloaderFactory,
   u_GoogleMaps,
   u_GoogleEarthWeb,
   u_GoogleEarthDesktop,
-  u_UserAgentInfo,
   u_EventLogStorage;
 
 {$R *.dfm}
@@ -88,7 +92,7 @@ begin
   );
 end;
 
-procedure TfrmMain.BuildTasks;
+procedure TfrmMain.BuildTasks(const AShowPrevInfoOnly: Boolean);
 
   function _GetGEPanel(const AType: TGoogleEarthDesktopCheckType): TPanel;
   begin
@@ -143,12 +147,7 @@ var
   VDownloaderFactory: IDownloaderFactory;
   VTask: IUpdateCheckerTask;
   VListener: ITaskInfoListener;
-  VShowPrevInfoOnly: Boolean;
 begin
-  GUserAgentInfo.DoReadConfig;
-
-  VShowPrevInfoOnly := {$IFDEF DEBUG} True {$ELSE} False {$ENDIF}; // ToDo: read value from config
-
   VDownloaderFactory := TDownloaderFactory.Create;
 
   // GoogleEarth Desktop
@@ -162,7 +161,7 @@ begin
       FEventLog,
       TArray<ITaskInfoListener>.Create(VListener)
     );
-    FCheckerTasks.Add( MakeTask(VTask, VShowPrevInfoOnly) );
+    FCheckerTasks.Add( MakeTask(VTask, AShowPrevInfoOnly) );
   end;
 
   VDownloader := VDownloaderFactory.BuildDownloaderWithCache;
@@ -178,7 +177,7 @@ begin
       FEventLog,
       TArray<ITaskInfoListener>.Create(VListener)
     );
-    FCheckerTasks.Add( MakeTask(VTask, VShowPrevInfoOnly) );
+    FCheckerTasks.Add( MakeTask(VTask, AShowPrevInfoOnly) );
   end;
 
   // GoogleMaps
@@ -197,7 +196,7 @@ begin
       FEventLog,
       TArray<ITaskInfoListener>.Create(VListener)
     );
-    FCheckerTasks.Add( MakeTask(VTask, VShowPrevInfoOnly) );
+    FCheckerTasks.Add( MakeTask(VTask, AShowPrevInfoOnly) );
   end;
 
   // GoogleMaps Classic
@@ -213,7 +212,7 @@ begin
       FEventLog,
       TArray<ITaskInfoListener>.Create(VListener)
     );
-    FCheckerTasks.Add( MakeTask(VTask, VShowPrevInfoOnly) );
+    FCheckerTasks.Add( MakeTask(VTask, AShowPrevInfoOnly) );
   end;
 end;
 
@@ -243,10 +242,14 @@ end;
 
 procedure TfrmMain.FormCreate(Sender: TObject);
 begin
+  FAppConfig := TAppConfig.Create;
+  FAppConfig.DoReadConfig;
+
   FEventLog := TEventLogStorageBySQLite.Create;
   FListeners := TList<ITaskInfoListener>.Create;
   FCheckerTasks := TList<ITask>.Create;
-  BuildTasks;
+
+  BuildTasks(FAppConfig.ShowPrevInfoOnly and not FAppConfig.ForceUpdateCheck);
   StartTasks;
 end;
 
@@ -255,6 +258,10 @@ var
   I: Integer;
   VTaskArr: array of ITask;
 begin
+  if FAppConfig <> nil then begin
+    FAppConfig.DoWriteConfig;
+  end;
+
   if Assigned(FCheckerTasks) and (FCheckerTasks.Count > 0) then begin
     SetLength(VTaskArr, FCheckerTasks.Count);
     for I := 0 to FCheckerTasks.Count - 1 do begin
@@ -263,6 +270,7 @@ begin
     end;
     TTask.WaitForAll(VTaskArr, 1000);
   end;
+
   FreeAndNil(FCheckerTasks);
   FreeAndNil(FListeners);
 end;
@@ -272,33 +280,27 @@ begin
   btnExit.SetFocus;
 end;
 
-procedure TfrmMain.btnAboutClick(Sender: TObject);
-var
-  VfrmAbout: TfrmAbout;
-begin
-  VfrmAbout := TfrmAbout.Create(Self);
-  try
-    VfrmAbout.ShowModal;
-  finally
-    VfrmAbout.Free;
-  end;
-end;
-
 procedure TfrmMain.btnExitClick(Sender: TObject);
 begin
   Close;
 end;
 
-procedure TfrmMain.btnTimeLineClick(Sender: TObject);
-var
-  VTimeLineForm: TfrmEventLogViewer;
+procedure TfrmMain.btnAboutClick(Sender: TObject);
 begin
-  VTimeLineForm := TfrmEventLogViewer.Create(Self, FEventLog);
-  try
-    VTimeLineForm.ShowModal;
-  finally
-    VTimeLineForm.Free;
+  if not Assigned(FfrmAbout) then begin
+    FfrmAbout := TfrmAbout.Create(Self);
   end;
+
+  FfrmAbout.ShowModal;
+end;
+
+procedure TfrmMain.btnTimeLineClick(Sender: TObject);
+begin
+  if not Assigned(FfrmTimeLineForm) then begin
+    FfrmTimeLineForm := TfrmEventLogViewer.Create(Self,  FAppConfig.EventLogViewConfig, FEventLog);
+  end;
+
+  FfrmTimeLineForm.ShowModal;
 end;
 
 end.
