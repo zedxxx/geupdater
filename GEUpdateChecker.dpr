@@ -4,7 +4,6 @@ uses
   Winapi.Windows,
   System.SysUtils,
   Vcl.Forms,
-  u_UserAgentInfo in 'src\u_UserAgentInfo.pas',
   frm_About in 'src\frm_About.pas' {frmAbout},
   frm_Main in 'src\frm_Main.pas' {frmMain},
   u_DateTimeUtils in 'src\u_DateTimeUtils.pas',
@@ -41,7 +40,9 @@ uses
   i_AppConfig in 'src\Config\i_AppConfig.pas',
   u_EventLogViewConfig in 'src\Config\u_EventLogViewConfig.pas',
   i_EventLogViewConfig in 'src\Config\i_EventLogViewConfig.pas',
-  i_ConfigBase in 'src\Config\i_ConfigBase.pas';
+  i_ConfigBase in 'src\Config\i_ConfigBase.pas',
+  i_UserAgentConfig in 'src\Config\i_UserAgentConfig.pas',
+  u_UserAgentConfig in 'src\Config\u_UserAgentConfig.pas';
 
 {$R *.res}
 

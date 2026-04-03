@@ -4,6 +4,7 @@ interface
 
 uses
   i_AppConfig,
+  i_UserAgentConfig,
   i_EventLogViewConfig;
 
 type
@@ -13,6 +14,7 @@ type
 
     FShowPrevInfoOnly: Boolean;
     FForceUpdateCheck: Boolean;
+    FUserAgentConfig: IUserAgentConfig;
     FEventLogViewConfig: IEventLogViewConfig;
   public
     procedure DoReadConfig;
@@ -23,6 +25,7 @@ type
 
     function GetForceUpdateCheck: Boolean;
 
+    function GetUserAgentConfig: IUserAgentConfig;
     function GetEventLogViewConfig: IEventLogViewConfig;
   public
     constructor Create;
@@ -34,7 +37,7 @@ implementation
 uses
   System.SysUtils,
   System.IniFiles,
-  u_UserAgentInfo,
+  u_UserAgentConfig,
   u_EventLogViewConfig;
 
 { TAppConfig }
@@ -50,6 +53,7 @@ begin
     ExtractFilePath(ParamStr(0)) +
     ChangeFileExt(ExtractFileName(ParamStr(0)), '.ini');
 
+  FUserAgentConfig := TUserAgentConfig.Create;
   FEventLogViewConfig := TEventLogViewConfig.Create;
 end;
 
@@ -71,7 +75,7 @@ begin
   try
     FShowPrevInfoOnly := VIni.ReadBool('Main', 'ShowPrevInfoOnly', FShowPrevInfoOnly);
 
-    GUserAgentInfo.DoReadConfig; // todo
+    FUserAgentConfig.DoReadConfig(VIni);
     FEventLogViewConfig.DoReadConfig(VIni);
   finally
     VIni.Free;
@@ -95,6 +99,7 @@ begin
   try
     VIni.WriteBool('Main', 'ShowPrevInfoOnly', FShowPrevInfoOnly);
 
+    FUserAgentConfig.DoWriteConfig(VIni);
     FEventLogViewConfig.DoWriteConfig(VIni);
 
     VIni.UpdateFile;
@@ -116,6 +121,11 @@ end;
 function TAppConfig.GetShowPrevInfoOnly: Boolean;
 begin
   Result := FShowPrevInfoOnly;
+end;
+
+function TAppConfig.GetUserAgentConfig: IUserAgentConfig;
+begin
+  Result := FUserAgentConfig;
 end;
 
 procedure TAppConfig.SetShowPrevInfoOnly(const AValue: Boolean);

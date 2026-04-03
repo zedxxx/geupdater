@@ -157,6 +157,7 @@ begin
 
     VTask := TGoogleEarthDesktop.Create(
       VGEDesktopCheckType,
+      FAppConfig,
       VDownloaderFactory.BuildDownloader,
       FEventLog,
       TArray<ITaskInfoListener>.Create(VListener)
@@ -173,6 +174,7 @@ begin
 
     VTask := TGoogleEarthWeb.Create(
       VGEWebCheckType,
+      FAppConfig,
       VDownloader,
       FEventLog,
       TArray<ITaskInfoListener>.Create(VListener)
@@ -192,6 +194,7 @@ begin
 
     VTask := TGoogleMaps.Create(
       VGMCheckType,
+      FAppConfig,
       VDownloader,
       FEventLog,
       TArray<ITaskInfoListener>.Create(VListener)
@@ -208,6 +211,7 @@ begin
 
     VTask := TGoogleMaps.Create(
       VGMCheckType,
+      FAppConfig,
       VDownloader,
       FEventLog,
       TArray<ITaskInfoListener>.Create(VListener)

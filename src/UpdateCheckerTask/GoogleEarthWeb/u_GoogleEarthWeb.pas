@@ -4,6 +4,7 @@ interface
 
 uses
   t_TaskInfo,
+  i_AppConfig,
   i_Downloader,
   i_TaskInfoListener,
   i_EventLogStorage,
@@ -27,6 +28,7 @@ type
   public
     constructor Create(
       const ACheckType: TGoogleEarthWebCheckType;
+      const AConfig: IAppConfig;
       const ADownloader: IDownloader;
       const AEventLog: IEventLogStorage;
       const AListener: TArray<ITaskInfoListener>
@@ -44,7 +46,6 @@ uses
   i_DownloadResponse,
   u_DateTimeUtils,
   u_DownloadRequest,
-  u_UserAgentInfo,
   u_PlanetoidMetadata;
 
 const
@@ -62,12 +63,13 @@ const
 
 constructor TGoogleEarthWeb.Create(
   const ACheckType: TGoogleEarthWebCheckType;
+  const AConfig: IAppConfig;
   const ADownloader: IDownloader;
   const AEventLog: IEventLogStorage;
   const AListener: TArray<ITaskInfoListener>
 );
 begin
-  inherited Create(ADownloader, AEventLog, AListener);
+  inherited Create(AConfig, ADownloader, AEventLog, AListener);
   FCheckType := ACheckType;
 end;
 
@@ -92,7 +94,7 @@ begin
   end;
 
   Result :=
-    'User-Agent: ' + GUserAgentInfo.GetChromeUserAgent + #13#10 +
+    'User-Agent: ' + FConfig.UserAgentConfig.ChromeUserAgent + #13#10 +
     VIfModifiedSince +
     'Accept: */*' + #13#10 +
     'Accept-Language: en-us,en,*';

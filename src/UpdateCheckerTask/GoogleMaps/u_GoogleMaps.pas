@@ -4,6 +4,7 @@ interface
 
 uses
   t_TaskInfo,
+  i_AppConfig,
   i_Downloader,
   i_TaskInfoListener,
   i_EventLogStorage,
@@ -31,6 +32,7 @@ type
   public
     constructor Create(
       const ACheckType: TGoogleMapsCheckType;
+      const AConfig: IAppConfig;
       const ADownloader: IDownloader;
       const AEventLog: IEventLogStorage;
       const AListener: TArray<ITaskInfoListener>
@@ -46,7 +48,6 @@ uses
   c_UpdateCheckerTask,
   i_DownloadRequest,
   i_DownloadResponse,
-  u_UserAgentInfo,
   u_PlanetoidMetadata;
 
 const
@@ -76,12 +77,13 @@ const
 
 constructor TGoogleMaps.Create(
   const ACheckType: TGoogleMapsCheckType;
+  const AConfig: IAppConfig;
   const ADownloader: IDownloader;
   const AEventLog: IEventLogStorage;
   const AListener: TArray<ITaskInfoListener>
 );
 begin
-  inherited Create(ADownloader, AEventLog, AListener);
+  inherited Create(AConfig, ADownloader, AEventLog, AListener);
   FCheckType := ACheckType;
 end;
 
@@ -93,7 +95,7 @@ end;
 function TGoogleMaps.GetHeaders: string;
 begin
   Result :=
-    'User-Agent: ' + GUserAgentInfo.GetChromeUserAgent + #13#10 +
+    'User-Agent: ' + FConfig.UserAgentConfig.ChromeUserAgent + #13#10 +
     'Accept: text/html, */*' + #13#10 +
     'Accept-Language: en-us,en,*';
 end;

@@ -6,6 +6,7 @@ interface
 
 uses
   t_TaskInfo,
+  i_AppConfig,
   i_Downloader,
   i_TaskInfoListener,
   i_EventLogStorage,
@@ -38,6 +39,7 @@ type
   public
     constructor Create(
       const ACheckType: TGoogleEarthDesktopCheckType;
+      const AConfig: IAppConfig;
       const ADownloader: IDownloader;
       const AEventLog: IEventLogStorage;
       const AListener: TArray<ITaskInfoListener>
@@ -54,8 +56,7 @@ uses
   c_UpdateCheckerTask,
   i_DownloadRequest,
   i_DownloadResponse,
-  u_UserAgentInfo,
-  u_DateTimeUtils;
+   u_DateTimeUtils;
 
 const
   cClientVersionTmpl = '{client_version_tmpl}';
@@ -100,12 +101,13 @@ const
 
 constructor TGoogleEarthDesktop.Create(
   const ACheckType: TGoogleEarthDesktopCheckType;
+  const AConfig: IAppConfig;
   const ADownloader: IDownloader;
   const AEventLog: IEventLogStorage;
   const AListener: TArray<ITaskInfoListener>
 );
 begin
-  inherited Create(ADownloader, AEventLog, AListener);
+  inherited Create(AConfig, ADownloader, AEventLog, AListener);
   FCheckType := ACheckType;
 end;
 
@@ -119,7 +121,7 @@ begin
   Result := cTaskConf[FCheckType];
 
   Result.RequestUrl := StringReplace(Result.RequestUrl, cClientVersionTmpl,
-    GUserAgentInfo.GetDesktopClientVersion, [rfReplaceAll]);
+    FConfig.UserAgentConfig.DesktopClientVersion, [rfReplaceAll]);
 end;
 
 function TGoogleEarthDesktop.GetHeaders: string;
@@ -128,7 +130,7 @@ var
 begin
   if IsClientCheck then begin
     Result :=
-      'User-Agent: ' + GUserAgentInfo.GetChromeUserAgent + #13#10 +
+      'User-Agent: ' + FConfig.UserAgentConfig.ChromeUserAgent + #13#10 +
       'Accept: */*' + #13#10 +
       'Accept-Language: en-us,en,*';
   end else begin
@@ -139,7 +141,7 @@ begin
       VIfModifiedSince := '';
     end;
     Result :=
-      'User-Agent: ' + GUserAgentInfo.GetDesktopClientUserAgent + #13#10 +
+      'User-Agent: ' + FConfig.UserAgentConfig.DesktopClientUserAgent + #13#10 +
       VIfModifiedSince +
       'Accept: application/vnd.google-earth.kml+xml, application/vnd.google-earth.kmz, image/*, */*' + #13#10 +
       'Accept-Language: en-us,en,*' + #13#10 +

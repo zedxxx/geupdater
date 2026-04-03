@@ -5,6 +5,7 @@ interface
 uses
   t_TaskInfo,
   t_EventLog,
+  i_AppConfig,
   i_Downloader,
   i_DownloadRequest,
   i_TaskInfoListener,
@@ -16,6 +17,7 @@ type
   protected
     FInfo: TTaskInfo;
     FListener: TArray<ITaskInfoListener>;
+    FConfig: IAppConfig;
     FDownloader: IDownloader;
     FEventLog: IEventLogStorage;
     FPrevInfo: TEventLogItem;
@@ -32,6 +34,7 @@ type
     procedure Execute(const AShowPrevInfoOnly: Boolean);
   public
     constructor Create(
+      const AConfig: IAppConfig;
       const ADownloader: IDownloader;
       const AEventLog: IEventLogStorage;
       const AListener: TArray<ITaskInfoListener>
@@ -49,16 +52,19 @@ uses
 { TUpdateCheckerTaskBase }
 
 constructor TUpdateCheckerTaskBase.Create(
+  const AConfig: IAppConfig;
   const ADownloader: IDownloader;
   const AEventLog: IEventLogStorage;
   const AListener: TArray<ITaskInfoListener>
 );
 begin
+  Assert(AConfig <> nil);
   Assert(ADownloader <> nil);
   Assert(AEventLog <> nil);
 
   inherited Create;
 
+  FConfig := AConfig;
   FDownloader := ADownloader;
   FEventLog := AEventLog;
   FListener := AListener;

@@ -3,6 +3,7 @@ unit i_AppConfig;
 interface
 
 uses
+  i_UserAgentConfig,
   i_EventLogViewConfig;
 
 type
@@ -17,6 +18,9 @@ type
 
     function GetForceUpdateCheck: Boolean;
     property ForceUpdateCheck: Boolean read GetForceUpdateCheck;
+
+    function GetUserAgentConfig: IUserAgentConfig;
+    property UserAgentConfig: IUserAgentConfig read GetUserAgentConfig;
 
     function GetEventLogViewConfig: IEventLogViewConfig;
     property EventLogViewConfig: IEventLogViewConfig read GetEventLogViewConfig;
