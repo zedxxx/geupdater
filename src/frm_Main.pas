@@ -146,7 +146,7 @@ var
 begin
   GUserAgentInfo.DoReadConfig;
 
-  VDownloaderFactory := TDownloaderFactory.Create(dftHttpClient);
+  VDownloaderFactory := TDownloaderFactory.Create;
 
   // GoogleEarth Desktop
   for VGEDesktopCheckType := Low(TGoogleEarthDesktopCheckType) to High(TGoogleEarthDesktopCheckType) do begin

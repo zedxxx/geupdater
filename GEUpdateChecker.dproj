@@ -135,7 +135,6 @@
         <DCCReference Include="src\u_DateTimeUtils.pas"/>
         <DCCReference Include="src\Downloader\i_Downloader.pas"/>
         <DCCReference Include="src\Downloader\i_DownloadResponse.pas"/>
-        <DCCReference Include="src\Downloader\u_DownloaderByIndy.pas"/>
         <DCCReference Include="src\Downloader\u_DownloaderWithRamCache.pas"/>
         <DCCReference Include="src\Downloader\u_DownloadResponse.pas"/>
         <DCCReference Include="src\UpdateCheckerTask\i_UpdateCheckerTask.pas"/>

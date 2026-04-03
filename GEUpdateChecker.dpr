@@ -10,7 +10,6 @@ uses
   u_DateTimeUtils in 'src\u_DateTimeUtils.pas',
   i_Downloader in 'src\Downloader\i_Downloader.pas',
   i_DownloadResponse in 'src\Downloader\i_DownloadResponse.pas',
-  u_DownloaderByIndy in 'src\Downloader\u_DownloaderByIndy.pas',
   u_DownloaderWithRamCache in 'src\Downloader\u_DownloaderWithRamCache.pas',
   u_DownloadResponse in 'src\Downloader\u_DownloadResponse.pas',
   i_UpdateCheckerTask in 'src\UpdateCheckerTask\i_UpdateCheckerTask.pas',
