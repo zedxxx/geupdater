@@ -23,12 +23,13 @@ uses
   i_EventLogViewConfig;
 
 type
-  TGuidInfo = record
+  TGuidInfo = class
+  public
     DisplayName: string;
     ItemsCount: Integer;
   end;
 
-  TGuidInfoDictionary = TDictionary<TGUID, TGuidInfo>;
+  TGuidInfoDictionary = TObjectDictionary<TGUID, TGuidInfo>;
 
   TfrmEventLogViewer = class(TForm)
     btnClose: TButton;
@@ -85,7 +86,7 @@ begin
   FConfig := AConfig;
   FStorage := AStorage;
 
-  FGuidInfo := TGuidInfoDictionary.Create(32);
+  FGuidInfo := TGuidInfoDictionary.Create([doOwnsValues], 32);
   PrepareGuidInfo;
 end;
 
@@ -97,6 +98,7 @@ var
   var
     VInfo: TGuidInfo;
   begin
+    VInfo := TGuidInfo.Create;
     VInfo.DisplayName := Format('%s (%s)', [AName, VGroupName]);
     VInfo.ItemsCount := 0;
     FGuidInfo.Add(StringToGUID(AGuid), VInfo);
@@ -329,24 +331,25 @@ begin
 
   if FStorage <> nil then begin
     FEvents := FStorage.FetchAll;
-    for I := 0 to Length(FEvents) - 1 do begin
-      if FGuidInfo.TryGetValue(FEvents[I].GUID, VInfo) then begin
-        Inc(VInfo.ItemsCount);
-        FGuidInfo.Items[FEvents[I].GUID] := VInfo;
-      end;
-    end;
-    FVirtualTree.RootNodeCount := Length(FEvents);
-    if FVirtualTree.RootNodeCount > 0 then begin
-      VNode := FVirtualTree.RootNode.FirstChild;
-      FVirtualTree.Selected[VNode] := True;
-      FVirtualTree.FocusedNode := VNode;
-      UpdateFormCaption(VNode);
-    end;
   end else begin
     FEvents := nil;
   end;
 
   VTimer.Stop;
+
+  for I := 0 to Length(FEvents) - 1 do begin
+    if FGuidInfo.TryGetValue(FEvents[I].GUID, VInfo) then begin
+      Inc(VInfo.ItemsCount);
+    end;
+  end;
+
+  FVirtualTree.RootNodeCount := Length(FEvents);
+  if FVirtualTree.RootNodeCount > 0 then begin
+    VNode := FVirtualTree.RootNode.FirstChild;
+    FVirtualTree.Selected[VNode] := True;
+    FVirtualTree.FocusedNode := VNode;
+    UpdateFormCaption(VNode);
+  end;
 
   lblInfo.Caption :=
     Format(
