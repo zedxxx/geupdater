@@ -45,6 +45,9 @@ implementation
 uses
   System.SysUtils;
 
+const
+  cSectionName = 'UserAgent';
+
 { TUserAgentConfig }
 
 constructor TUserAgentConfig.Create;
@@ -69,7 +72,7 @@ procedure TUserAgentConfig.DoReadConfig(const AIni: TMemIniFile);
   var
     VStr: string;
   begin
-    VStr := AIni.ReadString('Main', AIdent, ADest);
+    VStr := AIni.ReadString(cSectionName, AIdent, ADest);
     if VStr <> ADest then begin
       TrySetVersionValue(ADest, VStr);
     end;
@@ -89,8 +92,8 @@ procedure TUserAgentConfig.DoWriteConfig(const AIni: TMemIniFile);
 begin
   FLock.Acquire;
   try
-    AIni.WriteString('Main', 'ChromeVersion', FChromeVersion);
-    AIni.WriteString('Main', 'DesktopClientVersion', FClientVersion);
+    AIni.WriteString(cSectionName, 'ChromeVersion', FChromeVersion);
+    AIni.WriteString(cSectionName, 'DesktopClientVersion', FClientVersion);
   finally
     FLock.Release;
   end;
