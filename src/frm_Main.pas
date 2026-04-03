@@ -47,11 +47,15 @@ type
     pnlGMMars: TPanel;
     pnlGMMoon: TPanel;
     pnlBottom: TPanel;
+
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
+
+    procedure FormShow(Sender: TObject);
+    procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+
     procedure btnExitClick(Sender: TObject);
     procedure btnAboutClick(Sender: TObject);
-    procedure FormShow(Sender: TObject);
     procedure btnTimeLineClick(Sender: TObject);
   private
     FAppConfig: IAppConfig;
@@ -60,8 +64,10 @@ type
     FCheckerTasks: TList<ITask>;
     FfrmAbout: TfrmAbout;
     FfrmTimeLineForm: TfrmEventLogViewer;
-    procedure BuildTasks(const AShowPrevInfoOnly: Boolean);
+    FIsShowPrevInfoOnlyTasks: Boolean;
+    procedure BuildTasks;
     procedure StartTasks;
+    procedure StopTasks(const ATimeout: Cardinal);
   end;
 
 var
@@ -73,7 +79,6 @@ uses
   t_TaskInfo,
   i_Downloader,
   i_DownloaderFactory,
-  u_AppConfig,
   u_TaskInfoListener,
   u_DownloaderFactory,
   u_GoogleMaps,
@@ -92,7 +97,7 @@ begin
   );
 end;
 
-procedure TfrmMain.BuildTasks(const AShowPrevInfoOnly: Boolean);
+procedure TfrmMain.BuildTasks;
 
   function _GetGEPanel(const AType: TGoogleEarthDesktopCheckType): TPanel;
   begin
@@ -162,7 +167,7 @@ begin
       FEventLog,
       TArray<ITaskInfoListener>.Create(VListener)
     );
-    FCheckerTasks.Add( MakeTask(VTask, AShowPrevInfoOnly) );
+    FCheckerTasks.Add( MakeTask(VTask, FIsShowPrevInfoOnlyTasks) );
   end;
 
   VDownloader := VDownloaderFactory.BuildDownloaderWithCache;
@@ -179,7 +184,7 @@ begin
       FEventLog,
       TArray<ITaskInfoListener>.Create(VListener)
     );
-    FCheckerTasks.Add( MakeTask(VTask, AShowPrevInfoOnly) );
+    FCheckerTasks.Add( MakeTask(VTask, FIsShowPrevInfoOnlyTasks) );
   end;
 
   // GoogleMaps
@@ -199,7 +204,7 @@ begin
       FEventLog,
       TArray<ITaskInfoListener>.Create(VListener)
     );
-    FCheckerTasks.Add( MakeTask(VTask, AShowPrevInfoOnly) );
+    FCheckerTasks.Add( MakeTask(VTask, FIsShowPrevInfoOnlyTasks) );
   end;
 
   // GoogleMaps Classic
@@ -216,7 +221,7 @@ begin
       FEventLog,
       TArray<ITaskInfoListener>.Create(VListener)
     );
-    FCheckerTasks.Add( MakeTask(VTask, AShowPrevInfoOnly) );
+    FCheckerTasks.Add( MakeTask(VTask, FIsShowPrevInfoOnlyTasks) );
   end;
 end;
 
@@ -241,42 +246,59 @@ begin
         );
       end
     );
+
+    if not FIsShowPrevInfoOnlyTasks then begin
+      FAppConfig.LastUpdateCheck := Now;
+    end;
+  end;
+end;
+
+procedure TfrmMain.StopTasks(const ATimeout: Cardinal);
+var
+  I: Integer;
+  VTaskArr: TArray<ITask>;
+begin
+  if Assigned(FCheckerTasks) and (FCheckerTasks.Count > 0) then begin
+    VTaskArr := FCheckerTasks.ToArray;
+    for I := 0 to High(VTaskArr) do begin
+      VTaskArr[I].Cancel;
+    end;
+    TTask.WaitForAll(VTaskArr, ATimeout);
+    FCheckerTasks.Clear;
   end;
 end;
 
 procedure TfrmMain.FormCreate(Sender: TObject);
 begin
-  FAppConfig := TAppConfig.Create;
-  FAppConfig.DoReadConfig;
+  FAppConfig := GAppConfig;
 
   FEventLog := TEventLogStorageBySQLite.Create;
   FListeners := TList<ITaskInfoListener>.Create;
   FCheckerTasks := TList<ITask>.Create;
 
-  BuildTasks(FAppConfig.ShowPrevInfoOnly and not FAppConfig.ForceUpdateCheck);
+  FIsShowPrevInfoOnlyTasks := FAppConfig.ShowPrevInfoOnly and not FAppConfig.ForceUpdateCheck;
+
+  BuildTasks;
   StartTasks;
 end;
 
 procedure TfrmMain.FormDestroy(Sender: TObject);
-var
-  I: Integer;
-  VTaskArr: array of ITask;
 begin
-  if FAppConfig <> nil then begin
-    FAppConfig.DoWriteConfig;
-  end;
-
-  if Assigned(FCheckerTasks) and (FCheckerTasks.Count > 0) then begin
-    SetLength(VTaskArr, FCheckerTasks.Count);
-    for I := 0 to FCheckerTasks.Count - 1 do begin
-      VTaskArr[I] := FCheckerTasks.Items[I];
-      VTaskArr[I].Cancel;
-    end;
-    TTask.WaitForAll(VTaskArr, 1000);
-  end;
+  StopTasks(1000);
 
   FreeAndNil(FCheckerTasks);
   FreeAndNil(FListeners);
+end;
+
+procedure TfrmMain.FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+begin
+  if Key = VK_F5 then begin
+    FIsShowPrevInfoOnlyTasks := False;
+    StopTasks(INFINITE);
+    FListeners.Clear;
+    BuildTasks;
+    StartTasks;
+  end;
 end;
 
 procedure TfrmMain.FormShow(Sender: TObject);

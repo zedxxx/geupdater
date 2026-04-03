@@ -14,6 +14,7 @@ type
 
     FShowPrevInfoOnly: Boolean;
     FForceUpdateCheck: Boolean;
+    FLastUpdateCheck: TDateTime;
     FUserAgentConfig: IUserAgentConfig;
     FEventLogViewConfig: IEventLogViewConfig;
   private
@@ -26,11 +27,15 @@ type
 
     function GetForceUpdateCheck: Boolean;
 
+    function GetLastUpdateCheck: TDateTime;
+    procedure SetLastUpdateCheck(const AValue: TDateTime);
+
     function GetUserAgentConfig: IUserAgentConfig;
     function GetEventLogViewConfig: IEventLogViewConfig;
   public
     class function GetIniFileName: string;
-    class function GetForceUpdateCmdLineFlag: Boolean;
+    class function GetForceCheckCmdLineFlag: Boolean;
+    class function GetCheckIntervalCmdLineValue: Cardinal;
   public
     constructor Create;
   end;
@@ -53,7 +58,8 @@ begin
   FIniFileName := Self.GetIniFileName;
 
   FShowPrevInfoOnly := False;
-  FForceUpdateCheck := Self.GetForceUpdateCmdLineFlag;
+  FForceUpdateCheck := Self.GetForceCheckCmdLineFlag;
+  FLastUpdateCheck := 0;
 
   FUserAgentConfig := TUserAgentConfig.Create;
   FEventLogViewConfig := TEventLogViewConfig.Create;
@@ -66,14 +72,33 @@ begin
     ChangeFileExt(ExtractFileName(ParamStr(0)), '.ini');
 end;
 
-class function TAppConfig.GetForceUpdateCmdLineFlag: Boolean;
+class function TAppConfig.GetForceCheckCmdLineFlag: Boolean;
 var
   I: Integer;
 begin
   Result := False;
   for I := 1 to ParamCount do begin
-    if SameText(ParamStr(I), '--force-update') then begin
+    if SameText(ParamStr(I), '--force-check') then begin
       Result := True;
+      Exit;
+    end;
+  end;
+end;
+
+class function TAppConfig.GetCheckIntervalCmdLineValue: Cardinal;
+var
+  I: Integer;
+  VInterval: string;
+begin
+  Result := 0;
+  for I := 1 to ParamCount do begin
+    if SameText(ParamStr(I), '--check-interval') then begin
+      if I + 1 <= ParamCount then begin
+        VInterval := StringReplace(ParamStr(I+1), 'h', '', [rfIgnoreCase]);
+        if not TryStrToUInt(VInterval, Result) then begin
+          Result := 0;
+        end;
+      end;
       Exit;
     end;
   end;
@@ -90,6 +115,7 @@ begin
   VIni := TMemIniFile.Create(FIniFileName, TEncoding.UTF8);
   try
     FShowPrevInfoOnly := VIni.ReadBool('Main', 'ShowPrevInfoOnly', FShowPrevInfoOnly);
+    FLastUpdateCheck := VIni.ReadDateTime('Main', 'LastUpdateCheck', FLastUpdateCheck);
 
     FUserAgentConfig.DoReadConfig(VIni);
     FEventLogViewConfig.DoReadConfig(VIni);
@@ -114,6 +140,7 @@ begin
   VIni := TMemIniFile.Create(FIniFileName, TEncoding.UTF8);
   try
     VIni.WriteBool('Main', 'ShowPrevInfoOnly', FShowPrevInfoOnly);
+    VIni.WriteDateTime('Main', 'LastUpdateCheck', FLastUpdateCheck);
 
     FUserAgentConfig.DoWriteConfig(VIni);
     FEventLogViewConfig.DoWriteConfig(VIni);
@@ -142,6 +169,16 @@ end;
 function TAppConfig.GetUserAgentConfig: IUserAgentConfig;
 begin
   Result := FUserAgentConfig;
+end;
+
+function TAppConfig.GetLastUpdateCheck: TDateTime;
+begin
+  Result := FLastUpdateCheck;
+end;
+
+procedure TAppConfig.SetLastUpdateCheck(const AValue: TDateTime);
+begin
+  FLastUpdateCheck := AValue;
 end;
 
 procedure TAppConfig.SetShowPrevInfoOnly(const AValue: Boolean);

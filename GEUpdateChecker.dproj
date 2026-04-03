@@ -147,7 +147,6 @@
         <DCCReference Include="src\UpdateCheckerTaskListener\i_TaskInfoListener.pas"/>
         <DCCReference Include="src\UpdateCheckerTaskListener\t_TaskInfo.pas"/>
         <DCCReference Include="src\UpdateCheckerTaskListener\u_TaskInfoListener.pas"/>
-        <DCCReference Include="src\u_Scheduler.pas"/>
         <DCCReference Include="src\Downloader\u_DownloaderByHttpClient.pas"/>
         <DCCReference Include="src\Downloader\u_DownloaderFactory.pas"/>
         <DCCReference Include="src\Downloader\i_DownloaderFactory.pas"/>

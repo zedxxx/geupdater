@@ -19,12 +19,19 @@ type
     function GetForceUpdateCheck: Boolean;
     property ForceUpdateCheck: Boolean read GetForceUpdateCheck;
 
+    function GetLastUpdateCheck: TDateTime;
+    procedure SetLastUpdateCheck(const AValue: TDateTime);
+    property LastUpdateCheck: TDateTime read GetLastUpdateCheck write SetLastUpdateCheck;
+
     function GetUserAgentConfig: IUserAgentConfig;
     property UserAgentConfig: IUserAgentConfig read GetUserAgentConfig;
 
     function GetEventLogViewConfig: IEventLogViewConfig;
     property EventLogViewConfig: IEventLogViewConfig read GetEventLogViewConfig;
   end;
+
+var
+  GAppConfig: IAppConfig;
 
 implementation
 

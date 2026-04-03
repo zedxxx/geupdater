@@ -3,6 +3,7 @@ program GEUpdateChecker;
 uses
   Winapi.Windows,
   System.SysUtils,
+  System.DateUtils,
   Vcl.Forms,
   frm_About in 'src\frm_About.pas' {frmAbout},
   frm_Main in 'src\frm_Main.pas' {frmMain},
@@ -22,7 +23,6 @@ uses
   i_TaskInfoListener in 'src\UpdateCheckerTaskListener\i_TaskInfoListener.pas',
   t_TaskInfo in 'src\UpdateCheckerTaskListener\t_TaskInfo.pas',
   u_TaskInfoListener in 'src\UpdateCheckerTaskListener\u_TaskInfoListener.pas',
-  u_Scheduler in 'src\u_Scheduler.pas',
   u_DownloaderByHttpClient in 'src\Downloader\u_DownloaderByHttpClient.pas',
   u_DownloaderFactory in 'src\Downloader\u_DownloaderFactory.pas',
   i_DownloaderFactory in 'src\Downloader\i_DownloaderFactory.pas',
@@ -63,24 +63,36 @@ const
 
 var
   VLibPath: string;
+  VInterval: Cardinal;
 begin
   {$IFDEF DEBUG}
   ReportMemoryLeaksOnShutdown := True;
   {$ENDIF}
 
-  if not TScheduler.AppCanStart then begin
-    Exit;
-  end;
+  GAppConfig := TAppConfig.Create;
+  try
+    GAppConfig.DoReadConfig;
 
-  VLibPath := ExtractFilePath(ParamStr(0)) + PathDelim + 'lib';
-  if DirectoryExists(VLibPath) then begin
-    if not SetDllDirectory(PChar(VLibPath)) then begin
-      RaiseLastOSError;
+    if GAppConfig.ForceUpdateCheck then begin
+      VInterval := TAppConfig.GetCheckIntervalCmdLineValue;
+      if (VInterval > 0) and (HoursBetween(Now, GAppConfig.LastUpdateCheck) < VInterval) then begin
+        Exit;
+      end;
     end;
-  end;
 
-  Application.Initialize;
-  Application.MainFormOnTaskbar := True;
-  Application.CreateForm(TfrmMain, frmMain);
+    VLibPath := ExtractFilePath(ParamStr(0)) + PathDelim + 'lib';
+    if DirectoryExists(VLibPath) then begin
+      if not SetDllDirectory(PChar(VLibPath)) then begin
+        RaiseLastOSError;
+      end;
+    end;
+
+    Application.Initialize;
+    Application.MainFormOnTaskbar := True;
+    Application.CreateForm(TfrmMain, frmMain);
   Application.Run;
+  finally
+    GAppConfig.DoWriteConfig;
+    GAppConfig := nil;
+  end;
 end.
