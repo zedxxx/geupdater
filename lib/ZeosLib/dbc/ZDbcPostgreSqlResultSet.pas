@@ -55,7 +55,6 @@ interface
 
 {$I ZDbc.inc}
 
-{$IFNDEF ZEOS_DISABLE_POSTGRESQL} //if set we have an empty unit
 uses
   {$IFDEF MORMOT2}
   mormot.db.core, mormot.core.datetime, mormot.core.text, mormot.core.base,
@@ -70,6 +69,14 @@ uses
   ZClasses, ZDbcCachedResultSet, ZDbcPostgreSql, ZExceptions;
 
 type
+  {** Implements a specialized cached resolver for PostgreSQL. }
+  TZPostgreSQLCachedResolver = class(TZGenerateSQLCachedResolver)
+  protected
+    function CheckKeyColumn(ColumnIndex: Integer): Boolean; override;
+  end;
+
+  {$IFNDEF ZEOS_DISABLE_POSTGRESQL} //if set we have an empty unit
+
   /// <summary>Implements Postgres column information object.</summary>
   TZPGColumnInfo = class(TZColumnInfo)
   public
@@ -540,12 +547,6 @@ type
       Data: PAnsiChar);
   end;
 
-  {** Implements a specialized cached resolver for PostgreSQL. }
-  TZPostgreSQLCachedResolver = class(TZGenerateSQLCachedResolver)
-  protected
-    function CheckKeyColumn(ColumnIndex: Integer): Boolean; override;
-  end;
-
   {** Implements a specialized cached resolver for PostgreSQL version 7.4 and up. }
   TZPostgreSQLCachedResolverV74up = class(TZPostgreSQLCachedResolver)
   public
@@ -605,7 +606,6 @@ type
 
 {$ENDIF ZEOS_DISABLE_POSTGRESQL} //if set we have an empty unit
 implementation
-{$IFNDEF ZEOS_DISABLE_POSTGRESQL} //if set we have an empty unit
 
 uses
   {$IFDEF WITH_UNITANSISTRINGS}AnsiStrings,{$ENDIF} Math, SysConst, TypInfo,
@@ -613,6 +613,23 @@ uses
   ZGenericSqlAnalyser, ZSelectSchema,
   ZDbcPostgreSqlMetadata, ZDbcMetadata, ZDbcPostgreSqlUtils, ZDbcUtils,
   ZDbcProperties;
+
+{ TZPostgreSQLCachedResolver }
+
+{**
+  Checks is the specified column can be used in where clause.
+  @param ColumnIndex an index of the column.
+  @returns <code>true</code> if column can be included into where clause.
+}
+function TZPostgreSQLCachedResolver.CheckKeyColumn(ColumnIndex: Integer): Boolean;
+begin
+  Result := (Metadata.GetTableName(ColumnIndex) <> '')
+    and (Metadata.GetColumnName(ColumnIndex) <> '')
+    and Metadata.IsSearchable(ColumnIndex)
+    and not (Metadata.GetColumnType(ColumnIndex) in [stUnknown, stBinaryStream]);
+end;
+
+{$IFNDEF ZEOS_DISABLE_POSTGRESQL} //if set we have an empty unit
 
 { TZPostgreSQLResultSet }
 
@@ -1073,7 +1090,7 @@ begin
     NUMERICOID: if TypeModifier <> -1 then begin
         ColumnInfo.Precision := (TypeModifier - VARHDRSZ) shr 16 and $FFFF;
         ColumnInfo.Scale     := (TypeModifier - VARHDRSZ)        and $FFFF;
-        if (ColumnInfo.Scale <= 4) and (ColumnInfo.Precision <= sAlignCurrencyScale2Precision[ColumnInfo.Scale])
+        if (ColumnInfo.Scale <= 4) and (ColumnInfo.Precision < sAlignCurrencyScale2Precision[ColumnInfo.Scale])
         then ColumnInfo.ColumnType := stCurrency
         else ColumnInfo.ColumnType := stBigDecimal;
         Exit;
@@ -2766,21 +2783,6 @@ begin
   Loaded := True;
 end;
 
-{ TZPostgreSQLCachedResolver }
-
-{**
-  Checks is the specified column can be used in where clause.
-  @param ColumnIndex an index of the column.
-  @returns <code>true</code> if column can be included into where clause.
-}
-function TZPostgreSQLCachedResolver.CheckKeyColumn(ColumnIndex: Integer): Boolean;
-begin
-  Result := (Metadata.GetTableName(ColumnIndex) <> '')
-    and (Metadata.GetColumnName(ColumnIndex) <> '')
-    and Metadata.IsSearchable(ColumnIndex)
-    and not (Metadata.GetColumnType(ColumnIndex) in [stUnknown, stBinaryStream]);
-end;
-
 { TZPostgreSQLCachedResolverV74up }
 
 {$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "OldRowAccessor" not used} {$ENDIF}
@@ -2920,7 +2922,7 @@ const PGOidLopOpenMode: Array[TZLobStreamMode] of Integer = (INV_READ or INV_WRI
 procedure TZPostgreSQLOidBlobStream.CreateLob;
 begin
   { Creates a new large object. }
-  FOwnerLob.FBlobOid := FPlainDriver.lo_creat(FHandle, PGOidLopOpenMode[FLobStreamMode]);
+  FOwnerLob.FBlobOid := FPlainDriver.lo_creat(FHandle, 0);
   if not PGSucceeded(FPlainDriver.PQerrorMessage(FHandle)) then
     FOwnerLob.FOwner.HandleErrorOrWarning(PGRES_FATAL_ERROR, lcOther, 'Create Large Object', Self, nil);
 end;

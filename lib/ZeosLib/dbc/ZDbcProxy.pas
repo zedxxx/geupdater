@@ -81,6 +81,8 @@ type
     function GetPlainDriver: IZProxyPlainDriver;
     function GetConnectionInterface: IZDbcProxy;
     function GetDbInfoStr: ZWideString;
+    function GetPublicKeys: ZWideString;
+    function SupportsCborQuery: Boolean;
   end;
 
   {** Implements DBC Proxy Database Connection. }
@@ -97,6 +99,7 @@ type
     //shadow properties - they just mirror the values that are set on the server
     FCatalog: String;
     FServerProvider: TZServerProvider;
+    FSupportsCborQuery: Boolean;
   protected
     procedure transferProperties(PropName, PropValue: String);
     procedure applyProperties(const Properties: String);
@@ -222,6 +225,12 @@ type
     function GetDbInfoStr: ZWideString;
 
     procedure ExecuteImmediat(const SQL: UnicodeString; LoggingCategory: TZLoggingCategory); override;
+
+    /// <summary>
+    ///   Gets the public keys from a dbc proxy server in TOFU mode.
+    /// </summary>
+    function GetPublicKeys: ZWideString;
+    function SupportsCborQuery: Boolean;
   end;
 
 var
@@ -371,7 +380,7 @@ begin
 
   if URL.Properties.IndexOfName(ConnProps_TofuPubKeys) >= 0 then begin
     TofuPubKeys := URL.Properties.Values[ConnProps_TofuPubKeys];
-    PropList := PropList + LineEnding + 'TofuPubKeys=' + TofuPubKeys;
+    PropList := PropList + LineEnding + 'TofuPubKeys=' + {$IFNDEF UNICODE}UTF8Decode({$ENDIF}TofuPubKeys{$IFNDEF UNICODE}){$ENDIF};
   end;
 
   FConnIntf.Connect(WideString(User), WideString(Password), WideString(WsUrl), WideString(Database), PropList, MyDbInfo);
@@ -624,6 +633,7 @@ begin
     if TempStr <> '' then begin
       FServerProvider := TZServerProvider(GetEnumValue(TypeInfo(TZServerProvider), TempStr));
     end;
+    FSupportsCborQuery := StrToBoolDef(List.Values['proxy_supportscborquery'], False);
   finally
     FreeAndNil(List);
   end;
@@ -743,9 +753,21 @@ var
   Statement: IZStatement;
 begin
   Statement := CreateStatementWithParams(nil);
-  Statement.Execute(SQL);
-  Statement.Close;
+  try
+    Statement.Execute(SQL);
+  finally
+    Statement.Close;
+  end;
+end;
 
+function TZDbcProxyConnection.GetPublicKeys: ZWideString;
+begin
+  Result := FConnIntf.GetPublicKeys;
+end;
+
+function TZDbcProxyConnection.SupportsCborQuery: Boolean;
+begin
+  Result := FSupportsCborQuery;
 end;
 
 initialization

@@ -273,6 +273,8 @@ type
     procedure SetTimestamp(Index: Integer; {$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TZTimeStamp); reintroduce; overload;
 
     procedure SetBytes(Index: Integer; Value: PByte; Len: NativeUInt); reintroduce; overload;
+    procedure SetGUID(Index: Integer; {$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TGUID); override;
+
 
     procedure RegisterParameter(ParameterIndex: Integer; SQLType: TZSQLType;
       ParamType: TZProcedureColumnType; const Name: String = '';
@@ -318,8 +320,7 @@ uses
   {$IFDEF WITH_UNITANSISTRINGS}AnsiStrings, {$ENDIF}Types,
   ZSysUtils, ZFastCode, ZMessages, ZEncoding, ZTokenizer, ZDbcCachedResultSet,
   ZDbcPostgreSqlUtils, ZDbcProperties, ZDbcResultSet, ZDbcPostgreSqlResultSet
-  {$IF defined(NO_INLINE_SIZE_CHECK) and not defined(UNICODE) and defined(MSWINDOWS)},Windows{$IFEND}
-  {$IFDEF NO_INLINE_SIZE_CHECK}, Math{$ENDIF};
+  {$IF defined(NO_INLINE_SIZE_CHECK) and not defined(UNICODE) and defined(MSWINDOWS)},Windows{$IFEND};
 
 const
    cLoggingType: array[Boolean] of TZLoggingCategory = (lcExecPrepStmt,lcExecute);
@@ -2520,6 +2521,30 @@ begin
   end else if (FPQParamOIDs[InParamIdx] = OIDOID) then
     BindAsLob
   else raise CreateConversionError(Index, stBytes, SQLType);
+end;
+
+procedure TZPostgreSQLPreparedStatementV3.SetGUID(Index: Integer; {$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TGUID);
+{$IFNDEF ENDIAN_BIG}
+var
+  P: PByte;
+  D1: Cardinal;
+  D2, D3: Word;
+{$ENDIF ENDIAN_BIG}
+begin
+  {$IFNDEF ENDIAN_BIG} {$Q-} {$R-}
+    P := PByte(@Value);
+    D1 := PG2Cardinal(P);
+    PCardinal(P)^ := D1;
+    Inc(P, 4);
+    D2 := PWord(P)^;
+    PWord(P)^ := (D2 and $00FF shl 8) or (D2 and $FF00 shr 8);
+    Inc(P, 2);
+    D3 := PWord(P)^;
+    PWord(P)^ := (D3 and $00FF shl 8) or (D3 and $FF00 shr 8);
+    {$IFDEF RangeCheckEnabled} {$R+} {$ENDIF}
+    {$IFDEF OverFlowCheckEnabled} {$Q+} {$ENDIF}
+  {$ENDIF ENDIAN_BIG}
+  inherited;
 end;
 
 {**

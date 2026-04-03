@@ -32,6 +32,12 @@ uses
 
 type
 
+  TCustomRequestHandler = function (
+          ARequest  : TRequest;
+          AResponse : TResponse;
+          APath     : string
+    ): Boolean of object;
+
   IObjectRef = interface
     ['{B62EC733-999D-4DEC-A69F-B7546A16F661}']
     function GetObject() : TObject;
@@ -53,6 +59,8 @@ type
     FCertificateFileName: String;
     FHostName: String;
     {$ENDIF}
+
+    FOnCustomRequest: TCustomRequestHandler;
   private
     function GetHandleRequestInThread : Boolean;
     function GetListeningPort : Integer;
@@ -105,6 +113,8 @@ type
     property CertificateFileName: String read FCertificateFileName write SetCertificateFileName;
     property HostName: String read FHostName write SetHostName;
     {$ENDIF}
+
+    property OnCustomRequest: TCustomRequestHandler read FOnCustomRequest write FOnCustomRequest;
   end;
 
   { TServerListnerThread }
@@ -132,17 +142,19 @@ type
     {$IFDEF FPC_IS_SSLENABLED}
     procedure SetUseSSL(const AValue: Boolean);
     procedure SetKeyFile(const AValue: String);
-    procedure SetKeyPasswod(const AValue: String);
+    procedure SetKeyPassword(const AValue: String);
     procedure SetCertificateFileName(const AValue: String);
     procedure SetHostName(const AValue: String);
     function GetUseSSL: Boolean;
     function GetKeyFile: String;
-    function GetKeyPasswod: String;
+    function GetKeyPassword: String;
     function GetCertificateFileName: String;
     function GetHostName: String;
     {$ENDIF}
   protected
     procedure SetOnNotifyMessage(const AValue : TListnerNotifyMessage);override;
+    function GetOnCustomRequest: TCustomRequestHandler;
+    procedure SetOnCustomRequest(AValue: TCustomRequestHandler);
   public
     constructor Create(
       const AServerIpAddress   : string  = '127.0.0.1';
@@ -160,15 +172,17 @@ type
     {$IFDEF FPC_IS_SSLENABLED}
     property UseSSL: Boolean read GetUseSSL write SetUseSSL;
     property KeyFile: String read GetKeyFile write SetKeyFile;
-    property KeyPasswod: String read GetKeyPasswod write SetKeyPasswod;
+    property KeyPassword: String read GetKeyPassword write SetKeyPassword;
     property CertificateFileName: String read GetCertificateFileName write SetCertificateFileName;
     property HostName: String read GetHostName write SetHostName;
     {$ENDIF}
+
+    property OnCustomRequest: TCustomRequestHandler read GetOnCustomRequest write SetOnCustomRequest;
   end;
 
 implementation
 uses
-  wst_consts,
+  ZStream, wst_consts,
   base_service_intf, server_service_intf, server_service_imputils, metadata_wsdl;
 
 {$IFDEF WST_DBG}
@@ -264,7 +278,11 @@ var
   trgt,ctntyp, frmt : string;
   rqst : IRequestBuffer;
   inStream : TStringStream;
+  Cnt: String;
+  UseDeflate: Boolean;
+  TargetStream: TStream;
 begin
+  UseDeflate := Pos('deflate', ARequest.AcceptEncoding) > 0;
   trgt := ExtractNextPathElement(APath);
   if AnsiSameText(sWSDL,trgt) then
     begin
@@ -273,15 +291,24 @@ begin
     end;
   inStream := nil;
   try
-    inStream := TStringStream.Create(ARequest.Content);
+    Cnt := ARequest.Content;
+    inStream := TStringStream.Create(Cnt);
     try
       AResponse.ContentStream := TMemoryStream.Create();
       ctntyp := ARequest.ContentType;
       AResponse.ContentType := ctntyp;
       frmt := Trim(ARequest.QueryFields.Values['format']);
-      rqst := TRequestBuffer.Create(trgt,ctntyp,inStream,AResponse.ContentStream,frmt);
+      if UseDeflate then
+        TargetStream := Tcompressionstream.create(cldefault, AResponse.ContentStream, true)
+      else
+        TargetStream := AResponse.ContentStream;
+      rqst := TRequestBuffer.Create(trgt,ctntyp,inStream,TargetStream,frmt);
       rqst.GetPropertyManager().SetProperty(sREMOTE_IP,ARequest.RemoteAddress);
       HandleServiceRequest(rqst);
+      if UseDeflate then begin
+        FreeAndNil(TargetStream);
+        AResponse.ContentEncoding := 'deflate';
+      end;
       AResponse.ContentLength:=AResponse.ContentStream.Size;
     finally
       inStream.Free();
@@ -317,10 +344,11 @@ var
 {$ENDIF}
   locPath, locPathPart : string;
 begin
-  AResponse.Server:=FServerSoftware;
+  AResponse.Server := FServerSoftware;
   locPath := ARequest.URL;
   locPathPart := ExtractNextPathElement(locPath);
-  if AnsiSameText(sSERVICES_PREFIXE,locPathPart)  then
+  if Assigned(FOnCustomRequest) and not FOnCustomRequest(ARequest, AResponse, locPath) then
+  if AnsiSameText(sSERVICES_PREFIXE,locPathPart) then
     ProcessServiceRequest(ARequest,AResponse,locPath)
   else
     ProcessWSDLRequest(ARequest,AResponse,locPath);
@@ -435,7 +463,7 @@ begin
   FWorkerObject.KeyFile := AValue;
 end;
 
-procedure TwstFPHttpsListener.SetKeyPasswod(const AValue: String);
+procedure TwstFPHttpsListener.SetKeyPassword(const AValue: String);
 begin
   FWorkerObject.KeyPasswod := AValue;
 end;
@@ -460,7 +488,7 @@ begin
   Result := FWorkerObject.KeyFile;
 end;
 
-function TwstFPHttpsListener.GetKeyPasswod: String;
+function TwstFPHttpsListener.GetKeyPassword: String;
 begin
   Result := FWorkerObject.KeyPasswod;
 end;
@@ -537,6 +565,18 @@ end;
 function TwstFPHttpsListener.IsActive: Boolean;
 begin
   Result := FWorkerObject.IsActive();
+end;
+
+function TwstFPHttpsListener.GetOnCustomRequest: TCustomRequestHandler;
+begin
+  Result := nil;
+  if Assigned(FWorkerObject) then
+    Result := FWorkerObject.OnCustomRequest;
+end;
+
+procedure TwstFPHttpsListener.SetOnCustomRequest(AValue: TCustomRequestHandler);
+begin
+  FWorkerObject.OnCustomRequest := AValue;
 end;
 
 initialization

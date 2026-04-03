@@ -58,7 +58,12 @@ interface
 {$IFDEF ENABLE_PROXY}
 
 uses
-  Classes;
+  Classes
+  {$IFNDEF FPC}
+    {$IFNDEF NO_SAFECALL}, ActiveX{$ENDIF}
+  {$ELSE}
+    {$IFDEF WINDOWS}, ActiveX{$ELSE}, Types{$ENDIF}
+  {$ENDIF};
 
   type
   {$IFDEF NO_WIDESTRING}
@@ -77,6 +82,7 @@ uses
     procedure Rollback; {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
     function SetProperties(const Properties : WideString): WideString; {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
     function ExecuteStatement(const SQL, Parameters: WideString; const MaxRows: LongWord): WideString; {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
+    function ExecuteStatementCb(const SQL, Parameters: WideString; const MaxRows: LongWord): {$IFDEF NO_SAFECALL}TStream{$ELSE}IStream{$ENDIF}; {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
     function GetTables(const Catalog, SchemaPattern, TableNamePattern, Types: WideString): WideString; {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
     function GetSchemas: WideString; {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
     function GetCatalogs: WideString; {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
@@ -98,7 +104,16 @@ uses
     ///   Retrieves public keys that are valid now and in the future. Public keys
     ///   are delimited by a colon (:).
     /// </summary>
-    function GetPublicKeys: WideString; {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
+    function GetPublicKeys: WideString; overload; {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
+    /// <summary>
+    ///   Retrieves public keys that are valid now and in the future. Public keys
+    ///   are delimited by a colon (:).
+    ///   This overload can be used if no connection is established yet.
+    /// </summary>
+    /// <param name="EndPoint">
+    ///   The service endpoint to use.
+    /// </param>
+    function GetPublicKeys(EndPoint: WideString): WideString; overload; {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
   end;
 
 {$ENDIF ENABLE_PROXY}

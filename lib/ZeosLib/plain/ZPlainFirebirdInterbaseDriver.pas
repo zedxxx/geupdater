@@ -421,7 +421,10 @@ const
   { Service Parameter Block }
   isc_spb_version1 = byte(1);
   isc_spb_current_version = byte(2);
+  isc_spb_version = isc_spb_current_version;
   isc_spb_version3 = byte(3);
+  isc_spb_user_name = isc_dpb_user_name;
+  isc_spb_password = isc_dpb_password;
   isc_spb_command_line = byte(105);
   isc_spb_dbname = byte(106);
   isc_spb_verbose = byte(107);
@@ -2412,6 +2415,8 @@ type
   PISC_STMT_HANDLE              = ^TISC_STMT_HANDLE;
   TISC_TR_HANDLE                = LongWord;
   PISC_TR_HANDLE                = ^TISC_TR_HANDLE;
+  TISC_SVC_HANDLE                = PPointer {LongWord};
+  PISC_SVC_HANDLE                = ^TISC_SVC_HANDLE;
 
   TISC_CALLBACK = procedure (UserData: PVoid; Length: ISC_USHORT; Updated: PISC_UCHAR); cdecl;
 
@@ -2964,13 +2969,31 @@ type
 
     isc_get_client_version: procedure(version: PAnsiChar);
       {$IFDEF MSWINDOWS} stdcall {$ELSE} cdecl {$ENDIF};
+
+    isc_service_attach: function(status_vector: PISC_STATUS; UnknownZero: ISC_USHORT;
+      ServiceName: PISC_SCHAR; ServiceHandle: PISC_SVC_HANDLE; SpbLength: ISC_USHORT;
+      SpbBuffer: PISC_SCHAR): ISC_STATUS;
+      {$IFDEF MSWINDOWS} stdcall {$ELSE} cdecl {$ENDIF};
+
+    isc_service_start: function(status_vector: PISC_STATUS; svc_handle: PISC_SVC_HANDLE;
+      reserved: Pointer; spb_length: ISC_USHORT; spb: PISC_SCHAR): ISC_STATUS;
+      {$IFDEF MSWINDOWS} stdcall {$ELSE} cdecl {$ENDIF};
+
+    isc_service_query: function(status_vector: PISC_STATUS; svc_handle: PISC_SVC_HANDLE;
+      reserverd: Pointer; send_spb_length: ISC_USHORT; send_spb: PISC_SCHAR;
+      request_spb_length: ISC_USHORT; request_spb: PISC_SCHAR; buffer_length: ISC_USHORT;
+      Buffer: Pointer): ISC_STATUS;
+      {$IFDEF MSWINDOWS} stdcall {$ELSE} cdecl {$ENDIF};
+
+    isc_service_detach: function(status_vector: PISC_STATUS; svc_handle: PISC_SVC_HANDLE): ISC_STATUS;
+      {$IFDEF MSWINDOWS} stdcall {$ELSE} cdecl {$ENDIF};
   end;
 
   {** Implements a base driver for Firebird}
 
   { TZFirebirdBaseDriver }
 
-  {$IFNDEF ZEOS_DISABLE_INTERBASE}
+  {$IF NOT DEFINED(ZEOS_DISABLE_INTERBASE) OR NOT DEFINED(ZEOS_DISABLE_FIREBIRD)}
   TZInterbasePlainDriver = class (TZInterbaseFirebirdPlainDriver,
     IZInterbasePlainDriver)
   protected
@@ -2989,7 +3012,7 @@ type
     function GetProtocol: string; override;
     function GetDescription: string; override;
   end;
-  {$ENDIF ZEOS_DISABLE_INTERBASE}
+  {$IFEND ZEOS_DISABLE_INTERBASE}
 
   {** Implements a native driver for Firebird }
   TZFirebirdPlainDriver = class (TZInterbasePlainDriver)
@@ -3113,6 +3136,11 @@ begin
     @isc_get_client_minor_version := GetAddress('isc_get_client_minor_version');
     @fb_cancel_operation := GetAddress('fb_cancel_operation');
     @fb_dsql_set_timeout := GetAddress('fb_dsql_set_timeout');
+
+    @isc_service_attach := GetAddress('isc_service_attach');
+    @isc_service_start  := GetAddress('isc_service_start');
+    @isc_service_query  := GetAddress('isc_service_query');
+    @isc_service_detach := GetAddress('isc_service_detach');;
   end;
 end;
 
@@ -3179,7 +3207,7 @@ end;
 
 { TZInterbasePlainDriver }
 
-{$IFNDEF ZEOS_DISABLE_INTERBASE}
+{$IF NOT DEFINED(ZEOS_DISABLE_INTERBASE) OR NOT DEFINED(ZEOS_DISABLE_FIREBIRD)}
 
 {$IFDEF ENABLE_INTERBASE_CRYPT}
 procedure TZInterbasePlainDriver.Initialize(const Location: String = '');
@@ -3254,7 +3282,7 @@ function TZInterbasePlainDriver.GetProtocol: string;
 begin
   Result := 'interbase';
 end;
-{$ENDIF ZEOS_DISABLE_INTERBASE}
+{$IFEND ZEOS_DISABLE_INTERBASE}
 
 { TZFirebirdPlainDriver }
 

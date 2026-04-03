@@ -70,7 +70,7 @@ type
     fPlainDriver: TZODBC3PlainDriver;
     fPHDBC: PSQLHDBC;
     fHSTMT: SQLHSTMT;
-    //fStreamSupport: Boolean;
+    fStreamSupport: Boolean;
     FHandleState: TZODBCHandleState;
     fZBufferLength: Integer;
     fStmtTimeOut: SQLULEN;
@@ -306,7 +306,8 @@ implementation
 uses Math, DateUtils, TypInfo, {$IFDEF WITH_UNITANSISTRINGS}AnsiStrings,{$ENDIF}
   ZSysUtils, ZMessages, ZEncoding, ZTokenizer, ZFastCode, ZDbcLogging,
   ZDbcResultSet, ZDbcODBCResultSet, ZDbcCachedResultSet, ZDbcGenericResolver,
-  ZDbcMetadata;
+  ZDbcMetadata, ZDbcFirebirdInterbase, ZDbcASA, ZDbcDbLibResultSet, ZDbcOracle,
+  ZDbcPostgreSqlResultSet;
 
 var DefaultPreparableTokens: TPreparablePrefixTokens;
 
@@ -364,7 +365,7 @@ constructor TZAbstractODBCStatement.Create(const Connection: IZODBCConnection;
 begin
   inherited Create(Connection, SQL, Info);
   fPlainDriver := Connection.GetPlainDriver;
-  //fStreamSupport := Connection.ODBCVersion >= {%H-}Word(SQL_OV_ODBC3_80);
+  fStreamSupport := Connection.ODBCVersion >= {%H-}Word(SQL_OV_ODBC3_80);
   fPHDBC := @ConnectionHandle;
   FZBufferLength := {$IFDEF UNICODE}UnicodeToIntDef{$ELSE}RawToIntDef{$ENDIF}(ZDbcUtils.DefineStatementParameter(Self, DSProps_InternalBufSize, ''), 131072); //by default 128KB
   FEnhancedColInfo := StrToBoolEx(ZDbcUtils.DefineStatementParameter(Self, DSProps_EnhancedColumnInfo, StrTrue));
@@ -507,13 +508,26 @@ var
   CachedResolver: IZCachedResolver;
   NativeResultSet: IZResultSet;
   CachedResultSet: TZCachedResultSet;
+  SP: TZServerProvider;
 begin
   Result := nil;
   NativeResultSet := InternalCreateResultSet;
   if (GetResultSetConcurrency = rcUpdatable) or
      (GetResultSetType <> rtForwardOnly) then
   begin
-    CachedResolver := TZGenerateSQLCachedResolver.Create(Self, NativeResultSet.GetMetaData);
+    SP := GetConnection.GetServerProvider;
+    case SP of // copied from the same place in ZDbcProxyStatement.
+      // The following cached resolvers cannot be used, because they need handles
+      // from their databases: ADO, MySQL, SQLite
+      spASA: CachedResolver := TZASACachedResolver.Create(self as IZStatement, NativeResultSet.GetMetaData) as IZCachedResolver;
+      spMSSQL, spASE: CachedResolver := TZDBLibCachedResolver.Create(self as IZStatement, NativeResultSet.GetMetaData) as IZCachedResolver;
+      //spIB_FB: CachedResolver := TZInterbase6CachedResolver.Create(self as IZStatement, NativeResultSet.GetMetaData) as IZCachedResolver;
+      spIB_FB: CachedResolver := TZInterbaseFirebirdCachedResolver.Create(self as IZStatement, NativeResultSet.GetMetaData) as IZCachedResolver;
+      spOracle: CachedResolver := TZOracleCachedResolver.Create(self as IZStatement, NativeResultSet.GetMetaData) as IZCachedResolver;
+      spPostgreSQL: CachedResolver := TZPostgreSQLCachedResolver.Create(self as IZStatement, NativeResultSet.GetMetaData) as IZCachedResolver;
+      else CachedResolver := TZGenericCachedResolver.Create(self as IZStatement, NativeResultSet.GetMetaData) as IZCachedResolver;
+    end;
+
     if (FClientEncoding = ceUTF16)
     then CachedResultSet := TZODBCachedResultSetW.Create(NativeResultSet, SQL, CachedResolver, ConSettings)
     else CachedResultSet := TZODBCachedResultSetA.Create(NativeResultSet, SQL, CachedResolver, ConSettings);
@@ -1958,7 +1972,7 @@ begin
           ActualLength := SizeOf(Pointer);
           P := IZBlob(BindList[Index].Value).GetBuffer(FRawTemp, L);
           if P = nil then L := 0;
-          Bind.ColumnSize := {$IFDEF NATIVEINT_WEAK_REFERENCE}ZCompatibility.{$ENDIF}Max(L, Bind.ColumnSize);
+          Bind.ColumnSize := {$IFDEF MISS_MATH_NATIVEUINT_MIN_MAX_OVERLOAD}ZCompatibility.{$ENDIF}Max(L, Bind.ColumnSize);
         end else if (Ord(SQLType) < Ord(stString)) then
           ActualLength := CalcBufSize(ActualLength, ODBC_CType, SQLType, ConSettings.ClientCodePage);
         if ActualLength <> Bind.BufferLength then

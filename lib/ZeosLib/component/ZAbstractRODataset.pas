@@ -155,6 +155,7 @@ type
     FCurrentRow: Integer;
     FRowAccessor, FFieldsAccessor: TZRowAccessor;
     FResultSet2AccessorIndexList: TZIndexPairList;
+    FSortedFieldsAccessorOffSet: Integer;
     FClientCP: Word;
     FOldRowBuffer: PZRowBuffer;
     FNewRowBuffer: PZRowBuffer;
@@ -164,6 +165,7 @@ type
     FRowsAffected: Integer;
 
     FFilterEnabled: Boolean;
+    FTokenizer: IZTokenizer;
     FFilterExpression: IZExpression;
     FFilterStack: TZExecutionStack;
     FFilterFieldRefs: TZFieldsLookUpDynArray;
@@ -197,7 +199,6 @@ type
     FNativeFormatOverloadCalled: array[ftBCD..ftDateTime] of Boolean;
 
     {FFieldDefsInitialized: boolean;}  // commented out because this causes SF#286
-
     FDataLink: TDataLink;
     FMasterLink: TMasterDataLink;
     FLinkedFields: string;
@@ -210,6 +211,7 @@ type
 
     FIndexFields: {$IFDEF WITH_GENERIC_TLISTTFIELD}TList<TField>{$ELSE}TList{$ENDIF};
     FLobCacheMode: TLobCacheMode;
+    FLastState: TDataSetState;
     FSortType : TSortType;
     FHasOutParams: Boolean;
     FSortedFields: string;
@@ -217,7 +219,7 @@ type
     FSortedFieldIndices: TIntegerDynArray;
     FSortedComparsionKinds: TComparisonKindArray;
     FSortedOnlyDataFields: Boolean;
-    FCompareFuncs: TCompareFuncs;
+    FCompareFuncs: TZCompareFuncs;
     FSortRowBuffer1: PZRowBuffer;
     FSortRowBuffer2: PZRowBuffer;
     FPrepared: Boolean;
@@ -305,6 +307,7 @@ type
     FLastRowFetched: Boolean;
     FTryKeepDataOnDisconnect: Boolean;
     FCursorLocation: TZCursorLocation;
+    FSortNullsFirst: Boolean;
     procedure CheckOpened;
     procedure CheckConnected; virtual;
     procedure CheckBiDirectional;
@@ -317,6 +320,7 @@ type
     procedure RaiseWriteStateError;
     procedure RaiseFieldTypeMismatchError(const AField: TField; AFieldDef: TFieldDef);
     procedure RaiseFieldSizeMismatchError(const AField: TField; AFieldDef: TFieldDef);
+    procedure SetActive(Value: Boolean); Override;
     function FetchOneRow: Boolean;
     function FetchRows(RowCount: Integer): Boolean;
     function FilterRow(RowNo: NativeInt): Boolean;
@@ -557,6 +561,7 @@ type
     function PSIsSQLBased: Boolean; {$IFDEF WITH_IPROVIDER}override;{$ELSE}virtual;{$ENDIF}
   protected
     procedure DataEvent(Event: TDataEvent; Info: {$IFDEF FPC}PtrInt{$ELSE}NativeInt{$ENDIF}); override;
+    procedure SetSortNullsFirst(NewValue: Boolean);
   protected //internals to identify if some options/operations are relevant or not
     function InheritsFromReadWriteTransactionUpdateObjectDataSet: Boolean; virtual;
     function InheritsFromReadWriteDataSet: Boolean; virtual;
@@ -642,6 +647,7 @@ type
     property Filter;
     property Filtered;
     property Connection: TZAbstractConnection read FConnection write SetConnection;
+    property SortNullsFirst: Boolean read FSortNullsFirst write SetSortNullsFirst default false;
   public
     function NextResultSet: Boolean; virtual;
     function NextRecordSet: Boolean;
@@ -1030,6 +1036,13 @@ type
     procedure Clear; override;
   End;
 
+  TZCurrencyField = Class(TZDoubleField)
+  public
+    constructor Create(AOwner: TComponent); override;
+  published
+    property Currency default True;
+  end;
+
   TZSingleField = Class({$IFDEF WITH_FTSINGLE}TSingleField{$ELSE}TZDoubleField{$ENDIF})
   private
     {$IFDEF WITH_FTSINGLE}
@@ -1093,6 +1106,9 @@ type
     FBound, FIsValidating: Boolean;
     function FilledValueWasNull(var Value: TBCD): Boolean;
     function IsRowDataAvailable: Boolean;
+    {$IFNDEF TFIELD_HAS_ASLARGEINT}
+    function GetAsLargeInt: LargeInt;
+    {$ENDIF}
   protected
     function GetIsNull: Boolean; override;
     function GetAsCurrency: Currency; override;
@@ -1108,6 +1124,7 @@ type
     procedure Bind(Binding: Boolean); {$IFDEF WITH_VIRTUAL_TFIELD_BIND}override;{$ENDIF}
   public
     procedure Clear; override;
+    {$IFNDEF TFIELD_HAS_ASLARGEINT}property AsLargeInt: LargeInt read GetAsLargeInt write SetAsLargeInt;{$ENDIF}
   end;
 
   TZGuidField = class(TGuidField)
@@ -1654,7 +1671,8 @@ begin
   FFilterEnabled := False;
   FProperties := TStringList.Create;
   FFilterExpression := TZExpression.Create;
-  FFilterExpression.Tokenizer := CommonTokenizer;
+  FTokenizer := TZGenericSQLTokenizer.Create as IZTokenizer;
+  FFilterExpression.Tokenizer := FTokenizer;
   FFilterStack := TZExecutionStack.Create;
 
   FDataLink := TZDataLink.Create(Self);
@@ -1683,12 +1701,7 @@ destructor TZAbstractRODataset.Destroy;
 begin
   Unprepare;
   if Assigned(Connection) then
-  begin
-    try
-      SetConnection(nil);
-    except
-    end;
-  end;
+    SetConnection(nil);
 
   FreeAndNil(FSQL);
   FreeAndNil(FParams);
@@ -2048,6 +2061,16 @@ begin
   raise EZDatabaseError.Create(Format(SFieldReadOnly, [Field.DisplayName]));
 end;
 
+procedure TZAbstractRODataset.SetActive(Value: Boolean);
+begin
+  inherited;
+
+  {$IFNDEF DISABLE_ZPARAM}
+  if (FParams <> nil) And Not Value then
+    FParams.FlushParameterConSettings;
+  {$ENDIF}
+end;
+
 procedure TZAbstractRODataset.RaiseFieldSizeMismatchError(const AField: TField;
   AFieldDef: TFieldDef);
 begin
@@ -2092,19 +2115,35 @@ end;
 function TZAbstractRODataset.FetchRows(RowCount: Integer): Boolean;
 begin
   if (CurrentRows.Count < RowCount) or (RowCount = 0) then
-    if FLastRowFetched
-    then Result := CurrentRows.Count >= RowCount
-    else begin
+    if FLastRowFetched then
+      Result := CurrentRows.Count >= RowCount
+    else
+    begin
       if Connection <> nil then
         Connection.ShowSQLHourGlass;
+
       try
-        if (RowCount = 0) then begin
+        if (RowCount = 0) then
+        begin
           while FetchOneRow do;
           Result := True;
-        end else begin
+        end
+        else
+        if FFetchRow = 0 then
+        begin
           while (CurrentRows.Count < RowCount) do
             if not FetchOneRow then
               Break;
+          Result := CurrentRows.Count >= RowCount;
+        end
+        else
+        begin
+          While (CurrentRows.Count < (RowCount Div FFetchRow + 1) * FFetchRow) Do
+          Begin
+            If Not FetchOneRow Then
+              Break;
+          End;
+
           Result := CurrentRows.Count >= RowCount;
         end;
       finally
@@ -2112,7 +2151,8 @@ begin
           Connection.HideSQLHourGlass;
       end;
     end
-  else Result := True;
+  else
+    Result := True;
 end;
 
 {**
@@ -2214,30 +2254,38 @@ begin
     SavedState := SetTempState(dsNewValue);
     CurrentRows.Add(Pointer(RowNo));
     CurrentRow := 1;
-
     try
-      OnFilterRecord(Self, Result);
-    except
-      if Assigned(ApplicationHandleException)
-      then ApplicationHandleException(Self);
+      try
+        OnFilterRecord(Self, Result);
+      except
+        if Assigned(ApplicationHandleException)
+        then ApplicationHandleException(Self);
+      end;
+    finally
+      CurrentRow := SavedRow;
+      {$IFDEF AUTOREFCOUNT}
+      CurrentRows := nil;
+      {$ELSE}
+      CurrentRows.Free;
+      {$ENDIF}
+      CurrentRows := SavedRows;
+      RestoreState(SavedState);
     end;
-
-    CurrentRow := SavedRow;
-    {$IFDEF AUTOREFCOUNT}
-    CurrentRows := nil;
-    {$ELSE}
-    CurrentRows.Free;
-    {$ENDIF}
-    CurrentRows := SavedRows;
-    RestoreState(SavedState);
-
   end;
   if not Result then
      Exit;
 
   { Check the record by filter expression. }
-  if FilterEnabled and (FilterExpression.Expression <> '') then
-    Result := InternalFilterRow;
+  if FilterEnabled and (FilterExpression.Expression <> '') and
+     (State <> dsInactive){TempBuffer not available!} then begin
+    SavedState := SetTempState(dsFilter);
+    try
+      GetCalcFields(TGetCalcFieldsParamType(TempBuffer));
+      Result := InternalFilterRow;
+    finally
+      RestoreState(SavedState);
+    end;
+  end;
 end;
 {$IFDEF FPC} {$POP} {$ENDIF}
 
@@ -2653,6 +2701,7 @@ begin
           end;
         end;
       end;
+    dsFilter: RowBuffer := PZRowBuffer(TempBuffer);//PZRowBuffer(ActiveBuffer);
     {$IFDEF FPC}else; {$ENDIF}
   end;
   Result := RowBuffer <> nil;
@@ -2698,7 +2747,7 @@ begin
       ftTime: Result := TZTimeField;
       ftDate: Result := TZDateField;
       ftDateTime: Result := TZDateTimeField;
-      ftLargeInt: if TZFieldDef(FieldDef).FSQLType = stLong
+      ftLargeInt{$IFDEF WITH_FTLARGEUINT}, ftLargeUint{$ENDIF}: if TZFieldDef(FieldDef).FSQLType = stLong
           then Result := TZInt64Field
           else {$IFNDEF WITH_FTLONGWORD}if TZFieldDef(FieldDef).FSQLType = stLongWord
             then Result := TZCardinalField
@@ -2722,6 +2771,7 @@ begin
       {$IFDEF WITH_WIDEMEMO}
       ftWideMemo: Result := TZUnicodeCLobField;
       {$ENDIF WITH_WIDEMEMO}
+      ftCurrency: Result := TZCurrencyField;
       else {ftBlob} Result := TZBLobField;
     end;
   end else
@@ -2843,6 +2893,11 @@ begin
           ftLargeInt: if FResultSetMetadata.GetColumnType(ColumnIndex) = stULong
             then PUInt64(Buffer)^ := ResultSet.GetULong(ColumnIndex)
             else PInt64(Buffer)^ := ResultSet.GetLong(ColumnIndex);
+          {$IFDEF WITH_FTLARGEUINT}
+          ftLargeUint: if FResultSetMetadata.GetColumnType(ColumnIndex) = stULong
+            then PUInt64(Buffer)^ := ResultSet.GetULong(ColumnIndex)
+            else PInt64(Buffer)^ := ResultSet.GetLong(ColumnIndex);
+          {$ENDIF}
           {$IFDEF WITH_FTGUID}
           ftGUID:
             begin
@@ -3008,6 +3063,11 @@ jmpMoveW:   if Result then begin
         ftLargeInt: if FResultSetMetadata.GetColumnType(ColumnIndex) = stULong
             then PUInt64(Buffer)^ := RowAccessor.GetULong(ColumnIndex, Result)
             else PInt64(Buffer)^ := RowAccessor.GetLong(ColumnIndex, Result);
+        {$IFDEF WITH_FTLARGEUINT}
+        ftLargeUint: if FResultSetMetadata.GetColumnType(ColumnIndex) = stULong
+            then PUInt64(Buffer)^ := RowAccessor.GetULong(ColumnIndex, Result)
+            else PInt64(Buffer)^ := RowAccessor.GetLong(ColumnIndex, Result);
+        {$ENDIF}
         {$IFDEF WITH_FTGUID}
         ftGUID:
           begin
@@ -3137,6 +3197,8 @@ begin
   if GetActiveBuffer(RowBuffer) then
   begin
     ColumnIndex := DefineFieldIndex(FieldsLookupTable, Field);
+    if Field.FieldKind <> fkData then
+      ColumnIndex := ColumnIndex + FSortedFieldsAccessorOffSet; //in case of HighLevelsort oth nothing is done
     RowAccessor.RowBuffer := RowBuffer;
 
     if (State in [dsEdit, dsInsert]) and Assigned(Field.OnValidate) then begin
@@ -3224,6 +3286,11 @@ begin
           ftLargeInt: if FResultSetMetaData.GetColumnType(ColumnIndex) = stULong
               then RowAccessor.SetULong(ColumnIndex, PUInt64(Buffer)^)
               else RowAccessor.SetLong(ColumnIndex, PInt64(Buffer)^);
+          {$IFDEF WITH_FTLARGEUINT}
+          ftLargeUint: if FResultSetMetaData.GetColumnType(ColumnIndex) = stULong
+              then RowAccessor.SetULong(ColumnIndex, PUInt64(Buffer)^)
+              else RowAccessor.SetLong(ColumnIndex, PInt64(Buffer)^);
+          {$ENDIF}
           {$IFDEF WITH_FTGUID}
           ftGUID: begin
               ValidGUIDToBinary(PAnsiChar(Buffer), @UID.D1);
@@ -3352,6 +3419,11 @@ begin
         ftLargeInt: if FResultSetMetaData.GetColumnType(ColumnIndex) = stULong
             then FResultSet.UpdateULong(ColumnIndex, PUInt64(Buffer)^)
             else FResultSet.UpdateLong(ColumnIndex, PInt64(Buffer)^);
+        {$IFDEF WITH_FTLARGEUINT}
+        ftLargeUint: if FResultSetMetaData.GetColumnType(ColumnIndex) = stULong
+            then FResultSet.UpdateULong(ColumnIndex, PUInt64(Buffer)^)
+            else FResultSet.UpdateLong(ColumnIndex, PInt64(Buffer)^);
+        {$ENDIF}
         {$IFDEF WITH_FTGUID}
         ftGUID: begin
             ValidGUIDToBinary(PAnsiChar(Buffer), @UID.D1);
@@ -3708,6 +3780,8 @@ begin
     {$ELSE}
     Result := TxnCon.PrepareStatementWithParams(SQL, Temp);
     {$ENDIF}
+    if Assigned(FTransaction) then
+      Result.SetTransaction(THackTransaction(FTransaction).GetIZTransaction);
   finally
     Temp.Free;
   end;
@@ -3756,7 +3830,7 @@ begin
   end;
 end;
 
-type TProtectedPropField = class(TField);
+//type TProtectedPropField = class(TField);
 procedure TZAbstractRODataset.InternalOpen;
 var
   ColumnList: TObjectList;
@@ -3950,10 +4024,6 @@ begin
   {$ENDIF}
   if CurrentRows <> nil then
     CurrentRows.Clear;
-  {$IFNDEF DISABLE_ZPARAM}
-  if FParams <> nil then
-    FParams.FlushParameterConSettings;
-  {$ENDIF}
 end;
 
 {**
@@ -4013,12 +4083,6 @@ begin
   if Active then
     UpdateCursorPos;
   Result := CurrentRow;
-  //EH: load data chunked see https://sourceforge.net/p/zeoslib/tickets/399/
-  if not IsUniDirectional and not FLastRowFetched and
-    (CurrentRow = CurrentRows.Count) and (FFetchRow > 0) then begin
-    FetchRows(CurrentRows.Count+FFetchRow);
-    Resync([rmCenter]); //notify we've widened the records
-  end;
 end;
 
 {**
@@ -4434,10 +4498,20 @@ begin
   GotoRow(PZRowBuffer(Buffer)^.Index);
 end;
 
+function HasFilterExpression(DS: TZAbstractRODataset): Boolean; //suppress the _xStrClear
+begin
+  Result := (DS.FilterExpression.Expression <> '');
+end;
+
 procedure TZAbstractRODataset.DataEvent(Event: TDataEvent; Info: {$IFDEF FPC}PtrInt{$ELSE}NativeInt{$ENDIF});
 var I, j: Integer;
+  SavedLastState: TDataSetState;
 begin
+  SavedLastState := FLastState;
+  FLastState := State;
   inherited DataEvent(Event, Info);
+  if (SavedLastState = dsInactive) and (State = dsBrowse) and FilterEnabled and HasFilterExpression(Self) then
+    ReReadRows;
   if Event = deLayoutChange then
     for i := 0 to Fields.Count -1 do
       for j := 0 to high(FieldsLookupTable) do
@@ -5318,7 +5392,8 @@ begin
         ftMemo, ftFmtMemo: begin
             FieldCP := GetTransliterateCodePage(FControlsCodePage);
             NativeCP := FResultSetMetadata.GetColumnCodePage(ColumnIndex);
-            if not ((FCharEncoding = ceUTF16) or
+
+            if (NativeCP <> zCP_UTF16) and not ((FCharEncoding = ceUTF16) or
       {XE10.3 x64 bug: a ObjectCast of a descendand doesn't work -> use exact class or the "As" operator}
               ((Field as TMemoField).Transliterate and (FieldCP <> NativeCP))) then
                 FieldCP := NativeCP;
@@ -5427,38 +5502,43 @@ begin
   end;
 end;
 
+function CreateAllFieldsAccessor(DataSet: TZAbstractRODataset): TZRowAccessor;
+var ColumnList: TObjectList;
+    I: Integer;
+    CP: Word;
+begin
+  ColumnList := TObjectList.Create(True);
+  try
+    ColumnList.Capacity := Length(DataSet.FFieldsLookupTable);
+    for i := 0 to high(DataSet.FFieldsLookupTable) do
+      if DataSet.FFieldsLookupTable[i].DataSource = dltResultSet then begin
+        CP := DataSet.FResultSetMetadata.GetColumnCodePage(DataSet.FFieldsLookupTable[i].Index);
+        ColumnList.Add(ConvertFieldToColumnInfo(TField(DataSet.FFieldsLookupTable[i].Field), CP))
+      end;
+    DataSet.FSortedFieldsAccessorOffSet := ColumnList.Count;
+    CP := GetTransliterateCodePage(DataSet.FControlsCodePage);
+    for i := 0 to high(DataSet.FFieldsLookupTable) do
+      if DataSet.FFieldsLookupTable[i].DataSource = dltAccessor then
+        ColumnList.Add(ConvertFieldToColumnInfo(TField(DataSet.FFieldsLookupTable[i].Field), CP));
+    Result := TZRowAccessor.Create(ColumnList, DataSet.FResultSet.GetConSettings, DataSet.FOpenLobStreams, DataSet.FLobCacheMode)
+  finally
+    ColumnList.Free;
+  end;
+end;
 {**
   Performs sorting of the internal rows.
 }
 {$IFDEF FPC} {$PUSH} {$WARN 4055 off : Conversion between ordinals and pointers is not portable} {$ENDIF}
 procedure TZAbstractRODataset.InternalSort;
 var
-  I: Integer;
+  I, j: Integer;
   RowNo: NativeInt;
-  SavedAccessor: TZRowAccessor;
-  function CreateAllFieldsAccessor: TZRowAccessor;
-  var ColumnList: TObjectList;
-      I: Integer;
-      CP: Word;
-  begin
-    ColumnList := TObjectList.Create(True);
-    try
-      for i := low(FFieldsLookupTable) to high(FFieldsLookupTable) do begin
-        if FFieldsLookupTable[i].DataSource = dltAccessor
-        then CP := GetTransliterateCodePage(FControlsCodePage)
-        else CP := FResultSetMetadata.GetColumnCodePage(FFieldsLookupTable[i].Index);
-        ColumnList.Add(ConvertFieldToColumnInfo(TField(FFieldsLookupTable[i].Field), CP))
-      end;
-      Result := TZRowAccessor.Create(ColumnList, ResultSet.GetConSettings, FOpenLobStreams, FLobCacheMode)
-    finally
-      ColumnList.Free;
-    end;
-  end;
+  SavedFieldsAccessor, SavedRowAccessor: TZRowAccessor;
 begin
   //if FIndexFieldNames = '' then exit;
   if (ResultSet <> nil) and not IsUniDirectional then begin
     FIndexFieldNames := Trim(FIndexFieldNames);
-    DefineSortedFields(Self, {FSortedFields} FIndexFieldNames {bangfauzan modification},
+    DefineSortedFields(Self, {FSortedFields} FIndexFieldNames {bangfauzan modification}, FTokenizer,
     FSortedFieldRefs, FSortedComparsionKinds, FSortedOnlyDataFields);
 
     if (CurrentRow <= CurrentRows.Count) and (CurrentRows.Count > 0)
@@ -5481,8 +5561,10 @@ begin
         FCompareFuncs := ResultSet.GetCompareFuncs(FSortedFieldIndices, FSortedComparsionKinds);
         CurrentRows.Sort(LowLevelSort);
       end else begin
-        SavedAccessor := FFieldsAccessor;
-        FFieldsAccessor := CreateAllFieldsAccessor;
+        SavedFieldsAccessor := FFieldsAccessor;
+        SavedRowAccessor := FRowAccessor;
+        FFieldsAccessor := CreateAllFieldsAccessor(Self);
+        FRowAccessor := FFieldsAccessor;
         { Sorts using generic highlevel approach. }
         try
           { Allocates buffers for sorting. }
@@ -5491,17 +5573,25 @@ begin
           { Converts field objects into field indices. }
           SetLength(FSortedFieldIndices, Length(FSortedFieldRefs));
           for I := 0 to High(FSortedFieldRefs) do
-            FSortedFieldIndices[I] := DefineFieldIndex(FieldsLookupTable,
-              TField(FSortedFieldRefs[I].Field));
+            for J := 0 to High(FieldsLookupTable) do
+              if FSortedFieldRefs[I].Field = FieldsLookupTable[j].Field then begin
+                if TField(FSortedFieldRefs[I].Field).FieldKind = fkData then
+                  FSortedFieldIndices[I] := FieldsLookupTable[j].Index
+                else
+                  FSortedFieldIndices[I] := FieldsLookupTable[j].Index + FSortedFieldsAccessorOffSet;
+                Break;
+              end;
           { Performs sorting. }
           FCompareFuncs := FFieldsAccessor.GetCompareFuncs(FSortedFieldIndices, FSortedComparsionKinds);
           CurrentRows.Sort(HighLevelSort);
         finally
           { Disposed buffers for sorting. }
+          FSortedFieldsAccessorOffSet := 0;
           FFieldsAccessor.DisposeBuffer(FSortRowBuffer1);
           FFieldsAccessor.DisposeBuffer(FSortRowBuffer2);
           FreeAndNil(FFieldsAccessor);
-          FFieldsAccessor := SavedAccessor;
+          FRowAccessor := SavedRowAccessor;
+          FFieldsAccessor := SavedFieldsAccessor;
         end;
       end;
     end;
@@ -5556,7 +5646,6 @@ begin
   FFieldsAccessor.RowBuffer^.BookmarkFlag := Ord(bfCurrent);
   { fill data from CalcFields }
   GetCalcFields(TGetCalcFieldsParamType(FSortRowBuffer1));
-
   { Gets the second row. }
   RowNo := NativeInt(Item2);
   ResultSet.MoveAbsolute(RowNo);
@@ -5570,7 +5659,7 @@ begin
 
   { Compare both records. }
   Result := FFieldsAccessor.CompareBuffers(FSortRowBuffer1, FSortRowBuffer2,
-    FSortedFieldIndices, FCompareFuncs);
+    FSortedFieldIndices, FCompareFuncs, FSortNullsFirst);
 end;
 {$IFDEF FPC} {$POP} {$ENDIF}
 
@@ -5587,7 +5676,7 @@ end;
 function TZAbstractRODataset.LowLevelSort(Item1, Item2: Pointer): Integer;
 begin
   Result := ResultSet.CompareRows(NativeInt(Item1), NativeInt(Item2),
-    FSortedFieldIndices, FCompareFuncs);
+    FSortedFieldIndices, FCompareFuncs, FSortNullsFirst);
 end;
 {$IFDEF FPC} {$POP} {$ENDIF}
 
@@ -5922,6 +6011,9 @@ const
     , ftLongWord, ftShortint, ftByte, ftExtended, ftUnknown{ftConnection}, ftUnknown{ftParams}, ftBlob{ftStream} //42..48
 {$IF CompilerVersion >= 21} //additional Types since D2010
     , ftDateTime{ftTimeStampOffset}, ftUnknown{ftObject}, ftSingle //49..51
+{$IF CompilerVersion >= 37} //additional type since Delphi 13 Florence
+    , ftLargeUint
+{$IFEND CompilerVersion >= 37}
 {$IFEND CompilerVersion >= 21}
 {$IFEND CompilerVersion >= 20}
 {$IFEND CompilerVersion >= 18}
@@ -5955,13 +6047,15 @@ type
   @param Buffer
 }
 procedure TZAbstractRODataset.ClearCalcFields(Buffer: TRecordBuffer);
-var
-  Index: Integer;
+var Index, fldIdx: Integer;
 begin
   RowAccessor.RowBuffer := PZRowBuffer(Buffer);
   for Index := 0 to Fields.Count-1 do
-    if (Fields[Index].FieldKind in [fkCalculated, fkLookup]) then
-      RowAccessor.SetNull(DefineFieldindex(FFieldsLookupTable,Fields[Index]));
+    if (Fields[Index].FieldKind in [fkCalculated, fkLookup]) then begin
+      //in case of Sorts CreateAllFieldsAccessor create an new Accessor according the FieldsLookupTable
+      fldIdx := DefineFieldindex(FFieldsLookupTable,Fields[Index])+FSortedFieldsAccessorOffSet;
+      RowAccessor.SetNull(fldIdx);
+    end;
 end;
 
 {=======================bangfauzan addition========================}
@@ -6059,6 +6153,17 @@ begin
 end;
 
 {====================end of bangfauzan addition====================}
+
+procedure TZAbstractRODataset.SetSortNullsFirst(NewValue: Boolean);
+begin
+  if NewValue xor FSortNullsFirst then begin
+    FSortNullsFirst := NewValue;
+    // basically copied from StSortedFields
+    if Active and (FSortedFields <> '')then
+      InternalSort;
+  end;
+end;
+
 
 { TZInt64Field }
 
@@ -6367,7 +6472,11 @@ end;
 constructor TZUInt64Field.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  {$IFDEF WITH_FTLARGEUINT}
+  SetDataType(ftLargeUint);
+  {$ELSE}
   SetDataType(ftLargeint); //we do not have a datatype for unsigend longlong ordinals until XE10.3
+  {$ENDIF}
   ValidChars := ['+', '0'..'9']
 end;
 
@@ -8589,6 +8698,15 @@ begin
   else SetAsFloat(Value);
 end;
 
+{ TZCurrencyField }
+
+constructor TZCurrencyField.Create(AOwner: TComponent);
+begin
+  inherited;
+  SetDataType(ftCurrency);
+  Currency := True;
+end;
+
 { TZBCDField }
 
 procedure TZBCDField.Bind(Binding: Boolean);
@@ -8805,6 +8923,16 @@ begin
     U := 0;
 end;
 {$IFDEF FPC} {$POP} {$ENDIF}
+
+{$IFNDEF TFIELD_HAS_ASLARGEINT}
+function TZFMTBCDField.GetAsLargeInt: LargeInt;
+var aValue: TBCD;
+begin
+  if FilledValueWasNull(aValue)
+  then Result := 0
+  else Result := ZSysUtils.BCD2Int64(aValue);
+end;
+{$ENDIF}
 
 function TZFMTBCDField.GetAsCurrency: Currency;
 begin
@@ -9414,7 +9542,7 @@ var P: PAnsiChar;
   end;
   procedure DoValidate;
   begin
-    SetLength(FValidateBuffer, {$IFDEF NATIVEINT_WEAK_REFERENCE}ZCompatibility.{$ENDIF}Max(L, FBufferSize){$IFDEF WITH_TVALUEBUFFER}+1{$ENDIF});
+    SetLength(FValidateBuffer, {$IFDEF MISS_MATH_NATIVEUINT_MIN_MAX_OVERLOAD}ZCompatibility.{$ENDIF}Max(L, FBufferSize){$IFDEF WITH_TVALUEBUFFER}+1{$ENDIF});
     if L > 0 then
       Move(P^, Pointer(FValidateBuffer)^, L);
     P := Pointer(FValidateBuffer);

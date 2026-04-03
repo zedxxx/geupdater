@@ -56,7 +56,8 @@ unit DbcProxyConfigManager;
 interface
 
 uses
-  Classes, SysUtils, generics.collections, ZDbcIntfs, DbcProxySecurityModule;
+  Classes, SysUtils, generics.collections, ZDbcIntfs, DbcProxySecurityModule,
+  DbcProxyConfigStore, IniFiles;
 
 type
   TDbcProxyConnConfig = record
@@ -73,15 +74,14 @@ type
 
   TDbcProxyConnConfigList = TList<TDbcProxyConnConfig>;
 
-  TDbcProxyConfigManager = class
+  TDbcProxyBaseConfigManager = class(TInterfacedObject, IZDbcProxyConfigStore)
   protected
+    FConfigList: TDbcProxyConnConfigList;
+
     // general stuff
-    ConfigList: TDbcProxyConnConfigList;
     FListeningPort: Word;
     FIPAddress: String;
     FConnectionIdleTimeOut: Cardinal;
-    FDbPrefix: String;
-    FSecurityPrefix: String;
     FEnableThreading: Boolean;
     FLogFile: String;
 
@@ -94,147 +94,137 @@ type
     {$IFDEF ENABLE_TOFU_CERTIFICATES}
     FUseTofuSSL: Boolean;
     {$ENDIF}
+    function GetUseSSL: Boolean;
+    function GetListeningPort: Word;
+    function GetIPAddress: String;
+    function GetConnectionIdleTimeout: Cardinal;
+    function GetEnableThreading: Boolean;
+    function GetLogFile: String;
+    {$IFDEF ENABLE_TOFU_CERTIFICATES}
+    function GetUseTofuSSL: Boolean;
+    {$ENDIF}
+    function GetHostName: String;
+    function GetCertificateFile: String;
+    function GetKeyFile: String;
+    function GetKeyPassword: String;
   public
     property ListeningPort: Word read FListeningPort;
     property IPAddress: String read FIPAddress;
     property ConnectionIdleTimeout: Cardinal read FConnectionIdleTimeout;
-    property DbPrefix: String read FDbPrefix;
-    property SecurityPrefix: String read FSecurityPrefix;
     property EnableThreading: Boolean read FEnableThreading;
     property LogFile: String read FLogFile;
     property UseSSL: Boolean read FUseSSL;
     {$IFDEF ENABLE_TOFU_CERTIFICATES}
     property UseTofuSSL: Boolean read FUseTofuSSL;
-    {$ENDIF}    property HostName: String read FHostName;
+    {$ENDIF}
+    property HostName: String read FHostName;
     property CertificateFile: String read FCertificateFile;
     property KeyFile: String read FKeyFile;
     property KeyPasswod: String read FKeyPasswod;
-    function ConstructUrl(ConfigName, UserName, Password: String; CheckSecurity: Boolean = True): String;
-    procedure LoadBaseConfig(SourceFile: String);
-    procedure LoadConnectionConfig(SourceFile: String);
-    constructor Create;
+    function ConstructUrl(ConfigName, UserName, Password: String; CheckSecurity: Boolean = True): String; virtual;
+    procedure LoadBaseConfig; virtual; abstract;
+    procedure LoadConnectionConfig; virtual; abstract;
+    function GetSecurityConfig(const Name: String): IZDbcProxyKeyValueStore; virtual; abstract;
+    function GetDatbaseConfig(const Name: String): IZDbcProxyKeyValueStore; virtual; abstract;
+  end;
+
+  TDbcProxyIniConfigManager = class;
+  TDbcProxyIniKeyValueProvider = class(TInterfacedObject, IZDbcProxyKeyValueStore)
+    protected
+      FIniFile: TIniFile;
+      FSectionName: String;
+      FStore: TDbcProxyIniConfigManager;
+    public
+      function ReadString(const Key, DefaultValue: String): String;
+      function ReadInteger(const Key: String; DefaultValue: Integer): Integer;
+      function ReadBool(const Key: String; DefaultValue: Boolean): Boolean;
+      function GetName: String;
+      function GetConfigStore: IZDbcProxyConfigStore;
+      constructor Create(Store: TDbcProxyIniConfigManager; IniFile: TIniFile; SectionName: String);
+  end;
+
+  TDbcProxyIniConfigManager = class(TDbcProxyBaseConfigManager)
+  protected
+    // general stuff
+    FDbPrefix: String;
+    FSecurityPrefix: String;
+    FIniFileName: String;
+    FIniFile: TIniFile;
+  public
+    property DbPrefix: String read FDbPrefix;
+    property SecurityPrefix: String read FSecurityPrefix;
+    procedure LoadBaseConfig; override;
+    procedure LoadConnectionConfig; override;
+    function GetSecurityConfig(const Name: String): IZDbcProxyKeyValueStore; override;
+    function GetDatbaseConfig(const Name: String): IZDbcProxyKeyValueStore; override;
+    constructor Create(IniFileName: String);
     destructor Destroy; override;
   end;
 
 implementation
 
 uses
-  IniFiles, ZExceptions, zeosproxy_imp;
+  ZExceptions, zeosproxy_imp;
 
-constructor TDbcProxyConfigManager.Create;
+
+function TDbcProxyBaseConfigManager.GetUseSSL: Boolean;
 begin
-  ConfigList := TDbcProxyConnConfigList.Create;
+  Result := FUseSSL;
 end;
 
-destructor TDbcProxyConfigManager.Destroy;
-var
-  x: Integer;
+function TDbcProxyBaseConfigManager.GetListeningPort: Word;
 begin
-  if Assigned(ConfigList) then begin
-    for x := 0 to ConfigList.Count - 1 do
-      if Assigned(ConfigList.Items[x].SecurityModule) then begin
-        ConfigList.Items[x].SecurityModule.Free;
-        //doesn't work, so don't even try:
-        //ConfigList.Items[x].SecurityModule := nil;
-      end;
-    FreeAndNil(ConfigList);
-  end;
-  inherited;
+  Result := FListeningPort;
 end;
 
-procedure TDbcProxyConfigManager.LoadBaseConfig(SourceFile: String);
-var
-  IniFile: TIniFile;
+function TDbcProxyBaseConfigManager.GetIPAddress: String;
 begin
-  {$IFDEF LINUX}
-  FLogFile := '/var/log/zeosproxy.log';
-  {$ELSE}
-  FLogFile := ExtractFilePath(ParamStr(0)) + 'zeosproxy.log';
-  {$ENDIF}
-
-  IniFile := TIniFile.Create(SourceFile, TEncoding.UTF8);
-  try
-    FDbPrefix := IniFile.ReadString('general', 'Database Prefix', 'db.');
-    FSecurityPrefix := IniFile.ReadString('general', 'Security Prefix', 'sec.');
-    FListeningPort := IniFile.ReadInteger('general', 'Listening Port', 8000);
-    FIPAddress := IniFile.ReadString('general', 'IP Address', '127.0.0.1');
-    FConnectionIdleTimeout := IniFile.ReadInteger('general', 'Connection Idle Timeout', 86400); {Default to one day}
-    FEnableThreading := IniFile.ReadBool('general', 'Enable Threading', false);
-    FLogFile := IniFile.ReadString('general', 'Log File', FLogFile);
-  finally
-    FreeAndNil(IniFile);
-  end;
+  Result := FIPAddress;
 end;
 
-procedure TDbcProxyConfigManager.LoadConnectionConfig(SourceFile: String);
-var
-  ConfigInfo: TDbcProxyConnConfig;
-  IniFile: TIniFile;
-  Sections: TStringList;
-  Section: String;
-  ModuleType: String;
+function TDbcProxyBaseConfigManager.GetConnectionIdleTimeout: Cardinal;
 begin
-  if not Assigned(Logger) then raise
-    Exception.Create('Logger does not exist!');
-
-  Sections := TStringList.Create;
-  try
-    IniFile := TIniFile.Create(SourceFile, TEncoding.UTF8);
-
-    // load SSL configuration
-    FUseSSL := IniFile.ReadBool('general', 'use ssl', false);
-    {$IFDEF ENABLE_TOFU_CERTIFICATES}
-    FUseTofuSSL := IniFile.ReadBool('general', 'use tofu ssl', false);
-    if FUseSSL and FUseTofuSSL then begin
-      zeosproxy_imp.Logger.Warning('SSL and TOFU SSL is enabled. Preferring SSL and disabling TOFU SSL.');
-      FUseTofuSSL := false;
-    end;
-    {$ENDIF}
-
-    if FUseSSL then begin
-      FHostName := IniFile.ReadString('general', 'host name', '');
-      FCertificateFile := IniFile.ReadString('general', 'Certificate File', '');
-      FKeyFile := IniFile.ReadString('general', 'Key File', '');
-      FKeyPasswod := IniFile.ReadString('general', 'Key Password', '');
-    end;
-
-    // load available connections
-    IniFile.ReadSections(Sections);
-    while Sections.Count > 0 do begin
-      Section := Sections.Strings[0];
-      if LowerCase(Copy(Section, 1, Length(DbPrefix))) = DbPrefix then begin
-        ConfigInfo.ConfigName := LowerCase(Copy(Section, Length(DbPrefix) + 1, Length(Section)));
-        ConfigInfo.ClientCodepage := IniFile.ReadString(Section, 'ClientCodepage', 'UTF8');
-        ConfigInfo.Database := IniFile.ReadString(Section, 'Database', '');
-        ConfigInfo.HostName := IniFile.ReadString(Section, 'HostName', '');
-        ConfigInfo.LibraryLocation := IniFile.ReadString(Section, 'LibraryLocation', '');
-        ConfigInfo.Port := IniFile.ReadInteger(Section, 'Port', 0);
-        ConfigInfo.Protocol := IniFile.ReadString(Section, 'Protocol', '');
-        ConfigInfo.Properties := IniFile.ReadString(Section, 'Properties', '');
-
-        Section := IniFile.ReadString(Section, 'Security Module', '');
-        if Section <> '' then begin
-          Section := SecurityPrefix + Section;
-          ModuleType := IniFile.ReadString(Section, 'Type', '');
-          ConfigInfo.SecurityModule := GetSecurityModule(ModuleType);
-          ConfigInfo.SecurityModule.LoadConfig(IniFile, Section);
-        end else begin
-          ConfigInfo.SecurityModule := nil;
-        end;
-
-        ConfigList.Add(ConfigInfo);
-      end;
-      Sections.Delete(0);
-    end;
-  finally
-    if Assigned(Sections) then
-      FreeAndNil(Sections);
-    if assigned(IniFile) then
-      FreeAndNil(IniFile);
-  end;
+  Result := FConnectionIdleTimeOut;
 end;
 
-function TDbcProxyConfigManager.ConstructUrl(ConfigName, UserName, Password: String; CheckSecurity: Boolean = True): String;
+function TDbcProxyBaseConfigManager.GetEnableThreading: Boolean;
+begin
+  Result := FEnableThreading;
+end;
+
+function TDbcProxyBaseConfigManager.GetLogFile: String;
+begin
+  Result := FLogFile;
+end;
+
+{$IFDEF ENABLE_TOFU_CERTIFICATES}
+function TDbcProxyBaseConfigManager.GetUseTofuSSL: Boolean;
+begin
+  Result := FUseTofuSSL;
+end;
+{$ENDIF}
+
+function TDbcProxyBaseConfigManager.GetHostName: String;
+begin
+  Result := FHostName;
+end;
+
+function TDbcProxyBaseConfigManager.GetCertificateFile: String;
+begin
+  Result := FCertificateFile;
+end;
+
+function TDbcProxyBaseConfigManager.GetKeyFile: String;
+begin
+  Result := FKeyFile;
+end;
+
+function TDbcProxyBaseConfigManager.GetKeyPassword: String;
+begin
+  Result := FKeyPasswod;
+end;
+
+function TDbcProxyBaseConfigManager.ConstructUrl(ConfigName, UserName, Password: String; CheckSecurity: Boolean = True): String;
 var
   x: Integer;
   found: Boolean;
@@ -243,16 +233,21 @@ var
 begin
   ConfigName := LowerCase(ConfigName);
   found := false;
-  for x := 0 to ConfigList.Count - 1 do begin
-    if ConfigList.Items[x].ConfigName = ConfigName then begin
-      Cfg := ConfigList.Items[x];
+  Logger.Debug('Finding Connection...');
+  if not Assigned(FConfigList) then
+    raise Exception.Create('ConfigList is not assigned.');
+  for x := 0 to FConfigList.Count - 1 do begin
+    if FConfigList.Items[x].ConfigName = ConfigName then begin
+      Cfg := FConfigList.Items[x];
       found := true;
       break;
     end;
   end;
 
-  if not found then raise EZSQLException.Create('No config named ' + ConfigName + ' was found.');
+  if not found then
+    raise EZSQLException.Create('No config named ' + ConfigName + ' was found.');
 
+  Logger.Debug('Checking Security...');
   if CheckSecurity and Assigned(Cfg.SecurityModule)
     then if not Cfg.SecurityModule.CheckPassword(UserName, Password, ConfigName) then
       raise Exception.Create('Could not validate username / password.');
@@ -264,6 +259,183 @@ begin
   finally
     FreeAndNil(Properties);
   end;
+end;
+
+{ TDbcProxyIniKeyValueProvider }
+
+function TDbcProxyIniKeyValueProvider.ReadString(const Key, DefaultValue: String): String;
+begin
+  Result := FIniFile.ReadString(FSectionName, Key, DefaultValue);
+end;
+
+function TDbcProxyIniKeyValueProvider.ReadInteger(const Key: String; DefaultValue: Integer): Integer;
+begin
+  Result := FIniFile.ReadInteger(FSectionName, Key, DefaultValue);
+end;
+
+function TDbcProxyIniKeyValueProvider.ReadBool(const Key: String; DefaultValue: Boolean): Boolean;
+begin
+  Result := FIniFile.ReadBool(FSectionName, Key, DefaultValue);
+end;
+
+function TDbcProxyIniKeyValueProvider.GetName: String;
+begin
+  Result := FSectionName;
+end;
+
+function TDbcProxyIniKeyValueProvider.GetConfigStore: IZDbcProxyConfigStore;
+begin
+  Result := FStore as IZDbcProxyConfigStore;
+end;
+
+constructor TDbcProxyIniKeyValueProvider.Create(Store: TDbcProxyIniConfigManager; IniFile: TIniFile; SectionName: String);
+begin
+  inherited Create;
+  FStore := Store;
+  FIniFile := IniFile;
+  FSectionName := SectionName;
+end;
+
+{ TDbcProxyIniConfigManager }
+
+constructor TDbcProxyIniConfigManager.Create(IniFileName: String);
+begin
+  FIniFileName := IniFileName;
+  FConfigList := TDbcProxyConnConfigList.Create;
+end;
+
+destructor TDbcProxyIniConfigManager.Destroy;
+var
+  x: Integer;
+begin
+  if Assigned(FConfigList) then begin
+    for x := 0 to FConfigList.Count - 1 do
+      if Assigned(FConfigList.Items[x].SecurityModule) then begin
+        FConfigList.Items[x].SecurityModule.Free;
+        //doesn't work, so don't even try:
+        //FConfigList.Items[x].SecurityModule := nil;
+      end;
+    FreeAndNil(FConfigList);
+  end;
+  inherited;
+end;
+
+procedure TDbcProxyIniConfigManager.LoadBaseConfig;
+var
+  IniFile: TIniFile;
+begin
+  {$IFDEF LINUX}
+  FLogFile := '/var/log/zeosproxy.log';
+  {$ELSE}
+  FLogFile := ExtractFilePath(ParamStr(0)) + 'zeosproxy.log';
+  {$ENDIF}
+
+  IniFile := TIniFile.Create(FIniFileName, TEncoding.UTF8);
+  try
+    FDbPrefix := IniFile.ReadString('general', 'Database Prefix', 'db.');
+    FSecurityPrefix := IniFile.ReadString('general', 'Security Prefix', 'sec.');
+    FListeningPort := IniFile.ReadInteger('general', 'Listening Port', 8000);
+    FIPAddress := IniFile.ReadString('general', 'IP Address', '127.0.0.1');
+    FConnectionIdleTimeout := IniFile.ReadInteger('general', 'Connection Idle Timeout', 86400); {Default to one day}
+    FEnableThreading := IniFile.ReadBool('general', 'Enable Threading', false);
+    FLogFile := IniFile.ReadString('general', 'Log File', FLogFile);
+    if (Length(FDbPrefix) > 0) and (FDbPrefix[Length(FDbPrefix)] <> '.') then
+      FDbPrefix := FDbPrefix + '.';
+    if (Length(FSecurityPrefix) > 0) and (FSecurityPrefix[Length(FSecurityPrefix)] <> '.') then
+      FSecurityPrefix := FSecurityPrefix + '.';
+  finally
+    FreeAndNil(IniFile);
+  end;
+end;
+
+procedure TDbcProxyIniConfigManager.LoadConnectionConfig;
+var
+  ConfigInfo: TDbcProxyConnConfig;
+  Sections: TStringList;
+  Section: String;
+  ModuleType: String;
+begin
+  if not Assigned(Logger) then raise
+    Exception.Create('Logger does not exist!');
+
+  Sections := TStringList.Create;
+  try
+    FIniFile := TIniFile.Create(FIniFileName, TEncoding.UTF8);
+
+    // load SSL configuration
+    FUseSSL := FIniFile.ReadBool('general', 'use ssl', false);
+    {$IFDEF ENABLE_TOFU_CERTIFICATES}
+    FUseTofuSSL := FIniFile.ReadBool('general', 'use tofu ssl', false);
+    if FUseSSL and FUseTofuSSL then begin
+      zeosproxy_imp.Logger.Warning('SSL and TOFU SSL is enabled. Preferring SSL and disabling TOFU SSL.');
+      FUseTofuSSL := false;
+    end;
+    {$ENDIF}
+
+    if FUseSSL then begin
+      FHostName := FIniFile.ReadString('general', 'host name', '');
+      FCertificateFile := FIniFile.ReadString('general', 'Certificate File', '');
+      FKeyFile := FIniFile.ReadString('general', 'Key File', '');
+      FKeyPasswod := FIniFile.ReadString('general', 'Key Password', '');
+    end;
+
+    // load available connections
+    FIniFile.ReadSections(Sections);
+    while Sections.Count > 0 do begin
+      Section := Sections.Strings[0];
+      if LowerCase(Copy(Section, 1, Length(DbPrefix))) = DbPrefix then begin
+        ConfigInfo.ConfigName := LowerCase(Copy(Section, Length(DbPrefix) + 1, Length(Section)));
+        ConfigInfo.ClientCodepage := FIniFile.ReadString(Section, 'ClientCodepage', 'UTF8');
+        ConfigInfo.Database := FIniFile.ReadString(Section, 'Database', '');
+        ConfigInfo.HostName := FIniFile.ReadString(Section, 'HostName', '');
+        ConfigInfo.LibraryLocation := FIniFile.ReadString(Section, 'LibraryLocation', '');
+        ConfigInfo.Port := FIniFile.ReadInteger(Section, 'Port', 0);
+        ConfigInfo.Protocol := FIniFile.ReadString(Section, 'Protocol', '');
+        ConfigInfo.Properties := FIniFile.ReadString(Section, 'Properties', '');
+
+        Section := FIniFile.ReadString(Section, 'Security Module', '');
+        if Section <> '' then begin
+          Section := SecurityPrefix + Section;
+          ModuleType := FIniFile.ReadString(Section, 'Type', '');
+          Logger.Debug(Format('Creating submodule %s of type %s', [Section, ModuleType]));
+          ConfigInfo.SecurityModule := GetSecurityModule(ModuleType);
+          if not Assigned(ConfigInfo.SecurityModule) then
+            raise EZSQLException.Create(Format('Could not load security module for connection %s', [ConfigInfo.ConfigName]));
+          ConfigInfo.SecurityModule.LoadConfig(TDbcProxyIniKeyValueProvider.Create(Self, FIniFile, Section) as IZDbcProxyKeyValueStore);
+        end else begin
+          ConfigInfo.SecurityModule := nil;
+        end;
+
+        FConfigList.Add(ConfigInfo);
+      end;
+      Sections.Delete(0);
+    end;
+  finally
+    if Assigned(Sections) then
+      FreeAndNil(Sections);
+    if assigned(FIniFile) then
+      FreeAndNil(FIniFile);
+  end;
+end;
+
+function TDbcProxyIniConfigManager.GetSecurityConfig(const Name: String): IZDbcProxyKeyValueStore;
+var
+  CfgName: String;
+begin
+  CfgName := FSecurityPrefix + Name;
+  if not FIniFile.SectionExists(CfgName) then raise
+    EZSQLException.Create(Format('Could not find section %s', [CfgName]));
+  Result := TDbcProxyIniKeyValueProvider.Create(self, FIniFile, CfgName) as IZDbcProxyKeyValueStore;
+end;
+
+function TDbcProxyIniConfigManager.GetDatbaseConfig(const Name: String): IZDbcProxyKeyValueStore;
+var
+  CfgName: String;
+begin
+  CfgName := FDbPrefix + Name;
+  if not FIniFile.SectionExists(CfgName) then raise
+    EZSQLException.Create(Format('Could not find section %s', [CfgName]));
+  Result := TDbcProxyIniKeyValueProvider.Create(self, FIniFile, CfgName) as IZDbcProxyKeyValueStore;
 end;
 
 end.

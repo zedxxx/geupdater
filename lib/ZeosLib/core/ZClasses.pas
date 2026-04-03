@@ -59,13 +59,13 @@ uses
   SysUtils, Classes, SyncObjs, FmtBCD,
   ZCompatibility, ZSysUtils
   {$IF defined(MSWINDOWS) and not defined(FPC)}, Windows{$IFEND} //some old comp. -> INFINITE
-  {$IFDEF NO_UNIT_CONTNRS},System.Generics.Collections{$ENDIF};
+  {$IFDEF NO_UNIT_CONTNRS},System.Generics.Collections{$ENDIF}{$IFNDEF NO_SAFECALL}{$IFDEF FPC}, Types{$ELSE}, ActiveX, ComObj{$ENDIF}{$ENDIF};
 
 const
   ZEOS_MAJOR_VERSION = 8;
   ZEOS_MINOR_VERSION = 0;
-  ZEOS_SUB_VERSION = 0;
-  ZEOS_STATUS = 'release';
+  ZEOS_SUB_VERSION = 1;
+  ZEOS_STATUS = 'beta';
   ZEOS_VERSION = {$IF ZEOS_MAJOR_VERSION > 9}
                  Char(48+ZEOS_MAJOR_VERSION div 10)+Char(48+ZEOS_MAJOR_VERSION mod 10)+'.'+
                  {$ELSE}
@@ -888,7 +888,7 @@ type
 
   /// <author>EgonHugeist</author>
   /// <summary>implements sort compare function.</summary>
-  TZSortCompare = function(Item1, Item2: Pointer): Integer;
+  TZCompareFunc = function(Item1, Item2: Pointer): Integer;
   /// <author>EgonHugeist</author>
   /// <summary>implements list compare object function</summary>
   TZListSortCompare = function(Item1, Item2: Pointer): Integer of object;
@@ -897,7 +897,7 @@ type
   /// <summary>implements list of sorted custom elements</summary>
   TZCustomUniqueElementBinarySearchList = class(TZCustomElementList)
   protected
-    FCompare: TZSortCompare;
+    FCompare: TZCompareFunc;
   public
     /// <summary>Delete an element by given Value comapred to the list.</summary>
     /// <param>"ValueToCompare" the value compared to the list items to be removed.</param>
@@ -923,7 +923,7 @@ type
     ///  required on removing the items and if the memory needs to be zeroed out
     ///  on growing the buffer.</param>
     /// <param>"Compare" a custom compare function used to get and add the elemenets</param>
-    constructor Create(Compare: TZSortCompare; ElementSize: Cardinal; ElementNeedsFinalize: Boolean);
+    constructor Create(Compare: TZCompareFunc; ElementSize: Cardinal; ElementNeedsFinalize: Boolean);
   public
     property Count: NativeInt read FCount;
     property Items[ValueToCompare: Pointer]: Pointer read Get;
@@ -938,7 +938,7 @@ type
     /// <param>"L" an address of an element.</param>
     /// <param>"R" an address of an element.</param>
     /// <param>"Compare" a global comparision function.</param>
-    procedure QuickSortSha_0AA(L, R: PAnsiChar; Compare: TZSortCompare); overload;
+    procedure QuickSortSha_0AA(L, R: PAnsiChar; Compare: TZCompareFunc); overload;
     /// <author>Aleksandr Sharahov see http://guildalfa.ru/alsha/</author>
     /// <summary>Performs hybrid sort algorithm for the element list.<summary>
     /// <param>"L" an address of an element.</param>
@@ -950,7 +950,7 @@ type
     /// <param>"L" an address of an element.</param>
     /// <param>"R" an address of an element.</param>
     /// <param>"Compare" a global comparision function.</param>
-    procedure QuickSort(L, R: Integer; Compare: TZSortCompare); overload;
+    procedure QuickSort(L, R: Integer; Compare: TZCompareFunc); overload;
     /// <summary>Performs quick sort algorithm for the element list.<summary>
     /// <param>"L" an address of an element.</param>
     /// <param>"R" an address of an element.</param>
@@ -960,7 +960,7 @@ type
     /// <author>Aleksandr Sharahov see http://guildalfa.ru/alsha/</author>
     /// <summary>Performs hybrid sort algorithm for the element list.<summary>
     /// <param>"Compare" a global comparision function.</param>
-    procedure Sort(Compare: TZSortCompare); overload;
+    procedure Sort(Compare: TZCompareFunc); overload;
     /// <author>Aleksandr Sharahov see http://guildalfa.ru/alsha/</author>
     /// <summary>Performs hybrid sort algorithm for the element list.<summary>
     /// <param>"Compare" an object comparision function.</param>
@@ -1011,6 +1011,22 @@ type
   EArgumentException = Class(Exception);
   {$IFEND}
 
+  {$IFNDEF NO_SAFECALL}
+  TZOleStream = class(TStream)
+  private
+    FStream: IStream;
+  protected
+    function GetSize: Int64; override;
+    procedure SetSize(const NewSize: Int64); override;
+    procedure OleCheck(Value : HResult); {$IFDEF WITH_INLINE}inline;{$ENDIF}
+  public
+    constructor Create(Stream: IStream);
+    function Read(var Buffer; Count: Integer): Integer; override;
+    function Write(const Buffer; Count: Integer): Integer; override;
+    function Seek(const Offset: Int64; Origin: TSeekOrigin): Int64; override;
+  end;
+  {$ENDIF}
+
 /// <author>Aleksandr Sharahov see http://guildalfa.ru/alsha/</author>
 /// <summary>Performs hybrid sort algorithm for the list. changes by
 ///  EgonHugeist: Replace cardinal casts by using our NativeUInt to make it
@@ -1024,6 +1040,9 @@ type
 procedure HybridSortSha_0AA(List: PPointerList; Count: integer; Compare: TZListSortCompare);
 
 procedure QuickSort(List: PPointerList; L, R: integer; Compare: TZListSortCompare);
+
+function XMLEncode(Input: String): String;
+
 implementation
 
 uses ZMessages, ZFastCode, ZExceptions
@@ -2941,7 +2960,7 @@ end;
 
 {$IFDEF FPC} {$PUSH} {$WARN 4055 off : Conversion between ordinals and pointers is not portable} {$ENDIF}
 procedure TZSortableCustomElementList.QuickSortSha_0AA(L, R: PAnsiChar;
-  Compare: TZSortCompare);
+  Compare: TZCompareFunc);
 var
   I, J, T: PAnsiChar;
 begin;
@@ -3024,7 +3043,7 @@ end;
 
 {$IFDEF FPC} {$PUSH} {$WARN 4055 off : Conversion between ordinals and pointers is not portable} {$ENDIF}
 procedure TZSortableCustomElementList.QuickSort(L, R: Integer;
-  Compare: TZSortCompare);
+  Compare: TZCompareFunc);
 var
   I, J: Integer;
   P, T, E: Pointer;
@@ -3106,7 +3125,7 @@ end;
 {$IFDEF FPC} {$POP} {$ENDIF}
 
 
-procedure TZSortableCustomElementList.Sort(Compare: TZSortCompare);
+procedure TZSortableCustomElementList.Sort(Compare: TZCompareFunc);
 (*var
   I, J, L, R: PAnsiChar;
 begin;
@@ -3186,7 +3205,7 @@ end;
 
 { TZCustomUniqueElementBinarySearchList }
 
-constructor TZCustomUniqueElementBinarySearchList.Create(Compare: TZSortCompare;
+constructor TZCustomUniqueElementBinarySearchList.Create(Compare: TZCompareFunc;
   ElementSize: Cardinal; ElementNeedsFinalize: Boolean);
 begin
   inherited Create(ElementSize, ElementNeedsFinalize);
@@ -3254,4 +3273,93 @@ begin
     Result := -1;
 end;
 
+function XMLEncode(Input: String): String;
+var
+  x: Integer;
+  Position: Integer;
+
+  procedure CutAndInsert(Replacement: String);
+  begin
+    if Position < x then Result := Result + Copy(Input, Position, x - Position);
+    Result := Result + Replacement;
+    Position := x + 1;
+  end;
+begin
+  Position := 1;
+  Result := '';
+  for x := 1 to Length(Input) do begin
+    case Input[x] of
+      #00..#31, '%': CutAndInsert('&#' + IntToStr(Ord(Input[x])) + ';');
+      '<': CutAndInsert('&lt;');
+      '>': CutAndInsert('&gt;');
+      '&': CutAndInsert('&amp;');
+      '''': CutAndInsert('&apos;');
+      '"': CutAndInsert('&quot;');
+    end;
+  end;
+  if Position <= Length(Input) then Result := Result + Copy(Input, Position, Length(Input));
+end;
+
+{$IFNDEF NO_SAFECALL}
+procedure TZOleStream.OleCheck(Value : HResult);
+var
+  Msg: String;
+begin
+  if Value <> 0 then begin
+    Msg := SysErrorMessage(Value);
+    raise EZSQLException.Create(Msg);
+  end;
+end;
+
+function TZOleStream.GetSize: Int64;
+var
+  stat: STATSTG;
+begin
+  FillChar(stat, sizeof(stat), #0);
+  OleCheck(FStream.Stat(stat, STATFLAG_NONAME));
+  Result := stat.cbSize;
+end;
+
+procedure TZOleStream.SetSize(const NewSize: Int64);
+begin
+  OleCheck(FStream.SetSize(NewSize));
+end;
+
+constructor TZOleStream.Create(Stream: IStream);
+begin
+  inherited Create;
+  FStream := Stream;
+end;
+
+function TZOleStream.Read(var Buffer; Count: Integer): Integer;
+var
+  BytesRead: Cardinal;
+begin
+  OleCheck(FStream.Read(@Buffer, Count, @BytesRead));
+  Result := BytesRead;
+end;
+
+function TZOleStream.Write(const Buffer; Count: Integer): Integer;
+var
+  BytesWritten: Cardinal;
+begin
+  OleCheck(FStream.Write(@Buffer, Count, @BytesWritten));
+  Result := BytesWritten;
+end;
+
+function TZOleStream.Seek(const Offset: Int64; Origin: TSeekOrigin): Int64;
+const
+  IStreamSeekOrigin: Array[TSeekOrigin] of DWORD = (STREAM_SEEK_SET, STREAM_SEEK_CUR, STREAM_SEEK_END);
+var
+  NewPos: {$IFDEF ISTREAM_SEEK_LARGEUINT}LargeUInt{$ELSE}LargeInt{$ENDIF};
+begin
+  OleCheck(FStream.Seek(Offset, IStreamSeekOrigin[Origin], NewPos));
+  Result := NewPos;
+end;
+{$ENDIF}
+
+
+
+
 end.
+

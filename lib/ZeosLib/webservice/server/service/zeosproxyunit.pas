@@ -55,7 +55,7 @@ unit zeosproxyunit;
 interface
 
 uses
-  Classes, SysUtils, DaemonApp, server_listener, {$IFDEF WITH_DNSSD}mdnsService, {$ENDIF}
+  Classes, SysUtils, DaemonApp, server_listener, dbcproxyconfigstore, {$IFDEF WITH_DNSSD}mdnsService, {$ENDIF}
   // for including the Zeos drivers:
   ZDbcAdo, ZDbcASA, ZDbcDbLib, ZDbcFirebird, ZDbcInterbase6, ZDbcMySql, ZDbcODBCCon,
   ZDbcOleDB, ZDbcOracle, ZDbcPostgreSql, ZDbcSQLAnywhere, ZDbcSqLite, ZDbcProxyMgmtDriver,
@@ -89,7 +89,7 @@ uses
   {synapse}
   {local}zeosproxy, zeosproxy_binder, zeosproxy_imp, DbcProxyUtils,
   DbcProxyConnectionManager, DbcProxyConfigManager, ZDbcProxyManagement,
-  DbcProxyFileLogger, DbcProxyStartupProcedures;
+  DbcProxyFileLogger, DbcProxyStartupProcedures, zeosproxy_cbor_imp;
 
 procedure RegisterDaemon;
 begin
@@ -108,13 +108,19 @@ end;
 procedure TZeosProxyDaemon.DataModuleStart(Sender: TCustomDaemon;
   var OK: Boolean);
 var
-  configFile: String;
+  ConfigFile: String;
+  {$IFDEF LINUX}
+  LibcFatal: String;
+  {$ENDIF}
 begin
   {$IFDEF LINUX}
-  configFile := '/etc/zeosproxy.ini';
+  ConfigFile := '/etc/zeosproxy.ini';
   zeosproxy_imp.Logger := TDbcProxyConsoleLogger.Create;
+  LibcFatal := GetEnvironmentVariable('LIBC_FATAL_STDERR_');
+  if LibcFatal = '' then
+    zeosproxy_imp.Logger.Info('LIBC_FATAL_STDERR_ is not set. Error messages might get lost.');
   {$ELSE}
-  configFile := ExtractFilePath(ParamStr(0)) + 'zeosproxy.ini';
+  ConfigFile := ExtractFilePath(ParamStr(0)) + 'zeosproxy.ini';
   zeosproxy_imp.Logger := TDbcProxyFileLogger.Create(ExtractFilePath(ParamStr(0)) + 'zeosproxy.log');
   {$ENDIF}
 
@@ -130,13 +136,13 @@ begin
   InitializeSSLLibs;
 
 
-  ConfigManager := TDbcProxyConfigManager.Create;
-  ConfigManager.LoadBaseConfig(configFile);
+  ConfigManager := TDbcProxyIniConfigManager.Create(ConfigFile) as IZDbcProxyConfigStore;
+  ConfigManager.LoadBaseConfig;
   if ConfigManager.LogFile <> '' then begin
     FreeAndNil(zeosproxy_imp.Logger);
     zeosproxy_imp.Logger := TDbcProxyFileLogger.Create(ConfigManager.LogFile);
   end;
-  ConfigManager.LoadConnectionConfig(configFile);
+  ConfigManager.LoadConnectionConfig;
 
   try
     InitTofuCerts;
@@ -148,6 +154,8 @@ begin
     zeosproxy_imp.Logger.Debug('Creating Listener...');
     AppObject := CreateAppObject;
     AppObject.OnNotifyMessage := OnMessage;
+    CborImp := TZDbcProxyCborImp.Create;
+    AppObject.OnCustomRequest := CborImp.OnCustomRequest;
     zeosproxy_imp.Logger.Debug('Starting the Proxy...');
     AppObject.Start();
 

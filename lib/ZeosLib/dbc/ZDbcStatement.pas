@@ -100,6 +100,7 @@ type
     FWeakIZStatementPtr: Pointer; //weak reference to IZStatement intf of Self
     FWeakIZLoggingObjectPtr: Pointer; //weak reference to IZLoggingObject intf of Self
     FCursorLocation: TZCursorLocation;
+    FTransaction: IZTransaction;
     procedure PrepareOpenResultSetForReUse; virtual;
     procedure PrepareLastResultSetForReUse; virtual;
     procedure FreeOpenResultSetReference(const ResultSet: IZResultSet);
@@ -309,6 +310,7 @@ type
     /// <summary>Get the cursor type of this resultset</summary>
     /// <returns>the CursorLocation of this resultset</returns>
     function GetCursorLocation: TZCursorLocation;
+    procedure SetTransaction(ATransaction: IZTransaction); virtual;
   end;
 
   TZBindType = (zbtNull, zbt8Byte, zbt4Byte,
@@ -1669,6 +1671,8 @@ var ImmediatelyReleasable: IImmediatelyReleasable;
 begin
   if not FClosed then begin
     FClosed := True;
+    if FConnection <> nil then
+      FConnection.DeregisterStatement(Self);	
     if (FOpenResultSet <> nil) and Supports(IZResultSet(FOpenResultSet), IImmediatelyReleasable, ImmediatelyReleasable) and
        (ImmediatelyReleasable <> Sender) then
       ImmediatelyReleasable.ReleaseImmediat(Sender, AError);
@@ -1678,8 +1682,6 @@ begin
     if Assigned(Connection) and Supports(Connection, IImmediatelyReleasable, ImmediatelyReleasable) and
        (ImmediatelyReleasable <> Sender) then
       ImmediatelyReleasable.ReleaseImmediat(Sender, AError);
-    if FConnection <> nil then
-      FConnection.DeregisterStatement(Self);
   end;
 end;
 
@@ -2374,6 +2376,11 @@ end;
 function TZAbstractStatement.GetCursorLocation: TZCursorLocation;
 begin
   Result := FCursorLocation
+end;
+
+procedure TZAbstractStatement.SetTransaction(ATransaction: IZTransaction);
+begin
+  FTransaction := ATransaction;
 end;
 
 function TZAbstractStatement.GetParameters: TStrings;
@@ -4303,6 +4310,8 @@ end;
 procedure TZAbstractPreparedStatement.Unprepare;
 var RefCountAdded: Boolean;
 begin
+  if DriverManager.HasLoggingListener then
+    DriverManager.LogMessage(lcUnprepStmt,Self);
   RefCountAdded := (RefCount = 1) and (Assigned(FOpenResultSet) or Assigned(FLastResultSet));
   if RefCountAdded then
     _AddRef;

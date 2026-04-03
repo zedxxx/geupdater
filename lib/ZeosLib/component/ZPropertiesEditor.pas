@@ -1401,6 +1401,14 @@ const
     Providers: (Count: 1; Items: @cPostgreSQLProvider);
     Protocols: (Count: 1; Items: @AllPostgreSQL);
   );
+  ZProp_PG_NeverUseHostaddr : TZProperty = (
+    Name: DSProps_PgNeverUseHostAddr;
+    Purpose: 'Normally Zeos uses the hostaddr property in the PostgreSQL connection string if an IP address is detected. Setting this property to true will force Zeos to always use the host property. This can help in setups where the GSS API is used in combination with IP addresses.';
+    ValueType: pvtEnum; LevelTypes: [pltConnection];
+    Values: cBoolEnum; Default: cBoolTrue; Alias: '';
+    Providers: (Count: 1; Items: @cPostgreSQLProvider);
+    Protocols: (Count: 1; Items: @AllPostgreSQL);
+  );
 {$ENDIF}
 {$IFDEF ENABLE_MYSQL}
   const
@@ -4229,6 +4237,16 @@ const
     Providers: (Count: 0; Items: nil);
     Protocols: (Count: 2; Items: @cODBCProtocols);
   );
+  ZProp_ODBC_Version : TZProperty = (
+    Name: ConnProps_ODBC_Version;
+    Purpose: 'Specifies the ODBC driver version to be used on this connection. '+
+      'The supportend versions are ODBC 3 or ODBC 3.80 (submit the value as 380)';
+    ValueType: pvtNumber; LevelTypes: [pltConnection];
+    Values: '3|380'; Default: '380'; Alias: '';
+    Providers: (Count: 0; Items: nil);
+    Protocols: (Count: 2; Items: @cODBCProtocols);
+  );
+
 {$ENDIF}
 {$IFNDEF ZEOS_DISABLE_POSTGRESQL}
   PostgreOnly: array[0..0] of String = ('postrgres');
@@ -4392,7 +4410,7 @@ initialization
     @ZProp_KRB, @ZProp_LANG, @ZProp_LazyClose, @ZProp_LCLOSE]);
 {$ENDIF}
 {$IFDEF ENABLE_ODBC}
-  RegisterZProperties([@ZProp_Server, @ZProp_CharacterSet, @ZProp_DRIVER]);
+  RegisterZProperties([@ZProp_Server, @ZProp_CharacterSet, @ZProp_DRIVER, @ZProp_ODBC_Version]);
 {$ENDIF}
 
 {$IF declared(ELProps_ListernerInterval )}

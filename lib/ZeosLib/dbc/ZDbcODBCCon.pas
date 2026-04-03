@@ -355,13 +355,13 @@ implementation
 {$IFNDEF ZEOS_DISABLE_ODBC} //if set we have an empty unit
 
 uses
-  {$IFDEF MSWINDOWS}Windows,{$ENDIF}{$IFDEF NO_INLINE_SIZE_CHECK}Math,{$ENDIF}
+  {$IFDEF MSWINDOWS}Windows,{$ENDIF} Math,
   ZSysUtils, ZEncoding, ZFastCode, ZMessages,
   ZPlainDriver, ZODBCToken,
   ZPostgreSqlAnalyser, ZPostgreSqlToken, ZSybaseAnalyser, ZSybaseToken,
   ZInterbaseAnalyser, ZInterbaseToken, ZMySqlAnalyser, ZMySqlToken,
   ZOracleAnalyser, ZOracleToken,
-  ZDbcODBCMetadata, ZDbcODBCStatement, ZDbcUtils, ZDbcProperties;
+  ZDbcODBCMetadata, ZDbcODBCStatement, ZDbcUtils, ZDbcODBCUtils, ZDbcProperties;
 
 { TZODBCDriver }
 
@@ -429,17 +429,6 @@ begin
     FMetaData := TODBCDatabaseMetadataA.Create(Self, Url, fHDBC);
   fCatalog := '';
   inherited AfterConstruction; //dec constructors RefCnt
-  if fODBCPlainDriver.SQLAllocHandle(SQL_HANDLE_ENV, Pointer(SQL_NULL_HANDLE), fHENV) <> SQL_SUCCESS then
-    raise EZSQLException.Create('Couldn''t allocate an Environment handle');
-  //Try to SET Major Version 3 and minior Version 8
-  (*if fODBCPlainDriver.SQLSetEnvAttr(fHENV, SQL_ATTR_ODBC_VERSION, SQL_OV_ODBC3_80, 0) = SQL_SUCCESS then
-    fODBCVersion := {%H-}Word(SQL_OV_ODBC3_80)
-  else *)begin
-    //set minimum Major Version 3
-    if fODBCPlainDriver.SQLSetEnvAttr(fHENV, SQL_ATTR_ODBC_VERSION, SQL_OV_ODBC3, 0) <> SQL_SUCCESS then
-      raise EZSQLException.Create('Failed to set minimum ODBC version 3');
-    fODBCVersion := {%H-}Word(SQL_OV_ODBC3) * 100;
-  end;
 end;
 
 {**
@@ -488,6 +477,9 @@ begin
         fODBCPlainDriver.SQLFreeHandle(SQL_HANDLE_DBC, fHDBC);
         fHDBC := nil;
       end;
+    if Assigned(fHENV) then
+      fODBCPlainDriver.SQLFreeHandle(SQL_HANDLE_ENV, fHENV);
+      fHENV := nil;
     end;
   end;
 end;
@@ -519,8 +511,6 @@ end;
 destructor TZAbstractODBCConnection.Destroy;
 begin
   inherited Destroy;
-  if Assigned(fHENV) then
-    fODBCPlainDriver.SQLFreeHandle(SQL_HANDLE_ENV, fHENV);
   ClearWarnings;
 end;
 
@@ -714,7 +704,7 @@ type
     Provider: TZServerProvider;
   end;
 const
-  KnownDriverName2TypeMap: array[0..22] of TDriverNameAndServerProvider = (
+  KnownDriverName2TypeMap: array[0..23] of TDriverNameAndServerProvider = (
     (DriverName: 'SQLNCLI';     Provider: spMSSQL),
     (DriverName: 'SQLSRV';      Provider: spMSSQL),
     (DriverName: 'LIBTDSODBC';  Provider: spMSSQL),
@@ -737,11 +727,13 @@ const
     (DriverName: 'SQLITE';      Provider: spSQLite),
     (DriverName: 'PSQLODBC';    Provider: spPostgreSQL),
     (DriverName: 'NXODBCDRIVER';Provider: spNexusDB),
-    (DriverName: 'ICLIT09B';    Provider: spInformix)
-    );
+    (DriverName: 'ICLIT09B';    Provider: spInformix),
+    (DriverName: 'FIREBIRDODBC';Provider: spIB_FB)
+  );
 var
   tmp, OutConnectString: String;
   TimeOut: NativeUInt;
+  iODBCVersion: SQLPointer;
   aLen: SQLSMALLINT;
   ConnectStrings: TStrings;
   DriverCompletion: SQLUSMALLINT;
@@ -750,6 +742,32 @@ var
 begin
   if not Closed then
     Exit;
+  if fHENV = nil then begin
+    tmp := Info.Values[ConnProps_ODBC_Version];
+    if tmp = '' then
+      iODBCVersion := SQL_OV_ODBC3_80
+    else begin
+      {$IFNDEF UNICODE}
+      iODBCVersion := SQLPointer(ZFastCode.{$IFDEF CPU64}RawToUInt64Def{$ELSE}RawToUInt32Def{$ENDIF}(tmp, NativeUInt(SQL_OV_ODBC3_80)));
+      {$ELSE}
+      iODBCVersion := SQLPointer(ZFastCode.{$IFDEF CPU64}UnicodeToUInt64Def{$ELSE}UnicodeToUInt32Def{$ENDIF}(tmp, NativeUInt(SQL_OV_ODBC3_80)));
+      {$ENDIF}
+      if NativeUInt(iODBCVersion) < NativeUInt(SQL_OV_ODBC3_80)
+      then iODBCVersion := SQL_OV_ODBC3
+      else iODBCVersion := SQL_OV_ODBC3_80;
+    end;
+    if fODBCPlainDriver.SQLAllocHandle(SQL_HANDLE_ENV, Pointer(SQL_NULL_HANDLE), fHENV) <> SQL_SUCCESS then
+      raise EZSQLException.Create('Couldn''t allocate an Environment handle');
+    //Try to SET Major Version 3 and minior Version 8
+    if fODBCPlainDriver.SQLSetEnvAttr(fHENV, SQL_ATTR_ODBC_VERSION, iODBCVersion, 0) = SQL_SUCCESS then
+      fODBCVersion := {%H-}Word(SQL_OV_ODBC3_80)
+    else begin
+      //set minimum Major Version 3
+      if fODBCPlainDriver.SQLSetEnvAttr(fHENV, SQL_ATTR_ODBC_VERSION, SQL_OV_ODBC3, 0) <> SQL_SUCCESS then
+        raise EZSQLException.Create('Failed to set minimum ODBC version 3');
+      fODBCVersion := {%H-}Word(SQL_OV_ODBC3) * 100;
+    end;
+  end;
   DetermineAttachmentCharset; //do this by default!
   Ret := fODBCPlainDriver.SQLAllocHandle(SQL_HANDLE_DBC,fHENV,fHDBC);
   if Ret <> SQL_SUCCESS then
@@ -788,12 +806,12 @@ begin
     tmp := ComposeString(ConnectStrings, ';');
   end;
   {$IFDEF WITH_VAR_INIT_WARNING}OutConnectString := '';{$ENDIF}
-  SetLength(OutConnectString, 4096);
+  SetLength(OutConnectString, 1024);
   FLogMessage := Format(SConnect2AsUser, [URL.Database, URL.UserName]);
   try
-    Ret := fODBCPlainDriver.SQLDriverConnect(fHDBC, nil,
-      //{$IFDEF MSWINDOWS}SQLHWND(GetDesktopWindow){$ELSE}nil{$ENDIF},
-      Pointer(tmp), Length(tmp), @OutConnectString[1],
+    Ret := fODBCPlainDriver.SQLDriverConnect(fHDBC,
+      {$IFDEF MSWINDOWS}SQLHWND(GetDesktopWindow){$ELSE}nil{$ENDIF},
+      Pointer(tmp), Length(tmp), Pointer(OutConnectString),
       Length(OutConnectString), @aLen, DriverCompletion);
     if Ret <> SQL_SUCCESS then
       HandleErrorOrWarning(Ret, fHDBC, SQL_HANDLE_DBC, FLogMessage, lcConnect, Self)
@@ -1107,18 +1125,19 @@ var
   {$ENDIF}
   aLen: SQLINTEGER;
   Ret: SQLRETURN;
+  Buffer : array[0 .. 8191] of WideChar;
 begin
   Result := inherited GetCatalog;
   if Result = '' then begin
+    FillChar(Buffer, Length(Buffer) shl 1, #0);
     RET := TODBC3UnicodePlainDriver(fODBCPlainDriver).SQLGetConnectAttrW(fHDBC,
-      SQL_ATTR_CURRENT_CATALOG, nil, 0, @aLen);
+      SQL_ATTR_CURRENT_CATALOG, @Buffer, Length(Buffer) - 1, @aLen);
     if Ret <> SQL_SUCCESS then
       HandleErrorOrWarning(Ret, fHDBC, SQL_HANDLE_DBC, 'GET CATALOG', lcOther, Self);
+    aLen := Min(aLen, WStrLen(PWideChar(@Buffer[0])) shl 1);
     if aLen > 0 then begin
       {$IFDEF UNICODE}
-      SetLength(Result, aLen shr 1);
-      Ret := TODBC3UnicodePlainDriver(fODBCPlainDriver).SQLGetConnectAttrW(fHDBC,
-        SQL_ATTR_CURRENT_CATALOG, Pointer(Result), aLen+2, @aLen);
+      SetString(result, PWideChar(@Buffer[0]), aLen shr 1);
       {$ELSE}
       {$IFDEF WITH_VAR_INIT_WARNING}Buf := '';{$ENDIF}
       SetLength(Buf, aLen shr 1);
@@ -1508,3 +1527,4 @@ finalization
 
 {$ENDIF ZEOS_DISABLE_ODBC} //if set we have an empty unit
 end.
+

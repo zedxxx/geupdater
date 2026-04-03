@@ -235,7 +235,7 @@ function CompareKeyFields(Field1: TField; const ResultSet: IZResultSet;
   @param OnlyDataFields <code>True</code> if only data fields selected.
 }
 procedure DefineSortedFields(DataSet: TDataset;
-  const SortedFields: string; out FieldRefs: TZFieldsLookUpDynArray;
+  const SortedFields: string; Tokenizer: IZTokenizer; out FieldRefs: TZFieldsLookUpDynArray;
   out CompareKinds: TComparisonKindArray; out OnlyDataFields: Boolean);
 
 {**
@@ -310,8 +310,6 @@ const
     'ffffffff',
     'fffffffff');
   {** Common variables. }
-var
-  CommonTokenizer: IZTokenizer;
 
 implementation
 
@@ -344,8 +342,12 @@ begin
       Result := ftInteger;
     stLongWord:
       Result := {$IFDEF WITH_FTLONGWORD}ftLongWord{$ELSE}ftLargeInt{$ENDIF}; // !
-    stLong, stULong:
+    stLong{$IFNDEF WITH_FTLARGEUINT}, stULong{$ENDIF}:
       Result := ftLargeInt;
+    {$IFDEF WITH_FTLARGEUINT}
+    stULong:
+      Result := ftLargeUint;
+    {$ENDIF}
     {$IFDEF WITH_FTSINGLE}
     stFloat:
       Result := ftSingle;
@@ -433,7 +435,7 @@ begin
     ftSingle:
       Result := stFloat;
     {$ENDIF}
-    ftFloat:
+    ftFloat, ftCurrency:
       Result := stDouble;
     {$IFDEF WITH_FTEXTENDED}
     ftExtended:
@@ -441,8 +443,12 @@ begin
     {$ENDIF}
     ftLargeInt:
       Result := stLong;
-    ftCurrency:
-      Result := stBigDecimal;
+    {$IFDEF WITH_FTLARGEUINT}
+    ftLargeUint:
+      Result := stULong;
+    {$ENDIF}
+//    ftCurrency:
+//      Result := stBigDecimal;
     ftBCD:
       Result := stCurrency;
     ftFmtBCD:
@@ -664,7 +670,7 @@ begin
         {$IFDEF WITH_FTLONGWORD}ftLongword:
           ResultValues[I] := EncodeUInteger(ResultSet.GetULong(ColumnIndex));
         {$ENDIF}
-        ftLargeInt: if Metadata.GetColumnType(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF}) = stULong
+        ftLargeInt{$IFDEF WITH_FTLARGEUINT}, ftLargeUint{$ENDIF}: if Metadata.GetColumnType(I{$IFNDEF GENERIC_INDEX}+1{$ENDIF}) = stULong
           then ResultValues[I] := EncodeUInteger(ResultSet.GetULong(ColumnIndex))
           else ResultValues[I] := EncodeInteger(ResultSet.GetLong(ColumnIndex));
         ftDate, ftTime, ftDateTime:
@@ -1107,7 +1113,7 @@ begin
       if (CurrentType in [stUnicodeString, stUnicodeStream]) or
          ((CurrentType in [stString, stAsciiStream]) and (VariantManager.UseWComparsions)) then begin
       {$ENDIF}
-        {$IFDEF NEXGEN}
+        {$IFDEF NEXTGEN}
         WValue1 := VariantManager.GetAsUnicodeString(KeyValues[I]);
         {$ELSE}
         WValue1 := KeyValues[I].VUnicodeString;
@@ -1117,14 +1123,14 @@ begin
           WValue2 := {$IFDEF UNICODE}AnsiUpperCase{$ELSE}WideUpperCase{$ENDIF}(WValue2);
 
         P1 := Pointer(WValue1);
-        if P1 = nil then //if partial value is '' then the evaluatin is always true
+        if P1 = nil then //if partial value is '' then the evaluation is always true
           Exit;
         {$IF not (defined(FPC) and not defined(MSWINDOWS))}
         P2 := Pointer(WValue2);
         {$IFEND}
         L1 := Length(WValue1);
         L2 := Length(WValue2);
-        if L2 < L1 then begin //if resultset value is shorter than keyvalue the evaluatin is always false
+        if L2 < L1 then begin //if resultset value is shorter than keyvalue the evaluation is always false
           Result := False;
           Exit;
         end;
@@ -1135,7 +1141,7 @@ begin
           Result := SysUtils.AnsiStrLComp(PWideChar(P2), PWideChar(P1), L1) = 0;
           {$ELSE} //https://www.freepascal.org/docs-html/rtl/sysutils/widecomparestr.html
             if L2 > L1 then
-              WValue2 := Copy(WValue2, 1, L2);
+              WValue2 := Copy(WValue2, 1, L1);
             Result := WideCompareStr(WValue1, WValue2) = 0;
           {$ENDIF}
         {$ENDIF}
@@ -1321,7 +1327,7 @@ end;
   @param OnlyDataFields <code>True</code> if only data fields selected.
 }
 procedure DefineSortedFields(DataSet: TDataset;
-  const SortedFields: string; out FieldRefs: TZFieldsLookUpDynArray;
+  const SortedFields: string; Tokenizer: IZTokenizer; out FieldRefs: TZFieldsLookUpDynArray;
   out CompareKinds: TComparisonKindArray; out OnlyDataFields: Boolean);
 var
   I, J, TokenValueInt: Integer;
@@ -1338,7 +1344,7 @@ begin
   SetLength(FieldRefs, FieldCount);
   {$IFDEF WITH_VAR_INIT_WARNING}CompareKinds := nil;{$ENDIF}
   SetLength(CompareKinds, FieldCount);
-  Tokens := CommonTokenizer.TokenizeBufferToList(SortedFields,
+  Tokens := Tokenizer.TokenizeBufferToList(SortedFields,
     [toSkipEOF, toSkipWhitespaces, toUnifyNumbers]);
   FieldsLookupTable := TZDataSet(DataSet as TZAbstractRODataset).FieldsLookupTable;
   try
@@ -1366,7 +1372,7 @@ begin
             end
             else
             // No, this is a field
-              Field := DataSet.FieldByName(CommonTokenizer.GetQuoteState.DecodeToken(Tokens[i]^, Tokens[i].P^));  // Will raise exception if field not present
+              Field := DataSet.FieldByName(Tokenizer.GetQuoteState.DecodeToken(Tokens[i]^, Tokens[i].P^));  // Will raise exception if field not present
           end;
         ttNumber:
           begin
@@ -1682,7 +1688,7 @@ begin
       stFloat:        Statement.SetFloat(Index, TZHackParam(Param).FData.pvSingle);
       stDouble:       Statement.SetDouble(Index, TZHackParam(Param).FData.pvDouble);
       stCurrency:     Statement.SetCurrency(Index, TZHackParam(Param).FData.pvCurrency);
-      stBigDecimal:   Statement.SetBigDecimal(Index, TZHackParam(Param).FData.pvBCD);
+      stBigDecimal:   Statement.SetBigDecimal(Index, TBcd(TZHackParam(Param).FData.pvBCD));
       stDate:         Statement.SetDate(Index, TZHackParam(Param).FData.pvDate);
       stTime:         Statement.SetTime(Index, TZHackParam(Param).FData.pvTime);
       stTimestamp:    Statement.SetTimestamp(Index, TZHackParam(Param).FData.pvTimeStamp);
@@ -2061,8 +2067,4 @@ begin
 end;
 {$IFDEF FPC} {$POP} {$ENDIF}
 
-initialization
-  CommonTokenizer := TZGenericSQLTokenizer.Create as IZTokenizer;
-finalization
-  CommonTokenizer := nil;
 end.

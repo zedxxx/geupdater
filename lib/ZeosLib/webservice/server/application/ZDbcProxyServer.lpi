@@ -33,7 +33,7 @@
         <PackageName Value="wst_core"/>
       </Item2>
     </RequiredPackages>
-    <Units Count="16">
+    <Units Count="18">
       <Unit0>
         <Filename Value="ZDbcProxyServer.lpr"/>
         <IsPartOfProject Value="True"/>
@@ -106,6 +106,15 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="DbcProxyStartupProcedures"/>
       </Unit15>
+      <Unit16>
+        <Filename Value="..\dbcproxyconfigstore.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="DbcProxyConfigStore"/>
+      </Unit16>
+      <Unit17>
+        <Filename Value="..\zeosproxy_cbor_imp.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit17>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
@@ -121,7 +130,7 @@
     </SearchPaths>
     <Parsing>
       <SyntaxOptions>
-        <SyntaxMode Value="DelphiUnicode"/>
+        <SyntaxMode Value="Delphi"/>
       </SyntaxOptions>
     </Parsing>
     <CodeGeneration>
@@ -132,10 +141,14 @@
         <StackChecks Value="True"/>
       </Checks>
       <VerifyObjMethodCallValidity Value="True"/>
+      <Optimizations>
+        <OptimizationLevel Value="0"/>
+      </Optimizations>
     </CodeGeneration>
     <Linking>
       <Debugging>
-        <DebugInfoType Value="dsDwarf2"/>
+        <DebugInfoType Value="dsDwarf3"/>
+        <UseHeaptrc Value="True"/>
       </Debugging>
     </Linking>
     <Other>

@@ -99,6 +99,7 @@ type
   protected
     procedure SetConnection(Value: TZAbstractConnection); override;
     function GetIZTransaction: IZTransaction;
+    procedure ReleaseInternalTransaction;
   public
     constructor Create(AOnwer: TComponent); override;
     procedure BeforeDestruction; override;
@@ -134,9 +135,11 @@ type
 implementation
 
 uses ZAbstractDataset, ZAbstractRODataset, ZSqlProcessor, ZMessages, ZExceptions;
+
 type
   TZProtectedAbstractRWTxnSeqDataSet = Class(TZAbstractRWTxnSeqDataSet);
   TZProtectedAbstractRODataset = Class(TZAbstractRODataset);
+
 { TZAbstractTransaction }
 
 procedure TZAbstractTransaction.BeforeDestruction;
@@ -157,11 +160,7 @@ begin
   end;
   FreeAndNil(FParams);
   FreeAndNil(FLinkedComponents);
-  if (FTransaction <> nil) then begin
-    with GetTransactionManager do
-      if IsTransactionValid(FTransaction) then ReleaseTransaction(FTransaction);
-    FTransaction := nil;
-  end;
+  ReleaseInternalTransaction;
   if Connection <> nil then
     SetConnection(nil);
   inherited BeforeDestruction;
@@ -242,12 +241,22 @@ var TxnManager: IZTransactionManager;
 begin
   TxnManager := GetTransactionManager;
   if (FTransaction = nil) or (not TxnManager.IsTransactionValid(FTransaction)) then
-    Result := TxnManager.CreateTransaction(FAutoCommit,
-      FReadOnly, FTransactIsolationLevel, FParams)
-  else Result := FTransaction;
+    FTransaction := TxnManager.CreateTransaction(FAutoCommit,
+      FReadOnly, FTransactIsolationLevel, FParams);
+  Result := FTransaction;
   with Connection.DbcConnection.GetMetadata.GetDatabaseInfo do begin
     FSupportsOpenCursorsAcrossRollback := SupportsOpenCursorsAcrossRollback;
     FSupportsOpenCursorsAcrossCommit := FSupportsOpenCursorsAcrossCommit;
+  end;
+end;
+
+procedure TZAbstractTransaction.ReleaseInternalTransaction;
+begin
+  if (FTransaction <> nil) then begin
+    with GetTransactionManager do
+      if IsTransactionValid(FTransaction) then
+        ReleaseTransaction(FTransaction);
+    FTransaction := nil;
   end;
 end;
 

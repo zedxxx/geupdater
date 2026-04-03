@@ -790,6 +790,10 @@ type
     tdsVarBinary          = 37,
     tdsIntN               = 38,
     tdsVarchar            = 39,
+    tdsMsDate             = 40, // FreeTDS calls this SYBMSDATE, but it doesn't fit into the names nicely...
+    tdsMsTime             = 41, // FreeTDS calls this SYBMSTIME, but it doesn't fit into the names nicely...
+    tdsMsDateTime2        = 42, // FreeTDS calls this SYBMSDATETIME", but it doesn't fit into the names nicely...
+    tdsMsDateTimeOffset   = 43, // FreeTDS calls this SYBMSDATETIMEOFFSET, but it doesn't fit into the names nicely...
     tdsBinary             = 45,
     tdsChar               = 47,
     tdsInt1               = 48,
@@ -943,6 +947,20 @@ type
     dttime:	DBINT;       // 300ths of a second since midnight, 25920000 unit is 1 day
   end;
 
+  TDBDATETIMEALL = packed record
+    time: UInt64;
+    date: DBINT;
+    offset: DBSMALLINT;
+    flags: Word;
+  end;
+  PDBDATETIMEALL = ^TDBDATETIMEALL;
+
+const
+  DbDateTimeAllTimePrecMask  = $0007;
+  DbDateTimeAllHasTimeMask   = $2000;
+  DbDateTimeAllHasDateMask   = $4000;
+  DbDatetimeAllHasOffsetMask = $8000;
+
 (*
  * Sybase & Microsoft use different names for the dbdaterec members.
  * Keep these two structures physically identical in memory.
@@ -951,6 +969,7 @@ type
  * Giving credit where credit is due, we can acknowledge that
  * Microsoft chose the better names here, hands down.  ("datedmonth"?!)
  *)
+type
   { FreeTDS sybdb.h }
   PTDS_DBDATEREC = ^Ttds_dbdaterec;
   Ttds_dbdaterec = packed record
@@ -1132,6 +1151,7 @@ type
   {** Represents a generic interface to DBLIB native API. }
   IZDBLibPlainDriver = interface (IZPlainDriver)
     ['{7731C3B4-0608-4B6B-B089-240AC43A3463}']
+    function dbSetMaxprocs(MaxProcs: SmallInt): RETCODE; cdecl;
   end;
 
   TDBERRHANDLE_PROC_cdecl = function(Proc: PDBPROCESS; Severity, DbErr, OsErr: Integer;
@@ -1194,7 +1214,7 @@ type
   TDbLibMessageHandler = class; //forward
   {$ENDIF TEST_CALLBACK}
   TDBLibraryVendorType = (lvtFreeTDS, lvtMS, lvtSybase);
-  TZDBLIBPLainDriver = class(TZAbstractPlainDriver, IZPlainDriver)
+  TZDBLIBPLainDriver = class(TZAbstractPlainDriver, IZDBLibPlainDriver)
   private
     {$IFDEF TEST_CALLBACK}
     FSQLErrorHandlerList: TZDBLibErrorList;
@@ -1491,7 +1511,7 @@ type
 
     function dbSetLoginTime(Seconds: Integer): RETCODE; {$IFDEF WITH_INLINE}inline; {$ENDIF}
     function dbSetLName(Login: PLOGINREC; Value: PAnsiChar; Item: Integer): RETCODE; {$IFDEF WITH_INLINE}inline; {$ENDIF}
-    function dbSetMaxprocs(MaxProcs: SmallInt): RETCODE; {$IFDEF WITH_INLINE}inline; {$ENDIF}
+    function dbSetMaxprocs(MaxProcs: SmallInt): RETCODE; cdecl; //{$IFDEF WITH_INLINE}inline; {$ENDIF}
     function dbSetTime(Seconds: Integer): RETCODE; {$IFDEF WITH_INLINE}inline; {$ENDIF}
     function dbSetOpt(dbProc: PDBPROCESS; Option: Integer; Char_Param: PAnsiChar; Int_Param: Integer): RETCODE; {$IFDEF WITH_INLINE}inline; {$ENDIF}
     function dbUse(dbProc: PDBPROCESS; dbName: PAnsiChar): RETCODE; {$IFDEF WITH_INLINE}inline; {$ENDIF}
@@ -1580,12 +1600,13 @@ type
     dbRetType: function(dbProc: PDBPROCESS; RetNum: Integer): DBINT; cdecl;
     dbSetLoginTime: function(Seconds: Integer): RETCODE; cdecl;
     dbSetLName: function(Login: PLOGINREC; Value: PAnsiChar; Item: Integer): RETCODE; cdecl;
-    dbSetMaxprocs: function(MaxProcs: DBINT): RETCODE; cdecl;
+    FDbSetMaxprocs: function(MaxProcs: DBINT): RETCODE; cdecl;
     dbSetTime: function(Seconds: DBINT): RETCODE; cdecl;
     dbSetOpt: function(dbProc: PDBPROCESS; Option: Integer; Char_Param: PAnsiChar; Int_Param: Integer): RETCODE; cdecl;
     dbUse: function(dbProc: PDBPROCESS; dbName: PAnsiChar): RETCODE; cdecl;
     dbvarylen: function(Proc: PDBPROCESS; Column: Integer): DBBOOL; cdecl;
     dbversion: function: PAnsiChar; cdecl;
+    function dbSetMaxprocs(MaxProcs: SmallInt): RETCODE; cdecl;
     {$ENDIF}
   public { macros }
     function dbSetLApp(Login: PLOGINREC; AppName: PAnsiChar): RETCODE; {$IFDEF WITH_INLINE}inline; {$ENDIF}
@@ -1598,7 +1619,7 @@ type
     function dbSetLUser(Login: PLOGINREC; UserName: PAnsiChar): RETCODE; {$IFDEF WITH_INLINE}inline; {$ENDIF}
   public { incompatibility workarounds }
     function dbRpcExec(dbProc: PDBPROCESS): RETCODE; {$IFDEF WITH_INLINE}inline; {$ENDIF}
-    function dbIntit: RETCODE;
+    function dbInit: RETCODE;
     function dbsetversion(Version: DBINT): RETCODE;
     function dbLogin: PLOGINREC; virtual;
   public //mapings from zeos to provider enums
@@ -1689,6 +1710,12 @@ type
     procedure BeforeDestruction; override;
   end;
   {$ENDIF TEST_CALLBACK}
+
+  function TdsDateTimeAllGetPrecision(const Value: TDBDATETIMEALL): Integer;
+  function TdsDateTimeAllHasDate(const Value: TDBDATETIMEALL): Boolean;
+  function TdsDateTimeAllHasTime(const Value: TDBDATETIMEALL): Boolean;
+  function TdsDateTimeAllHasOffset(const Value: TDBDATETIMEALL): Boolean;
+
 {$ENDIF ZEOS_DISABLE_DBLIB}
 
 implementation
@@ -2393,7 +2420,7 @@ end;
 {$ENDIF MSWINDOWS}
 
 {** Initialize DB-Library. }
-function TZDBLIBPLainDriver.dbIntit: RETCODE;
+function TZDBLIBPLainDriver.dbInit: RETCODE;
 {$IFDEF MSWINDOWS}var P: PAnsiChar;{$ENDIF}
 begin
   {$IFDEF MSWINDOWS}
@@ -2726,6 +2753,11 @@ begin
   then Result := FdbSetTime(Seconds)
   else Result := FdbSetTime_stdcall(Seconds);
 end;
+{$ELSE}
+function TZDBLIBPLainDriver.dbSetMaxprocs(MaxProcs: SmallInt): RETCODE;
+begin
+  Result := FDbSetMaxprocs(MaxProcs);
+end;
 {$ENDIF MSWINDOWS}
 
 function TZDBLIBPLainDriver.dbsetversion(Version: DBINT): RETCODE;
@@ -2952,6 +2984,8 @@ begin
 end;
 
 procedure TZDBLIBPLainDriver.LoadApi;
+var
+  i: Integer;
 begin
   with FLoader do begin
     //test for not exported methods to identify the libs:
@@ -2971,7 +3005,7 @@ begin
           @{$IFDEF MSWINDOWS}Fdbcurrow{$ELSE}dbcurrow{$ENDIF} := GetAddress('dbcurrow');
           @{$IFDEF MSWINDOWS}Fdbfirstrow{$ELSE}dbfirstrow{$ENDIF} := GetAddress('dbfirstrow');
           @{$IFDEF MSWINDOWS}Fdbclose_SYB{$ELSE}dbclose{$ENDIF} := GetAddress('dbclose'); //is a procedure
-          @{$IFDEF MSWINDOWS}Fdbsetmaxprocs_I{$ELSE}dbSetMaxprocs{$ENDIF} := GetAddress('dbsetmaxprocs'); //uses DBINT
+          @{$IFDEF MSWINDOWS}Fdbsetmaxprocs_I{$ELSE}FDbSetMaxprocs{$ENDIF} := GetAddress('dbsetmaxprocs'); //uses DBINT
           @{$IFDEF MSWINDOWS}Fdbloginfree{$ELSE}dbloginfree{$ENDIF} := GetAddress('dbloginfree', True); //name diff to ms
           //@{$IFDEF MSWINDOWS}Fdbcolbrowse_SYB{$ELSE}dbcolbrowse{$ENDIF} := GetAddress('dbcolbrowse'); //no FreeTDS
           @{$IFDEF MSWINDOWS}FdbMoreCmds{$ELSE}dbMoreCmds{$ENDIF} := GetAddress('dbmorecmds'); //name diff to ms
@@ -3003,7 +3037,7 @@ begin
           if not Assigned({$IFDEF MSWINDOWS}Fdbfirstrow_stdcall{$ELSE}dbfirstrow{$ENDIF}) then
             @{$IFDEF MSWINDOWS}Fdbfirstrow_stdcall{$ELSE}dbfirstrow{$ENDIF} := GetAddress('dbfirstrow'); //lowercase since 15+
           @{$IFDEF MSWINDOWS}Fdbclose_stdcall{$ELSE}dbclose{$ENDIF} := GetAddress('dbclose');
-          @{$IFDEF MSWINDOWS}Fdbsetmaxprocs_stdcall{$ELSE}dbSetMaxprocs{$ENDIF} := GetAddress('dbsetmaxprocs');
+          @{$IFDEF MSWINDOWS}Fdbsetmaxprocs_stdcall{$ELSE}FDbSetMaxprocs{$ENDIF} := GetAddress('dbsetmaxprocs');
           @{$IFDEF MSWINDOWS}Fdbloginfree_stdcall{$ELSE}dbloginfree{$ENDIF} := GetAddress('dbloginfree', True); //name diff
           @{$IFDEF MSWINDOWS}Fdbcolbrowse_stdcall{$ELSE}dbcolbrowse{$ENDIF} := GetAddress('dbcolbrowse'); //no FreeTDS
           @{$IFDEF MSWINDOWS}FdbMoreCmds_stdcall{$ELSE}dbMoreCmds{$ENDIF} := GetAddress('DBMORECMDS'); //uppercase
@@ -3176,7 +3210,8 @@ begin
         {$IFDEF MSWINDOWS}OldMsSQLErrorHandle{$ELSE}OldSybaseErrorHandle{$ENDIF}  := dberrhandle(DbLibErrorHandle);
         {$IFDEF MSWINDOWS}OldMsSQLMessageHandle{$ELSE}OldSybaseMessageHandle{$ENDIF} := dbmsghandle(DbLibMessageHandle);
       end;
-      Assert(dbintit = SUCCEED, 'dbinit failed');
+      i := dbinit;
+      Assert(i = SUCCEED, 'dbinit failed');
     end;
   end;
 end;
@@ -3440,6 +3475,28 @@ begin
     PDBLibMessage(Ptr).SrvName  := EmptyRaw;
     PDBLibMessage(Ptr).ProcName := EmptyRaw;
   end;
+end;
+
+{ Helper functions for TDS_DATETIMEALL}
+
+function TdsDateTimeAllGetPrecision(const Value: TDBDATETIMEALL): Integer;
+begin
+  Result := Value.flags and DbDateTimeAllTimePrecMask;
+end;
+
+function TdsDateTimeAllHasDate(const Value: TDBDATETIMEALL): Boolean;
+begin
+  Result := WordBool(Value.flags and DbDateTimeAllHasDateMask)
+end;
+
+function TdsDateTimeAllHasTime(const Value: TDBDATETIMEALL): Boolean;
+begin
+  Result := WordBool(Value.flags and DbDateTimeAllHasTimeMask)
+end;
+
+function TdsDateTimeAllHasOffset(const Value: TDBDATETIMEALL): Boolean;
+begin
+  Result := WordBool(Value.flags and DbDatetimeAllHasOffsetMask)
 end;
 
 initialization

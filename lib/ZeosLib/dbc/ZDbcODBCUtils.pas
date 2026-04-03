@@ -104,6 +104,12 @@ function GetConnectionString(WindowHandle: SQLHWND; const InConnectionString, Li
 procedure Reverse8Bytes(P: Pointer);
 {$ENDIF}
 
+/// <summary>
+///   Does the same as StrLen(PWideChar). Introduced because Delphi 7 doesn't have
+///   this function.
+/// </summary>
+function WStrLen(const InVal: PWideChar): Cardinal;
+
 const
   LobArrayIndexOffSet = NativeUInt(SizeOf(Pointer));
   LobParameterIndexOffSet = LobArrayIndexOffSet+NativeUInt(SizeOf(Integer));
@@ -559,7 +565,7 @@ begin
     if ODBC3BaseDriver.SQLAllocHandle(SQL_HANDLE_ENV, Pointer(SQL_NULL_HANDLE), HENV) <> SQL_SUCCESS then
       raise EZSQLException.Create('Couldn''t allocate an Environment handle');
     //Try to SET Major Version 3 and minior Version 8
-    //if ODBC3BaseDriver.SQLSetEnvAttr(HENV, SQL_ATTR_ODBC_VERSION, SQL_OV_ODBC3_80, 0) <> SQL_SUCCESS then
+    if ODBC3BaseDriver.SQLSetEnvAttr(HENV, SQL_ATTR_ODBC_VERSION, SQL_OV_ODBC3_80, 0) <> SQL_SUCCESS then
       //set minimum Major Version 3
       if ODBC3BaseDriver.SQLSetEnvAttr(HENV, SQL_ATTR_ODBC_VERSION, SQL_OV_ODBC3, 0) <> SQL_SUCCESS then
         raise EZSQLException.Create('Couln''t set minimum ODBC-Version 3.0');
@@ -583,6 +589,11 @@ begin
       ODBC3BaseDriver.SQLFreeHandle(SQL_HANDLE_ENV, HENV);
     PlainDriver := nil;
   end;
+end;
+
+function WStrLen(const InVal: PWideChar): Cardinal;
+begin
+  Result := Length(Inval);
 end;
 
 {$ENDIF ZEOS_DISABLE_ODBC} //if set we have an empty unit

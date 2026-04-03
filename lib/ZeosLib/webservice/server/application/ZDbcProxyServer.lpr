@@ -55,10 +55,10 @@ program ZDbcProxyServer;
 
 uses
   {$IFDEF UNIX}
-  cwstring,
     {$IFDEF UseCThreads}
     cthreads,
     {$ENDIF}
+    cwstring,
   {$ENDIF}
   Classes, SysUtils, CustApp,
   { you can add units after this }
@@ -68,11 +68,12 @@ uses
   {local}zeosproxy, zeosproxy_binder, zeosproxy_imp, DbcProxyUtils,
   DbcProxyConnectionManager, DbcProxyConfigManager, ZDbcProxyManagement,
   dbcproxycleanupthread, dbcproxysecuritymodule, DbcProxyFileLogger,
-  dbcproxyconfigutils, dbcproxycertstore,
+  dbcproxyconfigutils, dbcproxycertstore, DbcProxyConfigStore,
   //Zeos drivers:
   ZDbcAdo, ZDbcASA, ZDbcDbLib, ZDbcFirebird, ZDbcInterbase6, ZDbcMySql,
   ZDbcODBCCon, ZDbcOleDB, ZDbcOracle, ZDbcPostgreSql, ZDbcSQLAnywhere,
-  ZDbcSqLite, ZDbcProxyMgmtDriver, DbcProxyStartupProcedures;
+  ZDbcSqLite, ZDbcDuckDB, ZDbcProxyMgmtDriver, DbcProxyStartupProcedures,
+  ZCbor, zeosproxy_cbor_imp;
 
 type
 
@@ -146,12 +147,12 @@ begin
   InitializeSSLLibs;
 
   // initialize configuration and logger -> this is server specific
-  ConfigManager := TDbcProxyConfigManager.Create;
+  ConfigManager := TDbcProxyIniConfigManager.Create(ConfigFile) as IZDbcProxyConfigStore;
   WriteLn('Loading Base Config...');
-  ConfigManager.LoadBaseConfig(configFile);
+  ConfigManager.LoadBaseConfig;
   Logger := TDbcProxyConsoleLogger.Create;
   WriteLn('Loading Connection Config...');
-  ConfigManager.LoadConnectionConfig(configFile);
+  ConfigManager.LoadConnectionConfig;
 
   InitTofuCerts;
   CreateConnectionManager;
@@ -161,6 +162,8 @@ begin
   try
     AppObject := CreateAppObject;
     AppObject.OnNotifyMessage := OnMessage;
+    CborImp := TZDbcProxyCborImp.Create;
+    AppObject.OnCustomRequest := CborImp.OnCustomRequest;
     WriteLn('Zeos Proxy Server listening at:');
     WriteLn('');
     WriteLn(ConstructServerURL);
@@ -174,6 +177,10 @@ begin
     WriteLn('Stopping the Server...');
     AppObject.Stop()
   finally
+    WriteLn('Freeing internal structures...');
+    StopServer;
+    WriteLn('Freeing the app object...');
+    Flush(StdOut);
     if Assigned(AppObject) then
       FreeAndNil(AppObject);
   end;
@@ -203,7 +210,17 @@ end;
 
 var
   Application: TZDbcProxyServer;
+  HeapTraceFile: String;
 begin
+  {$IF NOT DEFINED(ENABLE_DEBUG_SETTINGS) AND NOT DEFINED(WINDOWS)}
+  HeapTraceFile := '/var/log/zeos-heaptrace-' + FormatDateTime('YYYYMMDDHHNNSS', Now) + '.txt';
+  {$ELSE}
+  HeapTraceFile := ExtractFilePath(ParamStr(0)) + 'zeos-heaptrace-' + FormatDateTime('YYYYMMDDHHNNSS', Now) + '.txt';
+  {$IFEND}
+  {$if declared(UseHeapTrace)}
+  SetHeapTraceOutput(HeapTraceFile);
+  {$ENDIF}
+
   {$IFDEF WINDOWS}
   SetMultiByteConversionCodePage(CP_UTF8);
   {$IFEND}
