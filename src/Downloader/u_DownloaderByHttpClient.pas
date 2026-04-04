@@ -108,10 +108,10 @@ function TDownloaderByHttpClient.BuildResponse(
 var
   VHeader: TNetHeader;
   VStringBuilder: TStringBuilder;
-  VLastModifiedUTC: TDateTime;
+  VLastModifiedUtc: TDateTime;
   VRawHeaders: string;
 begin
-  VLastModifiedUTC := RFC1123ToDateTime(AHttpResponse.LastModified);
+  VLastModifiedUtc := HttpDateToDateTime(AHttpResponse.LastModified);
 
   VStringBuilder := TStringBuilder.Create;
   try
@@ -127,7 +127,7 @@ begin
     TDownloadResponse.Create(
       AHttpResponse.StatusCode,
       VRawHeaders,
-      VLastModifiedUTC,
+      VLastModifiedUtc,
       GetResponseBody(
         LowerCase(AHttpResponse.ContentEncoding),
         AHttpResponse.ContentStream

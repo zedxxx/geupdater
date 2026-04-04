@@ -2,20 +2,26 @@ unit u_DateTimeUtils;
 
 interface
 
-function LocalTimeToUTC(const ALocalTime: TDateTime): TDateTime;
-function UTCToLocalTime(const AUTC: TDateTime): TDateTime;
+{$DEFINE USE_RTL_HTTP_DATE_PARSER}
 
-function DateTimeToRFC1123(const ADate: TDateTime): string;
-function RFC1123ToDateTime(const AStr: string): TDateTime;
+function LocalTimeToUtc(const ALocalTime: TDateTime): TDateTime;
+function UtcToLocalTime(const AUtc: TDateTime): TDateTime;
+
+function DateTimeToHttpDate(const AUtc: TDateTime): string;
+function HttpDateToDateTime(const AStr: string): TDateTime;
 
 implementation
 
 uses
-  Windows,
-  SysUtils,
-  IdGlobalProtocols; // for GMTToLocalDateTime
+  Winapi.Windows,
+  System.SysUtils,
+  {$IFDEF USE_RTL_HTTP_DATE_PARSER}
+  Web.HTTPApp
+  {$ELSE}
+  IdGlobalProtocols
+  {$ENDIF USE_RTL_HTTP_DATE_PARSER};
 
-function LocalTimeToUTC(const ALocalTime: TDateTime): TDateTime;
+function LocalTimeToUtc(const ALocalTime: TDateTime): TDateTime;
 var
   ST1, ST2: TSystemTime;
   TZ: TTimeZoneInformation;
@@ -31,43 +37,45 @@ begin
   Result := SystemTimeToDateTime(ST2);
 end;
 
-function UTCToLocalTime(const AUTC: TDateTime): TDateTime;
+function UtcToLocalTime(const AUtc: TDateTime): TDateTime;
 var
   ST1, ST2: TSystemTime;
   TZ:TTimeZoneInformation;
 begin
   GetTimeZoneInformation(TZ);
-  DateTimeToSystemTime(AUTC, ST1);
+  DateTimeToSystemTime(AUtc, ST1);
   SystemTimeToTzSpecificLocalTime(@TZ, ST1, ST2);
   Result := SystemTimeToDateTime(ST2);
 end;
 
-function DateTimeToRFC1123(const ADate: TDateTime): string;
+function DateTimeToHttpDate(const AUtc: TDateTime): string;
 const
-  cStrWeekDay: string = 'MonTueWedThuFriSatSun';
-  cStrMonth: string = 'JanFebMarAprMayJunJulAugSepOctNovDec';
+  cWeekDays: array[1..7] of string = ('Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat');
+  cMonths: array[1..12] of string = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec');
 var
-  VYear, VMonth, VDay: Word;
-  VHour, VMin, VSec, VMSec: Word;
-  VDayOfWeek: Word;
+  Year, Month, Day, DOW: Word;
+  Hour, Min, Sec, MSec: Word;
 begin
-  DecodeDate(ADate, VYear, VMonth, VDay);
-  DecodeTime(ADate, VHour, VMin, VSec, VMSec);
-  VDayOfWeek := (Trunc(ADate) - 2) mod 7;
-  Result :=
-    Copy(cStrWeekDay, 1 + VDayOfWeek * 3, 3) + ', ' +
-    Format(
-      '%2.2d %s %4.4d %2.2d:%2.2d:%2.2d',
-      [VDay, Copy(cStrMonth, 1 + 3 * (VMonth - 1), 3), VYear, VHour, VMin, VSec]
-    ) + ' GMT';
+  DecodeDateFully(AUtc, Year, Month, Day, DOW);
+  DecodeTime(AUtc, Hour, Min, Sec, MSec);
+
+  Result := Format('%s, %2.2d %s %4.4d %2.2d:%2.2d:%2.2d GMT',
+    [cWeekDays[DOW], Day, cMonths[Month], Year, Hour, Min, Sec]);
 end;
 
-function RFC1123ToDateTime(const AStr: string): TDateTime;
+{$IFDEF USE_RTL_HTTP_DATE_PARSER}
+function HttpDateToDateTime(const AStr: string): TDateTime;
 begin
-  Result := GMTToLocalDateTime(AStr);
+  Result := Web.HTTPApp.ParseDate(AStr);
+end;
+{$ELSE}
+function HttpDateToDateTime(const AStr: string): TDateTime;
+begin
+  Result := IdGlobalProtocols.GMTToLocalDateTime(AStr);
   if Result <> 0 then begin
-    Result := LocalTimeToUTC(Result);
+    Result := LocalTimeToUtc(Result);
   end;
 end;
+{$ENDIF USE_RTL_HTTP_DATE_PARSER}
 
 end.

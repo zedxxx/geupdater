@@ -136,7 +136,7 @@ begin
   end else begin
     if FPrevInfoExists and (FPrevInfo.LastModified <> 0) then begin
       VIfModifiedSince :=
-        'If-Modified-Since: ' + DateTimeToRFC1123(FPrevInfo.LastModified) + #13#10;
+        'If-Modified-Since: ' + DateTimeToHttpDate(FPrevInfo.LastModified) + #13#10;
     end else begin
       VIfModifiedSince := '';
     end;

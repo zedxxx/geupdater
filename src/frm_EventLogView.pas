@@ -423,7 +423,7 @@ procedure TfrmEventLogViewer.OnVTGetText(Sender: TBaseVirtualTree;
   function _FormatDateTime(const AValue: TDateTime): string;
   begin
     if AValue <> 0 then begin
-      Result := FormatDateTime('yyyy-mm-dd hh:nn:ss', UTCToLocalTime(AValue));
+      Result := FormatDateTime('yyyy-mm-dd hh:nn:ss', UtcToLocalTime(AValue));
     end else begin
       Result := '';
     end;
