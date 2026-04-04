@@ -42,7 +42,8 @@ uses
   i_EventLogViewConfig in 'src\Config\i_EventLogViewConfig.pas',
   i_ConfigBase in 'src\Config\i_ConfigBase.pas',
   i_UserAgentConfig in 'src\Config\i_UserAgentConfig.pas',
-  u_UserAgentConfig in 'src\Config\u_UserAgentConfig.pas';
+  u_UserAgentConfig in 'src\Config\u_UserAgentConfig.pas',
+  u_BaseForm in 'src\u_BaseForm.pas';
 
 {$R *.res}
 

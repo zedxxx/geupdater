@@ -20,7 +20,8 @@ uses
   VirtualTrees.Types,
   t_EventLog,
   i_EventLogStorage,
-  i_EventLogViewConfig;
+  i_EventLogViewConfig,
+  u_BaseForm;
 
 type
   TGuidInfo = class
@@ -31,7 +32,7 @@ type
 
   TGuidInfoDictionary = TObjectDictionary<TGUID, TGuidInfo>;
 
-  TfrmEventLogViewer = class(TForm)
+  TfrmEventLogViewer = class(TBaseForm)
     btnClose: TButton;
     pnlTreeView: TPanel;
     lblInfo: TLabel;

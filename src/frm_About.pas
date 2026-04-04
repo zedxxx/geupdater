@@ -11,10 +11,11 @@ uses
   Forms,
   StdCtrls,
   ShellAPI,
-  ExtCtrls;
+  ExtCtrls,
+  u_BaseForm;
 
 type
-  TfrmAbout = class(TForm)
+  TfrmAbout = class(TBaseForm)
     txtVersion: TStaticText;
     txtBuild: TStaticText;
     txtCopyright: TStaticText;

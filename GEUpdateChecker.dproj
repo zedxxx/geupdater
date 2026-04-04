@@ -172,6 +172,7 @@
         <DCCReference Include="src\Config\i_ConfigBase.pas"/>
         <DCCReference Include="src\Config\i_UserAgentConfig.pas"/>
         <DCCReference Include="src\Config\u_UserAgentConfig.pas"/>
+        <DCCReference Include="src\u_BaseForm.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

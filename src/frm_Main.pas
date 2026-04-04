@@ -21,11 +21,12 @@ uses
   i_UpdateCheckerTask,
   i_EventLogStorage,
   i_TaskInfoListener,
+  u_BaseForm,
   frm_About,
   frm_EventLogView;
 
 type
-  TfrmMain = class(TForm)
+  TfrmMain = class(TBaseForm)
     grpGEClassic: TGroupBox;
     grpGEWeb: TGroupBox;
     grpGM: TGroupBox;
