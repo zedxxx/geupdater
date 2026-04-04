@@ -66,7 +66,16 @@ end;
 {$IFDEF USE_RTL_HTTP_DATE_PARSER}
 function HttpDateToDateTime(const AStr: string): TDateTime;
 begin
-  Result := Web.HTTPApp.ParseDate(AStr);
+  if AStr = '' then begin
+    Result := 0;
+    Exit;
+  end;
+  try
+    Result := Web.HTTPApp.ParseDate(AStr);
+  except
+    // todo: log error
+    Result := 0;
+  end;
 end;
 {$ELSE}
 function HttpDateToDateTime(const AStr: string): TDateTime;
