@@ -16,11 +16,13 @@ uses
   Vcl.Dialogs,
   Vcl.ExtCtrls,
   Vcl.StdCtrls,
+  Vcl.Menus,
   VirtualTrees,
   VirtualTrees.Types,
   t_EventLog,
   i_EventLogStorage,
   i_EventLogViewConfig,
+  frm_EditEventLogRecord,
   u_BaseForm;
 
 type
@@ -36,17 +38,25 @@ type
     btnClose: TButton;
     pnlTreeView: TPanel;
     lblInfo: TLabel;
+    pmMain: TPopupMenu;
+    mniDeleteRecord: TMenuItem;
+    mniEditVersion: TMenuItem;
     procedure btnCloseClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure FormShow(Sender: TObject);
+    procedure mniDeleteRecordClick(Sender: TObject);
+    procedure mniEditVersionClick(Sender: TObject);
   private
     FConfig: IEventLogViewConfig;
     FVirtualTree: TVirtualStringTree;
     FStorage: IEventLogStorage;
     FEvents: TEventLogItemArray;
     FGuidInfo: TGuidInfoDictionary;
+    FfrmEditEventLogRecord: TfrmEditEventLogRecord;
     procedure PrepareGuidInfo;
+    procedure DoDeleteRecord;
+    procedure DoEditRecord;
     function GetItemIndex(const ANode: PVirtualNode): Int64; inline;
     procedure UpdateFormCaption(const ANode: PVirtualNode);
     procedure OnVTFocusChanged(Sender: TBaseVirtualTree; Node: PVirtualNode; Column: TColumnIndex);
@@ -56,7 +66,7 @@ type
     procedure OnVTGetText(Sender: TBaseVirtualTree; Node: PVirtualNode;
       Column: TColumnIndex; TextType: TVSTTextType; var CellText: UnicodeString);
     procedure OnVTHeaderClick(Sender: TVTHeader; HitInfo: TVTHeaderHitInfo);
-    procedure OnVTKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure OnVTContextPopup(Sender: TObject; MousePos: TPoint; var Handled: Boolean);
     procedure UpdateTree;
   public
     constructor Create(
@@ -209,7 +219,9 @@ begin
     OnHeaderClick := Self.OnVTHeaderClick;
     OnBeforeCellPaint := Self.OnVTBeforeCellPaint;
     OnFocusChanged := Self.OnVTFocusChanged;
-    OnKeyDown := Self.OnVTKeyDown;
+    OnContextPopup := Self.OnVTContextPopup;
+
+    PopupMenu := pmMain;
 
     TreeOptions.MiscOptions := [toReadOnly];
     NodeDataSize := 0;
@@ -405,6 +417,22 @@ begin
   TargetCanvas.FillRect(CellRect);
 end;
 
+procedure TfrmEventLogViewer.OnVTContextPopup(Sender: TObject; MousePos: TPoint; var Handled: Boolean);
+var
+  VNode: PVirtualNode;
+  VHitInfo: THitInfo;
+begin
+  FVirtualTree.GetHitTestInfoAt(MousePos.X, MousePos.Y, True, VHitInfo);
+  VNode := VHitInfo.HitNode;
+  if Assigned(VNode) then begin
+    FVirtualTree.Selected[VNode] := True;
+    FVirtualTree.FocusedNode := VNode;
+    Handled := False; // allow the popup menu to show
+  end else begin
+    Handled := True;
+  end;
+end;
+
 procedure TfrmEventLogViewer.OnVTGetText(Sender: TBaseVirtualTree;
   Node: PVirtualNode; Column: TColumnIndex; TextType: TVSTTextType;
   var CellText: UnicodeString
@@ -443,10 +471,7 @@ begin
   end;
 end;
 
-procedure TfrmEventLogViewer.OnVTHeaderClick(
-  Sender: TVTHeader;
-  HitInfo: TVTHeaderHitInfo
-);
+procedure TfrmEventLogViewer.OnVTHeaderClick(Sender: TVTHeader; HitInfo: TVTHeaderHitInfo);
 begin
   if Sender.SortDirection = sdAscending then begin
     Sender.SortDirection := sdDescending;
@@ -455,42 +480,14 @@ begin
   end;
 end;
 
-procedure TfrmEventLogViewer.OnVTKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
-var
-  I: Int64;
-  VNode: PVirtualNode;
-  VResult: TModalResult;
+procedure TfrmEventLogViewer.mniDeleteRecordClick(Sender: TObject);
 begin
-  if (Key <> VK_DELETE) or (FVirtualTree.SelectedCount <> 1) then begin
-    Exit;
-  end;
+  DoDeleteRecord;
+end;
 
-  VNode := FVirtualTree.FocusedNode;
-  if VNode = nil then begin
-    Exit;
-  end;
-
-  I := GetItemIndex(VNode);
-
-  VResult := MessageDlg(
-    'Delete record #' + IntToStr(I + 1) + ' from the database?',
-    mtConfirmation, [mbYes, mbCancel], 0
-  );
-
-  if VResult = mrYes then begin
-    try
-      FStorage.DeleteItem(FEvents[I].ID);
-      UpdateTree;
-    except
-      on E: Exception do begin
-        MessageDlg(
-          'Can''t delete record #' + IntToStr(I + 1) + ' from the database.' + #13#10 +
-          E.ClassName + ': ' + E.Message,
-          mtError, [mbOK], 0
-        );
-      end;
-    end;
-  end;
+procedure TfrmEventLogViewer.mniEditVersionClick(Sender: TObject);
+begin
+  DoEditRecord;
 end;
 
 procedure TfrmEventLogViewer.UpdateFormCaption(const ANode: PVirtualNode);
@@ -508,13 +505,107 @@ begin
   Self.Caption := Format('Time Line [%d/%d]', [VCount, Length(FEvents)]);
 end;
 
-procedure TfrmEventLogViewer.OnVTFocusChanged(Sender: TBaseVirtualTree;
-  Node: PVirtualNode; Column: TColumnIndex);
+procedure TfrmEventLogViewer.OnVTFocusChanged(Sender: TBaseVirtualTree; Node: PVirtualNode; Column: TColumnIndex);
 begin
   if Node <> nil then begin
     UpdateFormCaption(Node);
     FVirtualTree.Refresh;
   end;
+end;
+
+procedure TfrmEventLogViewer.DoDeleteRecord;
+var
+  I: Int64;
+  VNode: PVirtualNode;
+  VResult: TModalResult;
+begin
+  if FVirtualTree.SelectedCount <> 1 then begin
+    Exit;
+  end;
+
+  VNode := FVirtualTree.FocusedNode;
+  if VNode = nil then begin
+    Exit;
+  end;
+
+  I := GetItemIndex(VNode);
+
+  VResult := MessageDlg(
+    Format('Delete record #%d from the database?', [I+1]), mtConfirmation, [mbYes, mbCancel], 0
+  );
+
+  if VResult <> mrYes then begin
+    Exit;
+  end;
+
+  try
+    FStorage.DeleteItem(FEvents[I].ID);
+    UpdateTree;
+  except
+    on E: Exception do begin
+      MessageDlg(
+        Format('Can''t delete record #%d from the database!', [I+1]) + #13#10 +
+        E.ClassName + ': ' + E.Message, mtError, [mbOK], 0
+      );
+    end;
+  end;
+end;
+
+procedure TfrmEventLogViewer.DoEditRecord;
+var
+  I: Int64;
+  VNode: PVirtualNode;
+  VResult: TModalResult;
+  VItem: TEventLogItem;
+begin
+  if FVirtualTree.SelectedCount <> 1 then begin
+    Exit;
+  end;
+
+  VNode := FVirtualTree.FocusedNode;
+  if VNode = nil then begin
+    Exit;
+  end;
+
+  I := GetItemIndex(VNode);
+  VItem := FEvents[I];
+
+  if not Assigned(FfrmEditEventLogRecord) then begin
+    FfrmEditEventLogRecord := TfrmEditEventLogRecord.Create(Self);
+  end;
+
+  VResult := FfrmEditEventLogRecord.ShowModal(@VItem);
+
+  if VResult <> mrOk then begin
+    Exit;
+  end;
+
+  VResult := MessageDlg(
+    Format('Are you sure you want to set record #%d version to %s?', [I+1, VItem.Version]),
+    mtConfirmation, [mbYes, mbCancel], 0
+  );
+
+  if VResult <> mrYes then begin
+    Exit;
+  end;
+
+  try
+    FStorage.UpdateItem(VItem);
+  except
+    on E: Exception do begin
+      MessageDlg(
+        Format('Can''t update record #%d in the database!', [I+1]) + #13#10 +
+        E.ClassName + ': ' + E.Message, mtError, [mbOK], 0
+      );
+      Exit;
+    end;
+  end;
+
+  Assert(FEvents[I].ID = VItem.ID);
+  Assert(FEvents[I].GUID = VItem.GUID);
+
+  FEvents[I] := VItem;
+  FVirtualTree.Refresh;
 end;
 
 end.

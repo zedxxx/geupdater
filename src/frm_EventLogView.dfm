@@ -53,4 +53,18 @@ object frmEventLogViewer: TfrmEventLogViewer
     TabOrder = 1
     OnClick = btnCloseClick
   end
+  object pmMain: TPopupMenu
+    Left = 424
+    Top = 296
+    object mniEditVersion: TMenuItem
+      Caption = 'Edit Version'
+      ShortCut = 115
+      OnClick = mniEditVersionClick
+    end
+    object mniDeleteRecord: TMenuItem
+      Caption = 'Delete Record'
+      ShortCut = 46
+      OnClick = mniDeleteRecordClick
+    end
+  end
 end

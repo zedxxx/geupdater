@@ -173,6 +173,10 @@
         <DCCReference Include="src\Config\i_UserAgentConfig.pas"/>
         <DCCReference Include="src\Config\u_UserAgentConfig.pas"/>
         <DCCReference Include="src\u_BaseForm.pas"/>
+        <DCCReference Include="src\frm_EditEventLogRecord.pas">
+            <Form>frmEditEventLogRecord</Form>
+            <FormType>dfm</FormType>
+        </DCCReference>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

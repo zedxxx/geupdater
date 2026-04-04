@@ -43,7 +43,8 @@ uses
   i_ConfigBase in 'src\Config\i_ConfigBase.pas',
   i_UserAgentConfig in 'src\Config\i_UserAgentConfig.pas',
   u_UserAgentConfig in 'src\Config\u_UserAgentConfig.pas',
-  u_BaseForm in 'src\u_BaseForm.pas';
+  u_BaseForm in 'src\u_BaseForm.pas',
+  frm_EditEventLogRecord in 'src\frm_EditEventLogRecord.pas' {frmEditEventLogRecord};
 
 {$R *.res}
 
@@ -91,7 +92,7 @@ begin
     Application.Initialize;
     Application.MainFormOnTaskbar := True;
     Application.CreateForm(TfrmMain, frmMain);
-  Application.Run;
+    Application.Run;
   finally
     GAppConfig.DoWriteConfig;
     GAppConfig := nil;
