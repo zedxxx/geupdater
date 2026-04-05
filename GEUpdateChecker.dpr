@@ -44,7 +44,8 @@ uses
   i_UserAgentConfig in 'src\Config\i_UserAgentConfig.pas',
   u_UserAgentConfig in 'src\Config\u_UserAgentConfig.pas',
   u_BaseForm in 'src\u_BaseForm.pas',
-  frm_EditEventLogRecord in 'src\frm_EditEventLogRecord.pas' {frmEditEventLogRecord};
+  frm_EditEventLogRecord in 'src\frm_EditEventLogRecord.pas' {frmEditEventLogRecord},
+  u_LanguageManager in 'src\u_LanguageManager.pas';
 
 {$R *.res}
 
@@ -82,13 +83,15 @@ begin
       end;
     end;
 
-    VLibPath := ExtractFilePath(ParamStr(0)) + PathDelim + 'lib';
-    if DirectoryExists(VLibPath) then begin
-      if not SetDllDirectory(PChar(VLibPath)) then begin
-        RaiseLastOSError;
-      end;
+    // locate external dll's
+    VLibPath := ExtractFilePath(ParamStr(0)) + 'lib';
+    if DirectoryExists(VLibPath) and not SetDllDirectory(PChar(VLibPath)) then begin
+      RaiseLastOSError;
     end;
 
+    TLanguageManager.LoadLocalization(GAppConfig.Language);
+
+    // start application
     Application.Initialize;
     Application.MainFormOnTaskbar := True;
     Application.CreateForm(TfrmMain, frmMain);

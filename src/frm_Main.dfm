@@ -3,7 +3,7 @@ object frmMain: TfrmMain
   Top = 0
   BorderIcons = [biSystemMenu]
   BorderStyle = bsSingle
-  Caption = 'GoogleEarth Update Checker'
+  Caption = 'Google Earth Update Checker'
   ClientHeight = 367
   ClientWidth = 354
   Color = clBtnFace

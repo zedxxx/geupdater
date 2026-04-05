@@ -17,6 +17,7 @@ type
     FLastUpdateCheck: TDateTime;
     FUserAgentConfig: IUserAgentConfig;
     FEventLogViewConfig: IEventLogViewConfig;
+    FLanguage: string;
   private
     { IAppConfig }
     procedure DoReadConfig;
@@ -32,6 +33,9 @@ type
 
     function GetUserAgentConfig: IUserAgentConfig;
     function GetEventLogViewConfig: IEventLogViewConfig;
+
+    function GetLanguage: string;
+    procedure SetLanguage(const AValue: string);
   public
     class function GetIniFileName: string;
     class function GetForceCheckCmdLineFlag: Boolean;
@@ -63,6 +67,8 @@ begin
 
   FUserAgentConfig := TUserAgentConfig.Create;
   FEventLogViewConfig := TEventLogViewConfig.Create;
+
+  FLanguage := '';
 end;
 
 class function TAppConfig.GetIniFileName: string;
@@ -116,6 +122,7 @@ begin
   try
     FShowPrevInfoOnly := VIni.ReadBool('Main', 'ShowPrevInfoOnly', FShowPrevInfoOnly);
     FLastUpdateCheck := VIni.ReadDateTime('Main', 'LastUpdateCheck', FLastUpdateCheck);
+    FLanguage := VIni.ReadString('Main', 'Language', FLanguage);
 
     FUserAgentConfig.DoReadConfig(VIni);
     FEventLogViewConfig.DoReadConfig(VIni);
@@ -141,6 +148,7 @@ begin
   try
     VIni.WriteBool('Main', 'ShowPrevInfoOnly', FShowPrevInfoOnly);
     VIni.WriteDateTime('Main', 'LastUpdateCheck', FLastUpdateCheck);
+    VIni.WriteString('Main', 'Language', FLanguage);
 
     FUserAgentConfig.DoWriteConfig(VIni);
     FEventLogViewConfig.DoWriteConfig(VIni);
@@ -171,9 +179,19 @@ begin
   Result := FUserAgentConfig;
 end;
 
+function TAppConfig.GetLanguage: string;
+begin
+  Result := FLanguage;
+end;
+
 function TAppConfig.GetLastUpdateCheck: TDateTime;
 begin
   Result := FLastUpdateCheck;
+end;
+
+procedure TAppConfig.SetLanguage(const AValue: string);
+begin
+  FLanguage := AValue;
 end;
 
 procedure TAppConfig.SetLastUpdateCheck(const AValue: TDateTime);

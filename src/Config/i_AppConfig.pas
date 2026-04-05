@@ -28,6 +28,10 @@ type
 
     function GetEventLogViewConfig: IEventLogViewConfig;
     property EventLogViewConfig: IEventLogViewConfig read GetEventLogViewConfig;
+
+    function GetLanguage: string;
+    procedure SetLanguage(const AValue: string);
+    property Language: string read GetLanguage write SetLanguage;
   end;
 
 var

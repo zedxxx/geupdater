@@ -75,8 +75,10 @@
         <VerInfo_MajorVer>2026</VerInfo_MajorVer>
         <VerInfo_MinorVer>3</VerInfo_MinorVer>
         <VerInfo_Release>31</VerInfo_Release>
-        <DCC_UnitSearchPath>lib/ProtoBufGenerator;lib/ZeosLib;lib/ZeosLib/core;lib/ZeosLib/component;lib/ZeosLib/dbc;lib/ZeosLib/parsesql;lib/ZeosLib/plain;lib/VirtualTreeView;lib/Synopse;lib;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <DCC_UnitSearchPath>lib/ProtoBufGenerator;lib/ZeosLib;lib/ZeosLib/core;lib/ZeosLib/component;lib/ZeosLib/dbc;lib/ZeosLib/parsesql;lib/ZeosLib/plain;lib/VirtualTreeView;lib/Synopse;lib;lib/BetterTranslationManager;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
+        <DCC_OutputDRCFile>true</DCC_OutputDRCFile>
+        <VerInfo_AutoIncVersion>true</VerInfo_AutoIncVersion>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
         <DCC_UsePackage>DBXSqliteDriver;fmxase;DBXDb2Driver;DBXInterBaseDriver;GR32_RSX_BERLIN;vclactnband;vclFireDAC;DataSnapFireDAC;tethering;svnui;FireDACADSDriver;DBXMSSQLDriver;DatasnapConnectorsFreePascal;FireDACMSSQLDriver;vcltouch;vcldb;Intraweb;svn;tb2k_d24_berlin;DBXOracleDriver;inetdb;emsedge;fmx;fmxdae;vclib;FireDACDBXDriver;dbexpress;IndyCore;vclx;dsnap;DataSnapCommon;DataSnapConnectors;VCLRESTComponents;vclie;bindengine;DBXMySQLDriver;FireDACOracleDriver;FireDACMySQLDriver;DBXFirebirdDriver;FireDACCommonODBC;DataSnapClient;bindcompdbx;IndyIPCommon;vcl;DBXSybaseASEDriver;IndyIPServer;IndySystem;FireDACDb2Driver;dsnapcon;FireDACMSAccDriver;FireDACInfxDriver;vclimg;TeeDB;tbx_d24_berlin;emshosting;FireDACPgDriver;ibmonitor;FireDACASADriver;DBXOdbcDriver;FireDACTDataDriver;DbxCommonDriver;GR32_DSGN_RSX_BERLIN;ibxpress;Tee;DataSnapServer;xmlrtl;DataSnapNativeClient;ibxbindings;FireDACDSDriver;vclwinx;rtl;fmxobj;DbxClientDriver;DBXSybaseASADriver;CustomIPTransport;vcldsnap;bindcomp;appanalytics;DBXInformixDriver;IndyIPClient;bindcompvcl;TeeUI;dbxcds;VclSmp;adortl;FireDACODBCDriver;DataSnapIndy10ServerTransport;DataSnapProviderClient;dsnapxml;dbrtl;FireDACMongoDBDriver;IndyProtocols;inetdbxpress;DataSnapServerMidas;$(DCC_UsePackage)</DCC_UsePackage>
@@ -177,6 +179,7 @@
             <Form>frmEditEventLogRecord</Form>
             <FormType>dfm</FormType>
         </DCCReference>
+        <DCCReference Include="src\u_LanguageManager.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

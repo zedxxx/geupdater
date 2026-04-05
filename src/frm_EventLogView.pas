@@ -180,14 +180,19 @@ var
   I: Integer;
   VTreeColumnsState: TTreeColumnsState;
   VTreeShowOpt: TTreeShowOptRec;
+resourcestring
+  rsVTVColNum = 'Num';
+  rsVTVColTime = 'Time';
+  rsVTVColName = 'Name';
+  rsVTVColVersion = 'Version';
 begin
   // Init with default values
   SetLength(VTreeColumnsState, 5);
 
-  VTreeColumnsState[0].Name := 'Num';
-  VTreeColumnsState[1].Name := 'Time';
-  VTreeColumnsState[2].Name := 'Name';
-  VTreeColumnsState[3].Name := 'Version';
+  VTreeColumnsState[0].Name := rsVTVColNum;
+  VTreeColumnsState[1].Name := rsVTVColTime;
+  VTreeColumnsState[2].Name := rsVTVColName;
+  VTreeColumnsState[3].Name := rsVTVColVersion;
   VTreeColumnsState[4].Name := 'Last-Modified';
 
   VTreeColumnsState[0].Size := 50;
@@ -337,6 +342,8 @@ var
   VInfo: TGuidInfo;
   VTimer: TStopwatch;
   VNode: PVirtualNode;
+resourcestring
+  rsInfoCaptionFmt = 'Loaded %0:d records in %1:.4f seconds';
 begin
   FVirtualTree.Clear;
 
@@ -364,11 +371,7 @@ begin
     UpdateFormCaption(VNode);
   end;
 
-  lblInfo.Caption :=
-    Format(
-      '%d events, loaded at %.4f seconds',
-      [Length(FEvents), VTimer.Elapsed.TotalSeconds]
-    );
+  lblInfo.Caption := Format(rsInfoCaptionFmt, [Length(FEvents), VTimer.Elapsed.TotalSeconds]);
 end;
 
 procedure TfrmEventLogViewer.FormShow(Sender: TObject);
@@ -495,6 +498,8 @@ var
   I: Int64;
   VCount: Integer;
   VInfo: TGuidInfo;
+resourcestring
+  rsFormCaptionFmt = 'Time Line [%0:d/%1:d]';
 begin
   I := GetItemIndex(ANode);
   if FGuidInfo.TryGetValue(FEvents[I].GUID, VInfo) then begin
@@ -502,7 +507,7 @@ begin
   end else begin
     VCount := 0;
   end;
-  Self.Caption := Format('Time Line [%d/%d]', [VCount, Length(FEvents)]);
+  Self.Caption := Format(rsFormCaptionFmt, [VCount, Length(FEvents)]);
 end;
 
 procedure TfrmEventLogViewer.OnVTFocusChanged(Sender: TBaseVirtualTree; Node: PVirtualNode; Column: TColumnIndex);
@@ -518,6 +523,9 @@ var
   I: Int64;
   VNode: PVirtualNode;
   VResult: TModalResult;
+resourcestring
+  rsDeleteConfirmFmt = 'Are you sure you want to delete record %d?';
+  rsDeleteErrorMsgFmt = 'Could not delete record %d from the database!';
 begin
   if FVirtualTree.SelectedCount <> 1 then begin
     Exit;
@@ -530,9 +538,7 @@ begin
 
   I := GetItemIndex(VNode);
 
-  VResult := MessageDlg(
-    Format('Delete record #%d from the database?', [I+1]), mtConfirmation, [mbYes, mbCancel], 0
-  );
+  VResult := MessageDlg(Format(rsDeleteConfirmFmt, [I+1]), mtConfirmation, [mbYes, mbNo], 0);
 
   if VResult <> mrYes then begin
     Exit;
@@ -543,10 +549,8 @@ begin
     UpdateTree;
   except
     on E: Exception do begin
-      MessageDlg(
-        Format('Can''t delete record #%d from the database!', [I+1]) + #13#10 +
-        E.ClassName + ': ' + E.Message, mtError, [mbOK], 0
-      );
+      MessageDlg(Format(rsDeleteErrorMsgFmt, [I+1]) + #13#10 + #13#10 +
+        E.ClassName + ': ' + E.Message, mtError, [mbOK], 0);
     end;
   end;
 end;
@@ -557,6 +561,9 @@ var
   VNode: PVirtualNode;
   VResult: TModalResult;
   VItem: TEventLogItem;
+resourcestring
+  rsEditConfirmFmt = 'Are you sure you want to change the version of record %0:d to %1:s?';
+  rsEditErrorMsgFmt = 'Could not update record %d in the database!';
 begin
   if FVirtualTree.SelectedCount <> 1 then begin
     Exit;
@@ -580,10 +587,7 @@ begin
     Exit;
   end;
 
-  VResult := MessageDlg(
-    Format('Are you sure you want to set record #%d version to %s?', [I+1, VItem.Version]),
-    mtConfirmation, [mbYes, mbCancel], 0
-  );
+  VResult := MessageDlg(Format(rsEditConfirmFmt, [I+1, VItem.Version]), mtConfirmation, [mbYes, mbNo], 0);
 
   if VResult <> mrYes then begin
     Exit;
@@ -593,10 +597,8 @@ begin
     FStorage.UpdateItem(VItem);
   except
     on E: Exception do begin
-      MessageDlg(
-        Format('Can''t update record #%d in the database!', [I+1]) + #13#10 +
-        E.ClassName + ': ' + E.Message, mtError, [mbOK], 0
-      );
+      MessageDlg(Format(rsEditErrorMsgFmt, [I+1]) + #13#10 + #13#10 +
+        E.ClassName + ': ' + E.Message, mtError, [mbOK], 0);
       Exit;
     end;
   end;

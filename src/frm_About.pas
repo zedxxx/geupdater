@@ -42,22 +42,17 @@ procedure TfrmAbout.FormShow(Sender: TObject);
 
 var
   VBuildTime: TDateTime;
+resourcestring
+  rsBuildCaptionFmt = 'Build: %s UTC';
 begin
   VBuildTime := _LinkerTimeStamp;
-  txtBuild.Caption := 'Build: ' + FormatDateTime('yyyy-mm-dd hh:nn:ss', VBuildTime) + ' UTC';
+  txtBuild.Caption := Format(rsBuildCaptionFmt, [FormatDateTime('yyyy-mm-dd hh:nn:ss', VBuildTime)]);
   txtCopyright.Caption := 'Copyright ' + #169 + ' 2009-' + FormatDateTime('yyyy', VBuildTime) + ', zed';
 end;
 
 procedure TfrmAbout.txtHomePageClick(Sender: TObject);
 begin
-  ShellExecute(
-    Application.Handle,
-    PChar('open'),
-    PChar(txtHomePage.Caption),
-    nil,
-    nil,
-    SW_SHOW
-  );
+  ShellExecute(Application.Handle, PChar('open'), PChar(txtHomePage.Caption), nil, nil, SW_SHOW);
 end;
 
 procedure TfrmAbout.btnOkClick(Sender: TObject);
