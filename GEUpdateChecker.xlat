@@ -117,12 +117,22 @@
               </property>
             </properties>
           </item>
+          <item name="frm_EventLogView_rsFormCaptionDef">
+            <properties>
+              <property>
+                <value>Time Line</value>
+                <translations>
+                  <translation language="ru-RU">История</translation>
+                </translations>
+              </property>
+            </properties>
+          </item>
           <item name="frm_EventLogView_rsFormCaptionFmt">
             <properties>
               <property>
-                <value>Time Line [%0:d/%1:d]</value>
+                <value>Time Line [%0:d of %1:d]</value>
                 <translations>
-                  <translation language="ru-RU">История [%0:d/%1:d]</translation>
+                  <translation language="ru-RU">История [%0:d из %1:d]</translation>
                 </translations>
               </property>
             </properties>
@@ -150,9 +160,9 @@
           <item name="frm_EventLogView_rsVTVColNum">
             <properties>
               <property>
-                <value>Num</value>
+                <value>#</value>
                 <translations>
-                  <translation language="ru-RU" status="proposed">Номер</translation>
+                  <translation language="ru-RU">№</translation>
                 </translations>
               </property>
             </properties>
