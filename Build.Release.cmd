@@ -1,3 +1,4 @@
+@echo off
 
 set app=GEUpdateChecker
 

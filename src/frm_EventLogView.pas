@@ -161,7 +161,7 @@ procedure TfrmEventLogViewer.FormCreate(Sender: TObject);
       if VState[I].Size > 0 then
         ADef[I].Size := VState[I].Size;
 
-      if VState[I].Position >= 0 then
+      if (I > 0) and (VState[I].Position > 0) then // keep Num column always first
         ADef[I].Position := VState[I].Position;
     end;
   end;
@@ -182,7 +182,7 @@ var
   VTreeColumnsState: TTreeColumnsState;
   VTreeShowOpt: TTreeShowOptRec;
 resourcestring
-  rsVTVColNum = 'Num';
+  rsVTVColNum = '#';
   rsVTVColTime = 'Time';
   rsVTVColName = 'Name';
   rsVTVColVersion = 'Version';
@@ -229,7 +229,6 @@ begin
 
     PopupMenu := pmMain;
 
-    TreeOptions.MiscOptions := [toReadOnly];
     NodeDataSize := 0;
     Left := 0;
     Top := 0;
@@ -265,6 +264,7 @@ begin
       hoDrag,
       hoHotTrack,
       hoRestrictDrag,
+      hoShowSortGlyphs,
       hoVisible
     ];
 
@@ -285,7 +285,7 @@ begin
           ];
         end else begin
           Options := [
-            coAllowClick,
+            //coAllowClick, // custom sorting is not supported yet
             coDraggable,
             coEnabled,
             coParentBidiMode,
@@ -300,7 +300,7 @@ begin
     end;
     Header.AutoSizeIndex := 0;
 
-    Header.SortColumn := VTreeShowOpt.SortColumn;
+    Header.SortColumn := 0; // VTreeShowOpt.SortColumn; // custom sorting is not supported yet
     Header.SortDirection := TSortDirection(VTreeShowOpt.SortDirection);
   end;
 end;
@@ -361,6 +361,10 @@ begin
 
   VTimer.Stop;
 
+  for VInfo in FGuidInfo.Values do begin
+    VInfo.ItemsCount := 0;
+  end;
+
   for I := 0 to Length(FEvents) - 1 do begin
     if FGuidInfo.TryGetValue(FEvents[I].GUID, VInfo) then begin
       Inc(VInfo.ItemsCount);
@@ -372,8 +376,11 @@ begin
     VNode := FVirtualTree.RootNode.FirstChild;
     FVirtualTree.Selected[VNode] := True;
     FVirtualTree.FocusedNode := VNode;
-    UpdateFormCaption(VNode);
+  end else begin
+    VNode := nil;
   end;
+
+  UpdateFormCaption(VNode);
 
   lblInfo.Caption := Format(rsInfoCaptionFmt, [Length(FEvents), VTimer.Elapsed.TotalSeconds]);
 end;
@@ -385,10 +392,7 @@ end;
 
 function TfrmEventLogViewer.GetItemIndex(const ANode: PVirtualNode): Int64;
 begin
-  if not Assigned(ANode) then begin
-    Result := -1;
-    Assert(False);
-  end;
+  Assert(ANode <> nil);
   if FVirtualTree.Header.SortDirection = sdAscending then begin
     Result := ANode.Index;
   end else begin
@@ -489,6 +493,12 @@ begin
   end else begin
     Sender.SortDirection := sdAscending;
   end;
+  if FVirtualTree.RootNodeCount > 0 then begin
+    var VNode := FVirtualTree.RootNode.FirstChild;
+    FVirtualTree.Selected[VNode] := True;
+    FVirtualTree.FocusedNode := VNode;
+    UpdateFormCaption(VNode);
+  end;
 end;
 
 procedure TfrmEventLogViewer.mniDeleteRecordClick(Sender: TObject);
@@ -507,21 +517,29 @@ var
   VCount: Integer;
   VInfo: TGuidInfo;
 resourcestring
+  rsFormCaptionDef = 'Time Line';
   rsFormCaptionFmt = 'Time Line [%0:d of %1:d]';
 begin
+  if ANode = nil then begin
+    Self.Caption := rsFormCaptionDef;
+    Exit;
+  end;
+
   I := GetItemIndex(ANode);
+
   if FGuidInfo.TryGetValue(FEvents[I].GUID, VInfo) then begin
     VCount := VInfo.ItemsCount;
   end else begin
     VCount := 0;
   end;
+
   Self.Caption := Format(rsFormCaptionFmt, [VCount, Length(FEvents)]);
 end;
 
 procedure TfrmEventLogViewer.OnVTFocusChanged(Sender: TBaseVirtualTree; Node: PVirtualNode; Column: TColumnIndex);
 begin
+  UpdateFormCaption(Node);
   if Node <> nil then begin
-    UpdateFormCaption(Node);
     FVirtualTree.Refresh;
   end;
 end;

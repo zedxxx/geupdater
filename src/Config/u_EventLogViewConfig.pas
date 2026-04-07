@@ -42,12 +42,18 @@ const
 { TEventLogViewConfig }
 
 constructor TEventLogViewConfig.Create;
+var
+  I: Integer;
 begin
   inherited Create;
 
   FBounds := Rect(0, 0, 0, 0);
 
   SetLength(FTreeColumnsState, 5);
+  for I := 0 to Length(FTreeColumnsState) - 1 do begin
+    FTreeColumnsState[I].Size := -1;
+    FTreeColumnsState[I].Position := -1;
+  end;
 
   FTreeShowOpt.SortColumn := 0;
   FTreeShowOpt.SortDirection := 1;
@@ -60,13 +66,13 @@ begin
   FBounds := Bounds(
     AIni.ReadInteger(cSectionName, 'Left', FBounds.Left),
     AIni.ReadInteger(cSectionName, 'Top', FBounds.Top),
-    AIni.ReadInteger(cSectionName, 'Width', FBounds.Right - FBounds.Top),
+    AIni.ReadInteger(cSectionName, 'Width', FBounds.Right - FBounds.Left),
     AIni.ReadInteger(cSectionName, 'Height', FBounds.Bottom - FBounds.Top)
   );
 
   for I := 0 to Length(FTreeColumnsState) - 1 do begin
-    FTreeColumnsState[I].Size := AIni.ReadInteger(cSectionName, 'ColSize_' + IntToStr(I), -1);
-    FTreeColumnsState[I].Position := AIni.ReadInteger(cSectionName, 'ColPosition_' + IntToStr(I), -1);
+    FTreeColumnsState[I].Size := AIni.ReadInteger(cSectionName, 'ColSize_' + IntToStr(I), FTreeColumnsState[I].Size);
+    FTreeColumnsState[I].Position := AIni.ReadInteger(cSectionName, 'ColPosition_' + IntToStr(I), FTreeColumnsState[I].Position);
   end;
 
   FTreeShowOpt.SortColumn := AIni.ReadInteger(cSectionName, 'SortColumn', FTreeShowOpt.SortColumn);
