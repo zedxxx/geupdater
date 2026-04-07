@@ -2,10 +2,10 @@
     <PropertyGroup>
         <Base>True</Base>
         <AppType>Application</AppType>
-        <Config Condition="'$(Config)'==''">Release</Config>
+        <Config Condition="'$(Config)'==''">Debug</Config>
         <FrameworkType>VCL</FrameworkType>
         <MainSource>GEUpdateChecker.dpr</MainSource>
-        <Platform Condition="'$(Platform)'==''">Win64</Platform>
+        <Platform Condition="'$(Platform)'==''">Win32</Platform>
         <ProjectGuid>{1D8AABE2-6D76-4A50-817A-F2A05E7AE29A}</ProjectGuid>
         <ProjectName Condition="'$(ProjectName)'==''">GEUpdateChecker</ProjectName>
         <ProjectVersion>20.4</ProjectVersion>
@@ -69,11 +69,11 @@
         <Icon_MainIcon>$(BDS)\bin\delphi_PROJECTICON.ico</Icon_MainIcon>
         <VerInfo_AutoIncVersion>true</VerInfo_AutoIncVersion>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
-        <VerInfo_Keys>CompanyName=zed;FileDescription=$(MSBuildProjectName);FileVersion=2026.4.5.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProgramID=$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
+        <VerInfo_Keys>CompanyName=zed;FileDescription=$(MSBuildProjectName);FileVersion=2026.4.7.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProgramID=$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
         <VerInfo_Locale>1033</VerInfo_Locale>
         <VerInfo_MajorVer>2026</VerInfo_MajorVer>
         <VerInfo_MinorVer>4</VerInfo_MinorVer>
-        <VerInfo_Release>5</VerInfo_Release>
+        <VerInfo_Release>7</VerInfo_Release>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
         <AppDPIAwarenessMode>PerMonitor</AppDPIAwarenessMode>
