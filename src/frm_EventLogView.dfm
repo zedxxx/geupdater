@@ -3,7 +3,7 @@ object frmEventLogViewer: TfrmEventLogViewer
   Top = 0
   Caption = 'Time Line'
   ClientHeight = 481
-  ClientWidth = 655
+  ClientWidth = 610
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -14,6 +14,7 @@ object frmEventLogViewer: TfrmEventLogViewer
   Position = poOwnerFormCenter
   OnCreate = FormCreate
   OnDestroy = FormDestroy
+  OnHide = FormHide
   OnShow = FormShow
   PixelsPerInch = 96
   TextHeight = 13
@@ -35,7 +36,7 @@ object frmEventLogViewer: TfrmEventLogViewer
   object pnlTreeView: TPanel
     Left = 0
     Top = 0
-    Width = 655
+    Width = 610
     Height = 443
     Align = alCustom
     Anchors = [akLeft, akTop, akRight, akBottom]
@@ -43,7 +44,7 @@ object frmEventLogViewer: TfrmEventLogViewer
     TabOrder = 0
   end
   object btnClose: TButton
-    Left = 572
+    Left = 527
     Top = 449
     Width = 75
     Height = 24

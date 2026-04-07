@@ -20,13 +20,13 @@ type
     FGuidDict: TGuidDictionary;
     class function DateTimeToInt64(const AValue: TDateTime): Int64; inline;
     class function Int64ToDateTime(const AValue: Int64): TDateTime; inline;
-    class procedure ItemFromQuery(const AGuid: TGUID; const AQuery: TZQuery; out AItem: TEventLogItem); inline;
+    class procedure ItemFromQuery(const AGuid: TGUID; const AQuery: TZQuery; const AItem: PEventLogItem); inline;
   private
     { IEventLogStorage }
     procedure AddItem(const AItem: TEventLogItem);
     procedure UpdateItem(const AItem: TEventLogItem);
     procedure DeleteItem(const AItemID: Int64);
-    function FindLast(const AGuid: TGUID; out AItem: TEventLogItem): Boolean;
+    function FindLast(const AGuid: TGUID; const AItem: PEventLogItem): Boolean;
     function FetchAll: TEventLogItemArray;
   public
     constructor Create(const ADbFileName: string = '');
@@ -298,7 +298,7 @@ end;
 class procedure TEventLogStorageBySQLite.ItemFromQuery(
   const AGuid: TGUID;
   const AQuery: TZQuery;
-  out AItem: TEventLogItem
+  const AItem: PEventLogItem
 );
 begin
   AItem.GUID := AGuid;
@@ -310,7 +310,7 @@ end;
 
 function TEventLogStorageBySQLite.FindLast(
   const AGuid: TGUID;
-  out AItem: TEventLogItem
+  const AItem: PEventLogItem
 ): Boolean;
 var
   VGuidId: Int64;
@@ -388,7 +388,7 @@ begin
 
           VGuidId := VQuery.FieldByName('GuidID').AsLargeInt;
           if FGuidDict.TryGetGuidById(VGuidId, VGuid) then begin
-            ItemFromQuery(VGuid, VQuery, Result[I]);
+            ItemFromQuery(VGuid, VQuery, @Result[I]);
             Inc(I);
           end else begin
             raise Exception.CreateFmt('Can''t find GUID for GuidID = %d', [VGuidId])

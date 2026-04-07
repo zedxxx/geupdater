@@ -98,7 +98,7 @@ end;
 
 function TEventLogViewConfig.GetTreeColumnsState: TTreeColumnsState;
 begin
-  Result := FTreeColumnsState;
+  Result := Copy(FTreeColumnsState);
 end;
 
 function TEventLogViewConfig.GetTreeShowOpt: TTreeShowOptRec;
@@ -108,7 +108,7 @@ end;
 
 procedure TEventLogViewConfig.SetTreeColumnsState(const AValue: TTreeColumnsState);
 begin
-  FTreeColumnsState := AValue;
+  FTreeColumnsState := Copy(AValue);
 end;
 
 procedure TEventLogViewConfig.SetTreeShowOpt(const AValue: TTreeShowOptRec);

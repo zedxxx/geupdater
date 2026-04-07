@@ -45,6 +45,7 @@ type
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure FormShow(Sender: TObject);
+    procedure FormHide(Sender: TObject);
     procedure mniDeleteRecordClick(Sender: TObject);
     procedure mniEditVersionClick(Sender: TObject);
   private
@@ -144,7 +145,7 @@ end;
 
 procedure TfrmEventLogViewer.FormCreate(Sender: TObject);
 
-  procedure ReadTreeColumnsState(var ADef: TTreeColumnsState);
+  procedure ReadTreeColumnsState(const ADef: TTreeColumnsState);
   var
     I: Integer;
     VState: TTreeColumnsState;
@@ -157,7 +158,7 @@ procedure TfrmEventLogViewer.FormCreate(Sender: TObject);
     end;
 
     for I := 0 to Length(ADef) - 1 do begin
-      if VState[I].Size >= 0 then
+      if VState[I].Size > 0 then
         ADef[I].Size := VState[I].Size;
 
       if VState[I].Position >= 0 then
@@ -198,16 +199,16 @@ begin
   VTreeColumnsState[0].Size := 50;
   VTreeColumnsState[0].Position := 0;
 
-  VTreeColumnsState[1].Size := 150;
+  VTreeColumnsState[1].Size := 135;
   VTreeColumnsState[1].Position := 1;
 
-  VTreeColumnsState[2].Size := 250;
+  VTreeColumnsState[2].Size := 150;
   VTreeColumnsState[2].Position := 2;
 
-  VTreeColumnsState[3].Size := 80;
+  VTreeColumnsState[3].Size := 115;
   VTreeColumnsState[3].Position := 3;
 
-  VTreeColumnsState[4].Size := 150;
+  VTreeColumnsState[4].Size := 135;
   VTreeColumnsState[4].Position := 4;
 
   // read config
@@ -304,7 +305,7 @@ begin
   end;
 end;
 
-procedure TfrmEventLogViewer.FormDestroy(Sender: TObject);
+procedure TfrmEventLogViewer.FormHide(Sender: TObject);
 
   procedure WriteConfig;
   var
@@ -332,7 +333,10 @@ procedure TfrmEventLogViewer.FormDestroy(Sender: TObject);
 
 begin
   WriteConfig;
+end;
 
+procedure TfrmEventLogViewer.FormDestroy(Sender: TObject);
+begin
   FreeAndNil(FGuidInfo);
 end;
 
@@ -381,6 +385,10 @@ end;
 
 function TfrmEventLogViewer.GetItemIndex(const ANode: PVirtualNode): Int64;
 begin
+  if not Assigned(ANode) then begin
+    Result := -1;
+    Assert(False);
+  end;
   if FVirtualTree.Header.SortDirection = sdAscending then begin
     Result := ANode.Index;
   end else begin
@@ -499,7 +507,7 @@ var
   VCount: Integer;
   VInfo: TGuidInfo;
 resourcestring
-  rsFormCaptionFmt = 'Time Line [%0:d/%1:d]';
+  rsFormCaptionFmt = 'Time Line [%0:d of %1:d]';
 begin
   I := GetItemIndex(ANode);
   if FGuidInfo.TryGetValue(FEvents[I].GUID, VInfo) then begin

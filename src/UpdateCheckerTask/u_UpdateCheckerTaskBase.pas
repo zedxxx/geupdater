@@ -76,7 +76,7 @@ procedure TUpdateCheckerTaskBase.AfterConstruction;
 begin
   inherited;
   FInfo.Conf := GetConf;
-  FPrevInfoExists := FEventLog.FindLast(StringToGUID(FInfo.Conf.GUID), FPrevInfo);
+  FPrevInfoExists := FEventLog.FindLast(StringToGUID(FInfo.Conf.GUID), @FPrevInfo);
   UpdateListener;
 end;
 
